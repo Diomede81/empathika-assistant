@@ -23,13 +23,13 @@ const MAX_SECONDS = 366 * 24 * 3600;
 const MISSED_REMINDER_MS = 24 * 3600_000;
 /** ...and kitchen timers only if they finished very recently. */
 const MISSED_TIMER_MS = 30 * 60_000;
-/** Give the rest of Max a moment to start listening before announcing missed ones. */
+/** Give the rest of Empathika a moment to start listening before announcing missed ones. */
 const STARTUP_ANNOUNCE_MS = 8000;
 
 /**
  * Timers and reminders. Saved (encrypted, next to the memory vaults) on every change, so
- * they survive restarts and updates; reminders that came due while Max was off are
- * announced when he's back. Emits 'fired' with the Timer when one goes off; Max announces
+ * they survive restarts and updates; reminders that came due while Empathika was off are
+ * announced when he's back. Emits 'fired' with the Timer when one goes off; Empathika announces
  * it out loud.
  */
 @Injectable()
@@ -142,7 +142,7 @@ export class TimerService extends EventEmitter implements OnModuleInit, OnModule
       const late = now - t.endsAt;
       if (t.reminder && late < MISSED_REMINDER_MS) missed.push(`your reminder "${t.reminder.replace(/\.$/, '')}"`);
       else if (!t.reminder && late < MISSED_TIMER_MS) missed.push(`your ${t.name ? `${t.name} ` : ''}timer`);
-      this.log.log(`Timer #${t.id} (${describe(t)}) came due while Max was off`);
+      this.log.log(`Timer #${t.id} (${describe(t)}) came due while Empathika was off`);
     }
     this.nextId = Math.max(saved.nextId || 1, ...saved.timers.map((t) => (t?.id ?? 0) + 1));
     this.log.log(`Restored ${this.timers.size} timer${this.timers.size === 1 ? '' : 's'} and reminder${this.timers.size === 1 ? '' : 's'}`);
@@ -170,7 +170,7 @@ export function describe(t: Pick<Timer, 'name' | 'reminder'>): string {
   return t.name ? `"${t.name}" timer` : 'timer';
 }
 
-/** What Max says when a timer goes off. */
+/** What Empathika says when a timer goes off. */
 export function announcement(t: Timer): string {
   if (t.say) return t.say;
   if (t.reminder) return `Reminder: ${t.reminder}.`;

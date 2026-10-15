@@ -16,7 +16,7 @@ def convert(src, dst):
             elif p[0] == 'endfacet':
                 tris.append((normal, verts))
     with open(dst, 'wb') as o:
-        o.write(b'Max box - binary STL'.ljust(80, b' '))
+        o.write(b'Empathika box - binary STL'.ljust(80, b' '))
         o.write(struct.pack('<I', len(tris)))
         for n, v in tris:
             o.write(struct.pack('<12fH', *n, *v[0], *v[1], *v[2], 0))

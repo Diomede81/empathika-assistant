@@ -1,0 +1,13 @@
+[Unit]
+Description=Empathika WiFi setup (setup network + page when offline)
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Environment=EMPATHIKA_RUN_DIR=/run/empathika
+ExecStart=/usr/bin/python3 /usr/local/lib/empathika/empathika-wifi-setup.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

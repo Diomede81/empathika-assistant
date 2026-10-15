@@ -1,6 +1,6 @@
-# Max box enclosure
+# Empathika box enclosure
 
-A compact, 3D-printable home for Max: round 4″ face on the front, a sealed speaker below it, the
+A compact, 3D-printable home for Empathika: round 4″ face on the front, a sealed speaker below it, the
 4-microphone array under a perforated top, and the Raspberry Pi 5 on the back wall.
 
 **Outside size:** 136 mm wide × 120 mm deep × 218 mm tall.
@@ -51,7 +51,7 @@ print the front panel in a contrasting colour if you like a two-tone look.
 
 The screen and mic board dimensions aren't published in a form I could check, so these are best
 estimates. Measure your parts with calipers and change the values marked `MEASURE` at the top of
-`max-box.scad`:
+`empathika-box.scad`:
 
 | Setting | What to measure | Current value |
 | --- | --- | --- |
@@ -72,7 +72,7 @@ a cheap way to check the screen fit.
 Install [OpenSCAD](https://openscad.org), then from this folder:
 
 ```bash
-for p in body front chamber screen_ring; do openscad -D "part=\"$p\"" -o stl/$p.stl max-box.scad; done
+for p in body front chamber screen_ring; do openscad -D "part=\"$p\"" -o stl/$p.stl empathika-box.scad; done
 python3 stl2bin.py stl/*.stl      # optional: binary STL, about 5x smaller
 ```
 
@@ -106,6 +106,6 @@ front panel take a few minutes each to compute because of the grille holes.
   fuller, tighter sound; a driver loose inside a case sounds thin and boxy.
 - **Microphones:** the mic board is foam-sealed to the perforated top and kept away from the speaker
   chamber, so the speaker's vibration and sound reach the mics as little as possible. The XVF3800's
-  echo cancellation handles the rest, so "Hey Max" works while he talks or plays music.
+  echo cancellation handles the rest, so "Hey Empathika" works while he talks or plays music.
 - **Cooling:** air comes in through the slots in the base (rear half) and leaves through the slots in
   the back, past the Pi's cooler.

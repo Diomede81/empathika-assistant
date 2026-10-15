@@ -14,7 +14,7 @@ export function renderFace(bootId = ''): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Max</title>
+<title>Empathika</title>
 <style>
 :root { --bg: #06090d; --ink: #8ff0d6; --dim: #5d7d76; --paper: #ffffff; --warn: #ffb36b; color-scheme: dark; }
 html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; cursor: none;
@@ -35,7 +35,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
 @keyframes spin { to { transform: rotate(360deg); } }
 .back { font: inherit; font-size: 3.6vmin; font-weight: 700; padding: 1.8vmin 6vmin; border-radius: 99vmin; border: .5vmin solid #2b4a45; background: #0f1b1a; color: #e9fff8; margin-top: 1vmin; }
 .back:active { transform: scale(.97); }
-/* Cards: under Max's small face at the top of the round screen. */
+/* Cards: under Empathika's small face at the top of the round screen. */
 #cardEl { position: fixed; left: 50%; top: 24vh; bottom: 9vh; transform: translateX(-50%); width: 72vmin; display: flex; flex-direction: column; justify-content: center; gap: 1.6vmin;
   color: #e9fff8; text-align: center; transition: opacity .25s ease, transform .25s ease; }
 #cardEl[hidden] { display: none; }
@@ -159,7 +159,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   // ---------- live data ----------
   if (!demo) {
     const es = new EventSource('/events');
-    // Max restarted with a new version: load the new face (the old page would keep running).
+    // Empathika restarted with a new version: load the new face (the old page would keep running).
     const BOOT = ${JSON.stringify(bootId)};
     es.addEventListener('hello', (e) => { const b = JSON.parse(e.data).boot; if (BOOT && b && b !== BOOT) location.reload(); });
     es.addEventListener('info', (e) => { info = JSON.parse(e.data); connected = true; lastMsg = Date.now(); renderSetup(); renderCard(); renderCaption(); renderFrame(); renderLock(); });
@@ -237,7 +237,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
         activity: label === 'Checking email' ? { icon: '📧', label: 'Checking your email' } : undefined,
         notice: label === 'Could not finish' ? "Couldn't finish: checking your email" : undefined,
         music: label === 'Speaking' ? { title: 'Yellow', artist: 'Coldplay' } : undefined,
-        wifi: state === 'setup' ? { state: 'setup', ssid: 'Max-Setup', password: '48213097', qrSvg: demoQr() } : undefined,
+        wifi: state === 'setup' ? { state: 'setup', ssid: 'Empathika-Setup', password: '48213097', qrSvg: demoQr() } : undefined,
         card: DEMO_CARDS[label],
         caption: label === 'Captions' ? { who: 'you', text: "What's the weather like this afternoon?" } : undefined,
         glance: label === 'Glance' || label === 'Photo frame' ? {
@@ -257,7 +257,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   // Pretend speech for the demo: mouth shapes for each letter of a sentence.
   const SHAPES = { a: [0.8, 0, 0, 0], e: [0.45, 0.65, 0, 0], i: [0.25, 0.95, 0, 0], o: [0.5, 0, 0.7, 0], u: [0.3, 0, 0.95, 0],
                    s: [0.12, 0.3, 0, 1], m: [0, 0, 0, 0], x: [0.35, 0.2, 0, 0.2] };
-  const LINE = 'hello im max   what can i do for you today   sure thats done   ';
+  const LINE = 'hello im empathika   what can i do for you today   sure thats done   ';
   const letterShape = (c) => SHAPES[/[aeiou]/.test(c) ? c : /[y]/.test(c) ? 'i' : /[w]/.test(c) ? 'u' : /[sfzctjh]/.test(c) ? 's' : /[mbp ]/.test(c) ? 'm' : 'x'];
   function demoMouth(now) {
     const held = SHAPES[params.get('mouth') || ''];
@@ -280,7 +280,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     return s + '</svg>';
   }
 
-  // "Back to Max" on the WiFi screen: hide it at once (the box takes a few seconds to leave setup mode).
+  // "Back to Empathika" on the WiFi screen: hide it at once (the box takes a few seconds to leave setup mode).
   let wifiBackUntil = 0;
   function renderSetup() {
     const w = info.wifi;
@@ -297,7 +297,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
         '<div class="line">Network <b>' + esc(w.ssid) + '</b></div>' +
         '<div class="line">Password <b>' + esc(w.password) + '</b></div>' +
         '<div class="hint">Scan with your phone camera, then choose your WiFi on the page that opens.</div>' +
-        '<button class="back" id="wifiBack">Back to Max</button>';
+        '<button class="back" id="wifiBack">Back to Empathika</button>';
       const back = document.getElementById('wifiBack');
       if (back) back.onclick = (e) => {
         e.stopPropagation();
@@ -308,7 +308,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     }
   }
 
-  // ---------- cards (Max's face shrinks to the top while one shows) ----------
+  // ---------- cards (Empathika's face shrinks to the top while one shows) ----------
   const cardEl = document.getElementById('card' + 'El');
   const captionEl = document.getElementById('caption');
   let cardKey = '', cardGone = '';
@@ -339,7 +339,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       }
     }
     if (c.actions && c.actions.length) h += '<div class="cacts">' + c.actions.map((a) => '<button class="' + (a.style || '') + '" data-a="' + escC(a.id) + '">' + escC(a.label) + '</button>').join('') + '</div>';
-    h += '<button class="cback" data-a="dismiss">Back to Max</button>';
+    h += '<button class="cback" data-a="dismiss">Back to Empathika</button>';
     cardEl.innerHTML = h;
     cardEl.hidden = false;
     if (fresh) { cardEl.classList.add('enter'); requestAnimationFrame(() => requestAnimationFrame(() => cardEl.classList.remove('enter'))); }
@@ -372,7 +372,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     captionEl.innerHTML = (c.who === 'you' ? '<b>You: </b>' : '') + escC(c.text);
   }
 
-  // ---------- evening photo frame (while Max is idle; "Hey Max" or a touch brings him back) ----------
+  // ---------- evening photo frame (while Empathika is idle; "Hey Empathika" or a touch brings him back) ----------
   const FRAME_IDLE_MS = 2 * 60000;
   const frameEl = document.getElementById('frame');
   const frameImgs = [document.getElementById('fa'), document.getElementById('fb')];
@@ -412,7 +412,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   }
   setInterval(renderFrame, 1000);
 
-  // ---------- start-up code keypad (until the code is entered, Max shows nothing personal) ----------
+  // ---------- start-up code keypad (until the code is entered, Empathika shows nothing personal) ----------
   const lockEl = document.getElementById('lock');
   const lkDots = document.getElementById('lkDots'), lkMsg = document.getElementById('lkMsg'), lkPad = document.getElementById('lkPad');
   let lkCode = '', lkNote = '', lkBusy = false;
@@ -472,7 +472,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     if (!menuEl.hidden) return;
     pressAt = performance.now(); pressFired = false;
   });
-  // A short tap on the face (not a hold): Max shows what's useful (e.g. the music card).
+  // A short tap on the face (not a hold): Empathika shows what's useful (e.g. the music card).
   addEventListener('pointerup', () => {
     if (frameTouch) { frameTouch = false; pressAt = 0; return; }
     const quick = pressAt && performance.now() - pressAt < 350 && !pressFired && menuEl.hidden && !cardShown();
@@ -537,7 +537,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     fetch('/device').then((r) => r.json()).then((d) => { device = d; refreshRows(); }).catch(() => undefined);
     menu('<div class="rows">' + deviceRows() + '</div><button class="off" id="mOff">Turn off</button><button id="mRestart">Restart</button>' +
       '<div class="pair"><button id="mWifi">WiFi setup</button><button id="mUpdate">Update</button></div>' +
-      (info.canLock ? '<button id="mLock">🔒 Lock</button>' : '') + '<button class="quiet" id="mCancel">Back to Max</button>', {
+      (info.canLock ? '<button id="mLock">🔒 Lock</button>' : '') + '<button class="quiet" id="mCancel">Back to Empathika</button>', {
       mUpdate: showUpdate,
       mLock: () => { closeMenu(); fetch('/lock', { method: 'POST' }).catch(() => undefined); if (demo) { info.locked = { triesLeft: 5 }; renderLock(); } },
       mOff: () => confirmPower('poweroff'),
@@ -545,8 +545,8 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       mWifi: () => {
         closeMenu();
         fetch('/wifi-setup', { method: 'POST' }).then((r) => {
-          toast = r.ok ? 'Starting WiFi setup…' : 'WiFi setup only works on the Max box';
-        }).catch(() => { toast = 'WiFi setup only works on the Max box'; });
+          toast = r.ok ? 'Starting WiFi setup…' : 'WiFi setup only works on the Empathika box';
+        }).catch(() => { toast = 'WiFi setup only works on the Empathika box'; });
         toast = 'Starting WiFi setup…'; toastUntil = performance.now() + 4000;
       },
       mCancel: closeMenu,
@@ -554,15 +554,15 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   }
   // Update: check GitHub for a new version, show what's new, install on request.
   const escH = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-  const BACK = '<button class="quiet" id="uBack">Back to Max</button>';
+  const BACK = '<button class="quiet" id="uBack">Back to Empathika</button>';
   function showUpdate() {
     menu('<h1>Updates</h1><p>Checking for a new version…</p>' + BACK, { uBack: closeMenu });
     fetch('/update').then((r) => r.json()).then((d) => {
       if (menuEl.hidden) return;
       if (d.busy) return menu('<h1>Updating…</h1><p>' + escH(d.message) + '</p>' + BACK, { uBack: closeMenu });
-      if (!d.onBox) return menu('<h1>Updates</h1><p>Updating from here only works on the Max box.</p>' + BACK, { uBack: closeMenu });
+      if (!d.onBox) return menu('<h1>Updates</h1><p>Updating from here only works on the Empathika box.</p>' + BACK, { uBack: closeMenu });
       if (d.error) return menu('<h1>Updates</h1><p>' + escH(d.error) + '</p>' + BACK, { uBack: closeMenu });
-      if (!d.behind) return menu('<h1>Up to date</h1><p>Max has the latest version.</p>' + BACK, { uBack: closeMenu });
+      if (!d.behind) return menu('<h1>Up to date</h1><p>Empathika has the latest version.</p>' + BACK, { uBack: closeMenu });
       const list = (d.changes || []).slice(0, 3).map((c) => '<div>• ' + escH(c) + '</div>').join('') +
         ((d.changes || []).length > 3 ? '<div>…and ' + (d.changes.length - 3) + ' more</div>' : '');
       menu('<h1>' + d.behind + ' new change' + (d.behind === 1 ? '' : 's') + '</h1><div class="changes">' + list + '</div>' +
@@ -570,7 +570,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
         uBack: closeMenu,
         uGo: () => fetch('/update', { method: 'POST' }).then((r) => r.json()).then((x) => {
           menu(x.ok
-            ? '<h1>Updating…</h1><p>Max downloads the new version and restarts by himself. Back in 5 to 15 minutes.</p>' + BACK
+            ? '<h1>Updating…</h1><p>Empathika downloads the new version and restarts by himself. Back in 5 to 15 minutes.</p>' + BACK
             : '<h1>Updates</h1><p>' + escH(x.message) + '</p>' + BACK, { uBack: closeMenu });
         }).catch(() => menu('<h1>Updates</h1><p>Could not start the update.</p>' + BACK, { uBack: closeMenu })),
       });
@@ -581,7 +581,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     const off = action === 'poweroff';
     let left = 5;
     const draw = () => menu('<h1>' + (off ? 'Turning off' : 'Restarting') + ' in ' + left + '…</h1>' +
-      '<button class="quiet" id="pCancel">Cancel: back to Max</button>', { pCancel: closeMenu });
+      '<button class="quiet" id="pCancel">Cancel: back to Empathika</button>', { pCancel: closeMenu });
     draw();
     countdown = setInterval(() => {
       left -= 1;
@@ -590,18 +590,18 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       fetch('/power?action=' + action, { method: 'POST' }).then((r) => {
         if (!r.ok) throw new Error();
         menu(off
-          ? '<h1>Goodbye for now</h1><p>When the screen goes dark it is safe to unplug.</p><p>To turn Max on again, press the power button on the Raspberry Pi.</p>'
+          ? '<h1>Goodbye for now</h1><p>When the screen goes dark it is safe to unplug.</p><p>To turn Empathika on again, press the power button on the Raspberry Pi.</p>'
           : '<h1>Restarting…</h1><p>Back in about a minute.</p>', {});
         clearTimeout(menuIdle);
         // If the box hasn't gone down after 30 s, something stopped it: offer the way back.
         setTimeout(() => {
           if (menuEl.hidden) return;
-          menuList.insertAdjacentHTML('beforeend', '<button class="quiet" id="pBack">Back to Max</button>');
+          menuList.insertAdjacentHTML('beforeend', '<button class="quiet" id="pBack">Back to Empathika</button>');
           const bb = document.getElementById('pBack');
           if (bb) bb.onclick = (e) => { e.stopPropagation(); closeMenu(); };
         }, 30000);
       }).catch(() => {
-        menu('<h1>Not available</h1><p>Turning off and restarting only work on the Max box.</p><button class="quiet" id="pOk">Back to Max</button>', { pOk: closeMenu });
+        menu('<h1>Not available</h1><p>Turning off and restarting only work on the Empathika box.</p><button class="quiet" id="pOk">Back to Empathika</button>', { pOk: closeMenu });
       });
     }, 1000);
   }

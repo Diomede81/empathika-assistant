@@ -1,6 +1,6 @@
 /**
- * Type to Max instead of talking: same AI model, same Home Assistant tools, no audio.
- *   npm run chat              (or: docker compose run --rm max chat)
+ * Type to Empathika instead of talking: same AI model, same Home Assistant tools, no audio.
+ *   npm run chat              (or: docker compose run --rm empathika chat)
  * Ideal for testing the Home Assistant connection and choosing an LLM before the
  * microphone/speaker setup is done. Add --speak to also hear the replies through Piper.
  */
@@ -64,7 +64,7 @@ async function main(): Promise<void> {
   console.log(
     ha.connected
       ? `\nHome Assistant: connected (${ha.tools} tools)`
-      : `\n!! Home Assistant: NOT connected - ${ha.error}\n!! Max can chat but cannot control devices. Fix .env and run again.`,
+      : `\n!! Home Assistant: NOT connected - ${ha.error}\n!! Empathika can chat but cannot control devices. Fix .env and run again.`,
   );
   const face = app.get(FaceService);
   const memory = app.get(MemoryService);
@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     console.log(`Memory: ${vaults.join(', ')}. ${app.get(ModesService).describe()}`);
   }
   const transcript: TranscriptLine[] = [];
-  console.log('\nType a request for Max (e.g. "turn on the kitchen lights"). Empty line or Ctrl+C to quit.\n');
+  console.log('\nType a request for Empathika (e.g. "turn on the kitchen lights"). Empty line or Ctrl+C to quit.\n');
 
   rl.setPrompt('You: ');
   rl.prompt();
@@ -90,7 +90,7 @@ async function main(): Promise<void> {
     const speech = speak ? tts.session() : undefined;
     face.setState('thinking');
     const splitter = new SentenceSplitter();
-    process.stdout.write('Max: ');
+    process.stdout.write('Empathika: ');
     try {
       for await (const fragment of llm.respond(history)) {
         if (!first) first = Date.now();
@@ -110,7 +110,7 @@ async function main(): Promise<void> {
       speech?.say(s);
     }
     console.log(`\n      (first words after ${first ? first - started : '-'} ms, total ${Date.now() - started} ms)\n`);
-    if (reply.trim()) transcript.push({ who: 'max', text: reply.trim() });
+    if (reply.trim()) transcript.push({ who: 'empathika', text: reply.trim() });
     face.setState('idle');
     await speech?.done();
     rl.prompt();

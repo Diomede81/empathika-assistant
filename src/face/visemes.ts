@@ -1,5 +1,5 @@
 /**
- * Real-time lip-sync from audio. Each 50 ms of Max's voice is analysed for where its
+ * Real-time lip-sync from audio. Each 50 ms of Empathika's voice is analysed for where its
  * energy sits in the spectrum, which tells the mouth shapes apart:
  *  - open  (a, ah, o): strong energy around 500-1100 Hz (high first formant)
  *  - wide  (ee, i, e): strong energy around 1800-3200 Hz (high second formant)

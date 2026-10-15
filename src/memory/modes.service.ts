@@ -18,12 +18,12 @@ const DAY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const MAX_OVERRIDE_MS = 24 * 3600_000;
 
 /**
- * Which part of Max's memory is open right now:
+ * Which part of Empathika's memory is open right now:
  *  - personal: Personal + Household (Work is locked)
  *  - work:     Work + Household (Personal is locked)
  *  - guest:    Household only
  * Personal and work never see each other's memories; Household is shared home matters.
- * Work mode follows WORK_HOURS automatically; "Max, work mode / personal mode / guest mode"
+ * Work mode follows WORK_HOURS automatically; "Empathika, work mode / personal mode / guest mode"
  * overrides it until the schedule next changes (guest mode until switched off, max 24 h).
  */
 @Injectable()

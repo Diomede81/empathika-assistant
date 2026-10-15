@@ -1,7 +1,7 @@
-// Max box - enclosure for Max the home assistant (Raspberry Pi 5 + round 4" screen +
+// Empathika box - enclosure for Empathika the home assistant (Raspberry Pi 5 + round 4" screen +
 // ReSpeaker XVF3800 mic array + Visaton FRS 7 speaker). Parametric OpenSCAD model.
 //
-// Render one part at a time:  openscad -D 'part="body"' -o body.stl max-box.scad
+// Render one part at a time:  openscad -D 'part="body"' -o body.stl empathika-box.scad
 // Parts: "body", "front", "chamber", "screen_ring", "assembly" (preview with stand-in parts)
 //
 // IMPORTANT: the screen and mic board sizes below are best estimates. Measure your parts

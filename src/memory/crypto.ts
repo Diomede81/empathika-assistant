@@ -6,7 +6,7 @@ import { createCipheriv, createDecipheriv, hkdfSync, randomBytes, scryptSync } f
  * so a Work file can't be swapped in as the Personal one.
  */
 export interface SealedFile {
-  format: 'max-vault';
+  format: 'empathika-vault';
   v: 1;
   alg: 'aes-256-gcm';
   iv: string;
@@ -16,11 +16,11 @@ export interface SealedFile {
 
 /** Any passphrase or random string -> 32-byte master key. */
 export function masterKey(secret: string): Buffer {
-  return scryptSync(secret, 'max-memory-v2', 32, { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  return scryptSync(secret, 'empathika-memory-v2', 32, { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
 }
 
 export function vaultKey(master: Buffer, vault: string): Buffer {
-  return Buffer.from(hkdfSync('sha256', master, Buffer.alloc(0), `max-vault:${vault}`, 32));
+  return Buffer.from(hkdfSync('sha256', master, Buffer.alloc(0), `empathika-vault:${vault}`, 32));
 }
 
 export function seal(key: Buffer, vault: string, plaintext: string): SealedFile {
@@ -28,12 +28,12 @@ export function seal(key: Buffer, vault: string, plaintext: string): SealedFile 
   const c = createCipheriv('aes-256-gcm', key, iv);
   c.setAAD(Buffer.from(vault));
   const data = Buffer.concat([c.update(plaintext, 'utf8'), c.final()]);
-  return { format: 'max-vault', v: 1, alg: 'aes-256-gcm', iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), data: data.toString('base64') };
+  return { format: 'empathika-vault', v: 1, alg: 'aes-256-gcm', iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), data: data.toString('base64') };
 }
 
 /** Throws if the key is wrong or the file was altered. */
 export function open(key: Buffer, vault: string, f: SealedFile): string {
-  if (f.format !== 'max-vault' || f.alg !== 'aes-256-gcm') throw new Error('not a Max vault file');
+  if (f.format !== 'empathika-vault' || f.alg !== 'aes-256-gcm') throw new Error('not a Empathika vault file');
   const d = createDecipheriv('aes-256-gcm', key, Buffer.from(f.iv, 'base64'));
   d.setAAD(Buffer.from(vault));
   d.setAuthTag(Buffer.from(f.tag, 'base64'));

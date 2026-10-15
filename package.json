@@ -1,7 +1,7 @@
 {
-  "name": "max-assistant",
+  "name": "empathika-assistant",
   "version": "0.1.0",
-  "description": "Max: a low-latency voice assistant for Home Assistant (NestJS + MCP + Wyoming)",
+  "description": "Empathika: a low-latency voice assistant for Home Assistant (NestJS + MCP + Wyoming)",
   "private": true,
   "license": "MIT",
   "engines": {

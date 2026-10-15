@@ -7,7 +7,7 @@ export interface AppConfig {
     inputDevice: string;
     outputDevice: string;
     wakeChime: boolean;
-    /** Keep the mic muted this long after Max's voice should have finished (speaker/bridge latency). */
+    /** Keep the mic muted this long after Empathika's voice should have finished (speaker/bridge latency). */
     echoTailMs: number;
   };
   /** verify: double-check each wake-up with the speech recogniser (ignores false alarms from noise). */
@@ -45,19 +45,19 @@ export interface AppConfig {
     /** The face page for the box's screen (kiosk browser): http://localhost:<port> */
     port: number;
     host: string;
-    /** "23:00-07:00": Max dozes on screen during these hours when idle. "off" = never. */
+    /** "23:00-07:00": Empathika dozes on screen during these hours when idle. "off" = never. */
     sleep: string;
     /** Shared folder with the box's WiFi setup service (status + requests). */
     runDir: string;
-    /** Running on the Max box (its compose file sets MAX_RUN_DIR): turning off / restarting works. */
+    /** Running on the Empathika box (its compose file sets EMPATHIKA_RUN_DIR): turning off / restarting works. */
     onBox: boolean;
     /** Delay the mouth to match the sound system's buffering (ms). */
     audioDelayMs: number;
   };
   music: {
-    /** go-librespot API (the Spotify speaker running next to Max); empty = no music. */
+    /** go-librespot API (the Spotify speaker running next to Empathika); empty = no music. */
     spotifyUrl: string;
-    /** Music volume while Max is talking, in % of full volume. */
+    /** Music volume while Empathika is talking, in % of full volume. */
     duckVolume: number;
     /** Spotify's public search service (only changed for testing). */
     webApiUrl: string;
@@ -71,7 +71,7 @@ export interface AppConfig {
     /** Work accounts: a second Composio user, used in work mode (its own logins and apps). */
     workUserId: string;
     workToolkits: string[];
-    /** Wildcard patterns of tools Max may use; keep it short for a voice assistant. */
+    /** Wildcard patterns of tools Empathika may use; keep it short for a voice assistant. */
     allowedTools: string[];
     callbackUrl: string;
   };
@@ -84,9 +84,9 @@ export interface AppConfig {
   models: { keys: Record<string, string>; ollamaUrl: string; customUrl: string };
   /** Default home location (the control panel's setting wins): town/area and ISO country code. */
   location: { place: string; country: string };
-  /** password: when set, the control panel asks for it (it shows Max's memory). */
+  /** password: when set, the control panel asks for it (it shows Empathika's memory). */
   controlPanel: { port: number; host: string; publicUrl: string; password: string };
-  /** Max's identity, story and personality (editable on the control panel). */
+  /** Empathika's identity, story and personality (editable on the control panel). */
   soul: { file: string };
   memory: {
     enabled: boolean;
@@ -98,7 +98,7 @@ export interface AppConfig {
     autoLearn: boolean;
     /** Roll old conversation notes up into weekly, then monthly digests (text AI model). */
     digests: boolean;
-    /** How many recent conversation notes Max sees at the start of a conversation. */
+    /** How many recent conversation notes Empathika sees at the start of a conversation. */
     recentConversations: number;
     /** Upper limit on the core facts loaded into every conversation (characters). */
     promptChars: number;
@@ -130,10 +130,10 @@ export interface AppConfig {
     style: string;
     silenceMs: number;
     bargeIn: boolean;
-    /** Say the wake word while Max is talking to interrupt him (works on speakers, no echo issues). */
+    /** Say the wake word while Empathika is talking to interrupt him (works on speakers, no echo issues). */
     wakeInterrupt: boolean;
     transcribeModel?: string;
-    /** Offer Max's actions in realtime mode (off = conversation only; useful to isolate problems). */
+    /** Offer Empathika's actions in realtime mode (off = conversation only; useful to isolate problems). */
     tools: boolean;
     /** Wildcard patterns of actions to leave out in realtime mode (e.g. one a provider rejects). */
     excludeTools: string[];
@@ -208,7 +208,7 @@ export function loadConfig(): AppConfig {
       reasoningEffort: env.LLM_REASONING_EFFORT || undefined,
       fallbackReasoningEffort: env.LLM_FALLBACK_REASONING_EFFORT || undefined,
       timeoutMs: num(env.LLM_TIMEOUT_MS, 4000),
-      // The operating rules. Who Max is (personality, story) lives in his soul instead.
+      // The operating rules. Who Empathika is (personality, story) lives in his soul instead.
       systemPrompt:
         env.LLM_SYSTEM_PROMPT ??
         'You talk out loud through a speaker in the home. Answer in one or two short spoken sentences unless ' +
@@ -227,9 +227,9 @@ export function loadConfig(): AppConfig {
     },
     composio: {
       apiKey: env.COMPOSIO_API_KEY ?? '',
-      userId: env.COMPOSIO_USER_ID || 'max-home',
+      userId: env.COMPOSIO_USER_ID || 'empathika-home',
       toolkits: list(env.COMPOSIO_TOOLKITS ?? 'outlook,whatsapp').map((t) => t.toLowerCase()),
-      workUserId: env.COMPOSIO_WORK_USER_ID || `${env.COMPOSIO_USER_ID || 'max-home'}-work`,
+      workUserId: env.COMPOSIO_WORK_USER_ID || `${env.COMPOSIO_USER_ID || 'empathika-home'}-work`,
       workToolkits: list(env.COMPOSIO_WORK_TOOLKITS ?? env.COMPOSIO_TOOLKITS ?? 'outlook,whatsapp').map((t) => t.toLowerCase()),
       allowedTools: list(env.COMPOSIO_ALLOWED_TOOLS ?? DEFAULT_COMPOSIO_TOOLS),
       callbackUrl: env.COMPOSIO_CALLBACK_URL || `${env.CONTROL_PANEL_URL || 'http://localhost:8099'}/callback`,
@@ -320,8 +320,8 @@ export function loadConfig(): AppConfig {
       port: num(env.FACE_PORT, 8098),
       host: env.FACE_HOST || '127.0.0.1',
       sleep: env.FACE_SLEEP ?? '23:00-07:00',
-      runDir: env.MAX_RUN_DIR || '/run/max',
-      onBox: Boolean(env.MAX_RUN_DIR),
+      runDir: env.EMPATHIKA_RUN_DIR || '/run/empathika',
+      onBox: Boolean(env.EMPATHIKA_RUN_DIR),
       audioDelayMs: num(env.FACE_AUDIO_DELAY_MS, 0),
     },
     music: {

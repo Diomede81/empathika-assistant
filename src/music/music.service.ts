@@ -30,11 +30,11 @@ const LIKED = /\b(liked|favou?rite|my (songs|music|tracks)|saved songs)\b/i;
 const MOOD = /\b(music|songs|mix|playlist|radio|hits|vibes?|relaxing|chill|focus|workout|party|jazz|classical|lo-?fi|sleep)\b/i;
 
 /**
- * Max's own music player. A small Spotify Connect receiver (go-librespot) runs next to
- * Max, so the Max box is a Spotify speaker called "Max": music plays through Max's own
- * speakers, can also be picked from the Spotify app on any phone, and Max controls it by
+ * Empathika's own music player. A small Spotify Connect receiver (go-librespot) runs next to
+ * Empathika, so the Empathika box is a Spotify speaker called "Empathika": music plays through Empathika's own
+ * speakers, can also be picked from the Spotify app on any phone, and Empathika controls it by
  * voice: search and play songs, artists, albums, playlists and podcasts, pause, skip,
- * volume. While Max is talking the music is turned down, then back up.
+ * volume. While Empathika is talking the music is turned down, then back up.
  */
 @Injectable()
 export class MusicService implements OnModuleInit, OnModuleDestroy {
@@ -44,7 +44,7 @@ export class MusicService implements OnModuleInit, OnModuleDestroy {
   pairing?: { url: string; code: string; expiresAt: string };
   account?: string;
   lastError?: string;
-  /** Set while Max is talking: the volume to go back to afterwards (undefined = leave as is). */
+  /** Set while Empathika is talking: the volume to go back to afterwards (undefined = leave as is). */
   private duck?: { restoreTo?: number };
   private firstCheck = true;
 
@@ -93,7 +93,7 @@ export class MusicService implements OnModuleInit, OnModuleDestroy {
     }
     if (this.state === before && !this.firstCheck) return;
     this.firstCheck = false;
-    if (this.state === 'ready') this.log.log(`Spotify speaker ready (account ${this.account}) - Max can play music`);
+    if (this.state === 'ready') this.log.log(`Spotify speaker ready (account ${this.account}) - Empathika can play music`);
     else if (this.state === 'unreachable') {
       this.log.log(
         `Music is off: the Spotify speaker isn't running (${this.base}: ${this.lastError}). ` +
@@ -111,7 +111,7 @@ export class MusicService implements OnModuleInit, OnModuleDestroy {
         function: {
           name: 'play_music',
           description:
-            "Play music or podcasts on Max's own speaker through Spotify: a song, artist, album, playlist " +
+            "Play music or podcasts on Empathika's own speaker through Spotify: a song, artist, album, playlist " +
             '(including the user\'s own playlists and Liked Songs), a mood or genre ("relaxing jazz"), or a podcast.',
           parameters: {
             type: 'object',
@@ -128,7 +128,7 @@ export class MusicService implements OnModuleInit, OnModuleDestroy {
         type: 'function',
         function: {
           name: 'music_control',
-          description: "Control the music on Max's speaker: pause, resume, skip, go back, stop, what's playing, volume.",
+          description: "Control the music on Empathika's speaker: pause, resume, skip, go back, stop, what's playing, volume.",
           parameters: {
             type: 'object',
             properties: {
@@ -149,9 +149,9 @@ export class MusicService implements OnModuleInit, OnModuleDestroy {
   async call(name: string, args: Record<string, unknown>): Promise<string> {
     if (this.state !== 'ready') await this.poll();
     if (this.state === 'pairing') {
-      return "Spotify isn't signed in yet. Tell the user to open Max's control panel and approve the Spotify sign-in (one time only).";
+      return "Spotify isn't signed in yet. Tell the user to open Empathika's control panel and approve the Spotify sign-in (one time only).";
     }
-    if (this.state !== 'ready') return "Max's Spotify speaker isn't running right now.";
+    if (this.state !== 'ready') return "Empathika's Spotify speaker isn't running right now.";
     try {
       if (name === 'play_music') return await this.play(String(args.query ?? ''), (args.kind as Kind) ?? 'any', args.shuffle === true);
       return await this.control(String(args.action ?? ''), typeof args.level === 'number' ? args.level : undefined);
@@ -160,7 +160,7 @@ export class MusicService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // ---- Ducking: music down while Max talks ----
+  // ---- Ducking: music down while Empathika talks ----
 
   /** Turns playing music down for a conversation. Quick and never throws. */
   async duckStart(): Promise<void> {
@@ -196,7 +196,7 @@ export class MusicService implements OnModuleInit, OnModuleDestroy {
     const isContext = !/^spotify:(track|episode):/.test(pick.uri);
     if (isContext) await this.api('POST', '/player/shuffle_context', { shuffle_context: shuffle }).catch(() => undefined);
     await this.api('POST', '/player/play', { uri: pick.uri });
-    // Started mid-conversation: keep it quiet until Max has finished talking.
+    // Started mid-conversation: keep it quiet until Empathika has finished talking.
     if (this.duck && this.duck.restoreTo === undefined) {
       const s = await this.status().catch(() => undefined);
       if (s && s.volume > this.duckLevel(s.volume_steps)) {
@@ -315,7 +315,7 @@ export class MusicService implements OnModuleInit, OnModuleDestroy {
       case 'set_volume':
       case 'volume_up':
       case 'volume_down': {
-        // While Max is talking the music is ducked: change the level it returns to.
+        // While Empathika is talking the music is ducked: change the level it returns to.
         const current = this.duck?.restoreTo ?? s.volume;
         const step = Math.round(((level ?? 15) / 100) * max);
         let target =

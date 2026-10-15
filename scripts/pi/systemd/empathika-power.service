@@ -1,0 +1,7 @@
+[Unit]
+Description=Empathika: turn the box off or restart it on request
+
+[Service]
+Type=oneshot
+Environment=EMPATHIKA_RUN_DIR=/run/empathika
+ExecStart=/usr/local/lib/empathika/empathika-power.sh

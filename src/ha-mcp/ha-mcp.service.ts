@@ -43,7 +43,7 @@ export class HaMcpService implements OnModuleInit, OnModuleDestroy {
       const transport = new StreamableHTTPClientTransport(new URL(this.cfg.ha.mcpUrl), {
         requestInit: { headers: { Authorization: `Bearer ${this.cfg.ha.token}` } },
       });
-      const client = new Client({ name: 'max-assistant', version: '0.1.0' });
+      const client = new Client({ name: 'empathika-assistant', version: '0.1.0' });
       await client.connect(transport);
       this.client = client;
       await this.refreshTools();

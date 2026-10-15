@@ -48,12 +48,12 @@ export interface FaceInfo {
   activity?: { icon: string; label: string };
   /** A short-lived note when something didn't work ("Couldn't finish: Checking your email"). */
   notice?: string;
-  /** The box is installing an update (Max restarts during it: the face says so instead of "Reconnecting"). */
+  /** The box is installing an update (Empathika restarts during it: the face says so instead of "Reconnecting"). */
   updating?: boolean;
-  /** The card on screen (Max's face shrinks to the top while it shows). */
+  /** The card on screen (Empathika's face shrinks to the top while it shows). */
   card?: Card & { until: number };
-  /** Live captions: what Max heard, or what he's saying. */
-  caption?: { who: 'you' | 'max'; text: string };
+  /** Live captions: what Empathika heard, or what he's saying. */
+  caption?: { who: 'you' | 'empathika'; text: string };
   /** Around the face when idle: weather, next meeting, to-dos; and the evening photo frame. */
   glance?: Glance;
   /** The start-up code hasn't been entered: the keypad shows, and nothing personal. */
@@ -79,7 +79,7 @@ const ALERT_MS = 5 * 60_000;
 const CAPTION_MS = 7000;
 
 /**
- * Drives the animated face on the box's round screen. Other parts of Max report what they
+ * Drives the animated face on the box's round screen. Other parts of Empathika report what they
  * are doing (listening, thinking) and every bit of audio that plays; this turns that into a
  * face state plus a mouth level timed to the sound, and gathers the small extras the face
  * shows (mode, timers, music, WiFi setup). The face page subscribes via FaceServer.
@@ -119,7 +119,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     this.timers.push(setInterval(() => void this.tickInfo(), INFO_MS));
     this.lock?.on('change', () => void this.tickInfo());
     this.timers.push(setInterval(() => void this.pollMusic(), MUSIC_MS));
-    // Cards from anywhere in Max (showCard in ./screen), and the ones the face makes itself.
+    // Cards from anywhere in Empathika (showCard in ./screen), and the ones the face makes itself.
     screen.on('card', (card: Card, handlers: CardHandlers) => this.showCard(card, handlers));
     screen.on('dismiss', (id: string) => this.dismissCard(id));
     this.timerService?.on('fired', (t: Timer) => this.timerCard(t));
@@ -164,7 +164,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     for (const t of this.timers) clearInterval(t);
   }
 
-  // ---------- Inputs from the rest of Max ----------
+  // ---------- Inputs from the rest of Empathika ----------
 
   setState(s: BaseState): void {
     this.thinkingForActivity = false; // the conversation is in charge again
@@ -173,7 +173,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     void this.tickInfo();
   }
 
-  /** Every chunk of audio Max plays (voice, chime, announcements), as it is queued. */
+  /** Every chunk of audio Empathika plays (voice, chime, announcements), as it is queued. */
   audio(chunk: Buffer, fmt: PcmFormat): void {
     if (!this.cfg.face.enabled || fmt.width !== 2) return;
     const bytesPerFrame = fmt.channels * 2;
@@ -196,7 +196,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     if (this.levels.length > 4000) this.levels.splice(0, this.levels.length - 4000);
   }
 
-  /** What Max heard the user say (live captions). */
+  /** What Empathika heard the user say (live captions). */
   heard(text: string): void {
     const t = text.replace(/\s+/g, ' ').trim();
     if (!t) return;
@@ -206,7 +206,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
   }
 
   /**
-   * What Max is saying (a sentence, a reply, or a chunk of live transcript). His expression
+   * What Empathika is saying (a sentence, a reply, or a chunk of live transcript). His expression
    * follows it: happy for good news, concerned for problems, curious for questions.
    */
   said(text: string): void {
@@ -214,8 +214,8 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     if (t) {
       this.screenTools?.maxSaid(t); // a recipe only spoken still ends up on screen
       // Captions: his sentences follow one another; keep the latest (a sentence or two).
-      const cont = this.caption?.who === 'max' && Date.now() < this.caption.until && this.caption.text.length + t.length < 160;
-      this.caption = { who: 'max', text: cont ? `${this.caption!.text} ${t}` : t.slice(-220), until: Date.now() + CAPTION_MS };
+      const cont = this.caption?.who === 'empathika' && Date.now() < this.caption.until && this.caption.text.length + t.length < 160;
+      this.caption = { who: 'empathika', text: cont ? `${this.caption!.text} ${t}` : t.slice(-220), until: Date.now() + CAPTION_MS };
       void this.tickInfo();
     }
     const e = emotionFor(text);
@@ -249,11 +249,11 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
       this.log.log('WiFi setup requested from the screen');
       return true;
     } catch {
-      return false; // not on the Max box (no WiFi service)
+      return false; // not on the Empathika box (no WiFi service)
     }
   }
 
-  /** "Back to Max" on the WiFi setup screen: ask the box's WiFi service to leave setup mode. */
+  /** "Back to Empathika" on the WiFi setup screen: ask the box's WiFi service to leave setup mode. */
   cancelWifiSetup(): boolean {
     try {
       writeFileSync(join(this.cfg.face.runDir, 'wifi-cancel'), String(Date.now()));
@@ -357,7 +357,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
 
   private card?: Card & { until: number };
   private handlers: CardHandlers = {};
-  private caption?: { who: 'you' | 'max'; text: string; until: number };
+  private caption?: { who: 'you' | 'empathika'; text: string; until: number };
 
   showCard(card: Card, handlers: CardHandlers = {}): void {
     if (!this.cfg.face.enabled) return;
@@ -373,7 +373,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     void this.tickInfo();
   }
 
-  /** A button on the card was tapped ("dismiss" = Back to Max). */
+  /** A button on the card was tapped ("dismiss" = Back to Empathika). */
   async cardAction(id: string, action: string): Promise<boolean> {
     if (this.lock?.locked) return false;
     if (!this.card || this.card.id !== id) return false;
@@ -457,7 +457,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
   private timerCard(t: Timer): void {
     if (t.say) {
       const id = `say-${Date.now()}`;
-      this.showCard({ id, kind: 'notice', icon: '🔔', title: 'Max', big: t.say, actions: [{ id: 'ok', label: 'OK', style: 'primary' }], ttlMs: CARD_MS * 3 }, { ok: () => this.dismissCard(id) });
+      this.showCard({ id, kind: 'notice', icon: '🔔', title: 'Empathika', big: t.say, actions: [{ id: 'ok', label: 'OK', style: 'primary' }], ttlMs: CARD_MS * 3 }, { ok: () => this.dismissCard(id) });
       return;
     }
     const id = `timer-${t.id}`;
@@ -488,7 +488,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     );
   }
 
-  /** Max read the calendar: show the events (merged into "Your day" if it's on screen). */
+  /** Empathika read the calendar: show the events (merged into "Your day" if it's on screen). */
   private calendarCard(tool: string, out: string): void {
     if (!/CALENDAR|EVENT/i.test(tool) || /(CREATE|UPDATE|DELETE|CANCEL|ACCEPT|DECLINE|RESPOND|MOVE)/i.test(tool)) return;
     const events = extractEvents(out);
@@ -511,7 +511,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
 
 
   /**
-   * Max read your email: show it (one email: who, when, the subject and the start of the text; several:
+   * Empathika read your email: show it (one email: who, when, the subject and the start of the text; several:
    * a list). If the AI then shows its own summary with show_on_screen, that replaces this card.
    */
   private emailCard(tool: string, out: string): void {
@@ -551,7 +551,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     });
   }
 
-  /** Whether the box's updater is working (/run/max/update.json, written by max-update.py). */
+  /** Whether the box's updater is working (/run/empathika/update.json, written by empathika-update.py). */
   private updating(): boolean {
     try {
       const u = JSON.parse(readFileSync(join(this.cfg.face.runDir, 'update.json'), 'utf8')) as { state?: string; at?: number };

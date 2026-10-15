@@ -3,7 +3,7 @@ dist/
 .env
 *.log
 wakewords/*.tflite
-!wakewords/hey_max.tflite
+!wakewords/hey_empathika.tflite
 data/
 config/mcp-servers.json
 spotify/state.json

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Wake word coach: records you saying the wake word, then shows how confidently the model
-# recognises each attempt and what to change. Works on the Mac and on the Max box.
+# recognises each attempt and what to change. Works on the Mac and on the Empathika box.
 #   ./scripts/wake-coach.sh
 # Recordings stay in ./wake-coach/<date> (useful for retraining, see training/README.md).
 set -euo pipefail
@@ -21,24 +21,24 @@ threshold=$(setting WAKEWORD_THRESHOLD 0.5)
 session="$(date +%Y-%m-%d_%H%M)"
 mkdir -p wake-coach
 
-# Max would hear the attempts too (and answer): pause him while recording.
-was_running=$("${compose[@]}" --profile max ps --status running -q max 2>/dev/null || true)
+# Empathika would hear the attempts too (and answer): pause him while recording.
+was_running=$("${compose[@]}" --profile empathika ps --status running -q empathika 2>/dev/null || true)
 if [[ -n "$was_running" ]]; then
-  echo "Pausing Max while you record..."
-  "${compose[@]}" --profile max stop max >/dev/null
+  echo "Pausing Empathika while you record..."
+  "${compose[@]}" --profile empathika stop empathika >/dev/null
 fi
-restart() { [[ -n "$was_running" ]] && { echo "Starting Max again..."; "${compose[@]}" --profile max up -d max >/dev/null; } || true; }
+restart() { [[ -n "$was_running" ]] && { echo "Starting Empathika again..."; "${compose[@]}" --profile empathika up -d empathika >/dev/null; } || true; }
 trap restart EXIT
 
-echo "Preparing (the first time this builds Max, a few minutes)..."
-"${compose[@]}" --profile max build -q max
+echo "Preparing (the first time this builds Empathika, a few minutes)..."
+"${compose[@]}" --profile empathika build -q empathika
 "${compose[@]}" up -d openwakeword >/dev/null
 
-"${compose[@]}" --profile max run --rm --no-deps -v "$PWD/wake-coach:/app/wake-coach" \
-  max node dist/tools/wake-coach.js "/app/wake-coach/$session"
+"${compose[@]}" --profile empathika run --rm --no-deps -v "$PWD/wake-coach:/app/wake-coach" \
+  empathika node dist/tools/wake-coach.js "/app/wake-coach/$session"
 
 echo
-echo "Scoring your recordings with the same engine Max uses..."
+echo "Scoring your recordings with the same engine Empathika uses..."
 "${compose[@]}" run --rm --no-deps -T \
   -v "$PWD/wake-coach:/clips:ro" -v "$PWD/scripts/wake/score.py:/score.py:ro" \
   --entrypoint /usr/src/.venv/bin/python3 openwakeword \

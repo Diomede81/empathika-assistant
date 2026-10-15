@@ -1,6 +1,6 @@
 # AI models: bring your own
 
-Max uses an AI model in two kinds of places:
+Empathika uses an AI model in two kinds of places:
 
 - **The conversation**: what he says back to you. This uses the `LLM_*` settings in `.env`. Speed matters
   most here, so it stays on one fast model you choose there.
@@ -19,7 +19,7 @@ and news summaries, and keep a cheap fast one for filing.
 
 ## Setting up a provider
 
-Add its key to `.env` and restart Max. Keys only go in `.env`, never on the control panel.
+Add its key to `.env` and restart Empathika. Keys only go in `.env`, never on the control panel.
 
 | Provider | Setting | Notes |
 | --- | --- | --- |
@@ -39,7 +39,7 @@ request and shows how long the model took to answer.
 
 ## If something goes wrong
 
-If a chosen model fails (a typo in its name, an expired key, the provider is down), Max does that run
+If a chosen model fails (a typo in its name, an expired key, the provider is down), Empathika does that run
 with the main model instead and notes it in the log. Your briefing still arrives and your memory is
 still filed. Press **Test** on the control panel to see the error.
 

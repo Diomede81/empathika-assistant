@@ -31,12 +31,12 @@ export function modelsSection(m: PanelModels, esc: Esc): string {
     .map(
       (p) =>
         `<li class="row"><div><div class="name">${esc(p.label)} ${p.configured ? '<span class="badge ok">Set up</span>' : '<span class="badge off">Not set up</span>'}</div>
-<div class="meta">${p.configured ? (p.error ? `Couldn't list its models (${esc(p.error)}): type the model name.` : `${p.models.length} models available`) : `Add <code>${esc(p.setting)}</code> to <code>.env</code>${p.where ? ` (<a href="${esc(p.where)}" target="_blank" rel="noopener">get one</a>)` : ''} and restart Max.`}</div></div></li>`,
+<div class="meta">${p.configured ? (p.error ? `Couldn't list its models (${esc(p.error)}): type the model name.` : `${p.models.length} models available`) : `Add <code>${esc(p.setting)}</code> to <code>.env</code>${p.where ? ` (<a href="${esc(p.where)}" target="_blank" rel="noopener">get one</a>)` : ''} and restart Empathika.`}</div></div></li>`,
     )
     .join('');
   return `<section id="models"><h2>AI models</h2>
 <p class="meta">Choose which AI model does each background job: a cheaper, faster one for routine work, a stronger one where quality matters.
-The conversation itself uses <b>${esc(m.main)}</b> (the <code>LLM_*</code> settings in <code>.env</code>), where speed comes first. If a chosen model fails, Max uses the main one for that run, so nothing stops.</p>
+The conversation itself uses <b>${esc(m.main)}</b> (the <code>LLM_*</code> settings in <code>.env</code>), where speed comes first. If a chosen model fails, Empathika uses the main one for that run, so nothing stops.</p>
 ${lists}<ul>${rows}</ul>
 <details><summary class="meta">Providers (${ready.length - 1} set up)</summary><ul>${providers}</ul>
 <p class="meta">Keys only go in <code>.env</code>, never on this page. Any OpenAI-compatible service works: set <code>CUSTOM_LLM_BASE_URL</code> (and <code>CUSTOM_LLM_API_KEY</code>) for your own; <code>OLLAMA_BASE_URL</code> for models on your own computer.</p></details></section>`;

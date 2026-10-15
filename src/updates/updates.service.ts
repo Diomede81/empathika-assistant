@@ -6,7 +6,7 @@ import { APP_CONFIG, AppConfig } from '../config';
 import { SealedStore } from '../memory/sealed-store';
 import { local } from '../routines/routines.service';
 
-/** What's installed on the box (written by max-update.py at every start and after updates). */
+/** What's installed on the box (written by empathika-update.py at every start and after updates). */
 export interface Version {
   sha: string;
   date: string;
@@ -15,7 +15,7 @@ export interface Version {
   branch: string;
 }
 
-/** The box's updater, as it goes (max-update.py writes /run/max/update.json). */
+/** The box's updater, as it goes (empathika-update.py writes /run/empathika/update.json). */
 export interface UpdateState {
   state: 'checking' | 'updating' | 'rebooting' | 'done' | 'uptodate' | 'failed';
   message: string;
@@ -42,10 +42,10 @@ const CHECK_CACHE_MS = 30 * 60_000;
 const TICK_MS = 60_000;
 
 /**
- * Updates from GitHub, without the Mac: Max checks GitHub for changes the box doesn't have
- * yet (the control panel lists them), and "Update now", "Max, update yourself" or the nightly
- * automatic update ask the box to install them. Max runs in a container, so he leaves a note
- * (/run/max/update-request); the box's max-update service downloads, sets up and restarts.
+ * Updates from GitHub, without the Mac: Empathika checks GitHub for changes the box doesn't have
+ * yet (the control panel lists them), and "Update now", "Empathika, update yourself" or the nightly
+ * automatic update ask the box to install them. Empathika runs in a container, so he leaves a note
+ * (/run/empathika/update-request); the box's empathika-update service downloads, sets up and restarts.
  */
 @Injectable()
 export class UpdatesService implements OnModuleInit, OnModuleDestroy {
@@ -105,13 +105,13 @@ export class UpdatesService implements OnModuleInit, OnModuleDestroy {
     if (!force && this.cached && Date.now() - this.cached.checkedAt < CHECK_CACHE_MS) return this.cached;
     try {
       const res = await fetch(`https://api.github.com/repos/${v.repo}/compare/${v.sha}...${encodeURIComponent(v.branch || 'main')}`, {
-        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'max-assistant' },
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'empathika-assistant' },
         signal: AbortSignal.timeout(8_000),
       });
       if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
       const d = (await res.json()) as { ahead_by: number; commits: { commit: { message: string } }[] };
       const messages = d.commits.map((c) => c.commit.message);
-      // Merged pull requests read best ("Calendar: Max now sees every event"); otherwise each change's first line.
+      // Merged pull requests read best ("Calendar: Empathika now sees every event"); otherwise each change's first line.
       const merges = messages.filter((m) => /^Merge pull request #\d+/.test(m)).map((m) => m.split('\n').filter(Boolean)[1] ?? m.split('\n')[0]);
       const changes = (merges.length ? merges : messages.map((m) => m.split('\n')[0])).reverse().slice(0, 20);
       this.cached = { behind: merges.length || d.ahead_by, changes, checkedAt: Date.now() };
@@ -123,7 +123,7 @@ export class UpdatesService implements OnModuleInit, OnModuleDestroy {
 
   /** Asks the box to install the latest version. Returns a message for the user. */
   request(why = 'asked'): string {
-    if (!this.onBox) return 'Updates from here only work on the Max box.';
+    if (!this.onBox) return 'Updates from here only work on the Empathika box.';
     if (this.busy) return 'An update is already running.';
     try {
       writeFileSync(join(this.cfg.face.runDir, 'update-request'), why);
@@ -132,7 +132,7 @@ export class UpdatesService implements OnModuleInit, OnModuleDestroy {
     }
     this.cached = undefined;
     this.log.log(`Update requested (${why})`);
-    return 'Updating: Max downloads the new version and restarts on his own, in 5 to 15 minutes.';
+    return 'Updating: Empathika downloads the new version and restarts on his own, in 5 to 15 minutes.';
   }
 
   setAuto(auto: boolean, time?: string): string {
@@ -142,7 +142,7 @@ export class UpdatesService implements OnModuleInit, OnModuleDestroy {
     }
     this.settings.auto = auto;
     this.store.save(this.settings).catch((err) => this.log.warn(`Could not save the update settings: ${(err as Error).message}`));
-    return auto ? `Automatic updates on: Max installs new versions at ${this.settings.time}.` : 'Automatic updates off.';
+    return auto ? `Automatic updates on: Empathika installs new versions at ${this.settings.time}.` : 'Automatic updates off.';
   }
 
   /** Nightly automatic update: once a day, at the chosen time, if there's something new. */
@@ -156,7 +156,7 @@ export class UpdatesService implements OnModuleInit, OnModuleDestroy {
     if (a && !a.error && a.behind > 0) this.request('automatic, at night');
   }
 
-  // ---------- For Max ----------
+  // ---------- For Empathika ----------
 
   get tools(): ChatCompletionTool[] {
     if (!this.onBox) return [];

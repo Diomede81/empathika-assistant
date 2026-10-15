@@ -1,6 +1,6 @@
 /**
  * "Stop", "that's all", "never mind", "I'm not talking to you"... Said on its own (not "stop the
- * music"), it ends the conversation at once: Max goes quiet and back to waiting for the wake word,
+ * music"), it ends the conversation at once: Empathika goes quiet and back to waiting for the wake word,
  * without asking the AI model.
  */
 const PHRASES = [
@@ -14,8 +14,8 @@ const PHRASES = [
   'talking to someone else', "i'm talking to someone else",
 ];
 const STOP = new Set(PHRASES.map((p) => p.replace(/'/g, '')));
-const WAKE_WORDS = /^(hey |hi |ok |okay )?(max|maxie|jarvis)\b ?/;
-const POLITE = /\b(please|thanks|thank you|max|now)$/;
+const WAKE_WORDS = /^(hey |hi |ok |okay )?(empathika|empathica|empatika|jarvis)\b ?/;
+const POLITE = /\b(please|thanks|thank you|empathika|now)$/;
 
 export function isStopRequest(text: string): boolean {
   let t = text
@@ -26,6 +26,6 @@ export function isStopRequest(text: string): boolean {
     .trim();
   if (!t || t.split(' ').length > 7) return false;
   t = t.replace(WAKE_WORDS, '').trim();
-  for (let i = 0; i < 2 && !STOP.has(t); i++) t = t.replace(POLITE, '').trim(); // "stop please max"
+  for (let i = 0; i < 2 && !STOP.has(t); i++) t = t.replace(POLITE, '').trim(); // "stop please empathika"
   return STOP.has(t) || STOP.has(t.replace(/^(ok|okay|no|oh|alright) /, ''));
 }

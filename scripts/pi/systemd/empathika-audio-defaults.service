@@ -1,11 +1,11 @@
 [Unit]
-Description=Max: use the mic board as default speaker and microphone
+Description=Empathika: use the mic board as default speaker and microphone
 After=wireplumber.service pipewire-pulse.service
 Wants=wireplumber.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/max-audio-defaults
+ExecStart=/usr/local/bin/empathika-audio-defaults
 
 [Install]
 WantedBy=default.target

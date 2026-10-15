@@ -1,5 +1,5 @@
 /**
- * Max's facial expression, worked out from what he says. Simple word cues are enough for a
+ * Empathika's facial expression, worked out from what he says. Simple word cues are enough for a
  * face (and cost nothing): an apology looks concerned, good news looks happy, a question
  * looks curious. Works the same for every voice option because it reads his words.
  */

@@ -10,12 +10,12 @@ const LIST_MS = 90_000;
 const BIG_MS = 45_000;
 /** Recipes and instructions stay up while you follow them. */
 const STEPS_MS = 15 * 60_000;
-/** The safety net looks at a reply once Max has been quiet this long. */
+/** The safety net looks at a reply once Empathika has been quiet this long. */
 const REPLY_SETTLE_MS = 4000;
 
 /**
  * Recipes, how-tos and step-by-step instructions: they must go on screen as steps. (A plain
- * "show me my email" isn't one: Max has to read the email first, so it isn't forced.)
+ * "show me my email" isn't one: Empathika has to read the email first, so it isn't forced.)
  */
 const WANTS_SCREEN =
   /\b(recipes?|ingredients|step[- ]by[- ]step|instructions|walk me through|how (do|can|should|would) (i|you|we) (make|cook|bake|prepare|do|fix|set up|install|clean|change|replace|build)|how to (make|cook|bake|prepare|do|fix|set up|install|clean|change|replace|build))\b/i;
@@ -49,7 +49,7 @@ interface Steps {
  * (a recipe: its ingredients, then one step at a time, with Back / Next and "next step" by voice).
  *
  * A safety net backs it up: when a recipe or how-to was asked for and the AI only talked, the
- * steps are built from what Max said and shown anyway.
+ * steps are built from what Empathika said and shown anyway.
  */
 @Injectable()
 export class ScreenToolsService {
@@ -61,7 +61,7 @@ export class ScreenToolsService {
   private settle?: NodeJS.Timeout;
 
   constructor(@Inject(APP_CONFIG) private readonly cfg: AppConfig) {
-    // Tapping "Back to Max" on the steps card ends the recipe.
+    // Tapping "Back to Empathika" on the steps card ends the recipe.
     screen.on('dismiss', (id: string) => {
       if (id === 'steps') this.steps = undefined;
     });
@@ -153,7 +153,7 @@ export class ScreenToolsService {
       id: 'answer',
       kind: 'list',
       icon: emoji(a.icon),
-      title: title || 'Max',
+      title: title || 'Empathika',
       subtitle: clean(a.subtitle, 100) || undefined,
       big: big || undefined,
       body: body || undefined,
@@ -217,13 +217,13 @@ export class ScreenToolsService {
   userSaid(text: string): void {
     if (!this.cfg.face.enabled) return;
     const now = Date.now();
-    // Live voice transcribes you a moment after Max starts answering: keep his words from just now
+    // Live voice transcribes you a moment after Empathika starts answering: keep his words from just now
     // (only those not already part of an earlier question's turn).
     const reply = (this.turn && !this.turn.request ? this.turn.reply : []).filter((r) => now - r.at < 8000);
     this.turn = { request: text, at: now, reply, shownAt: now - this.lastShownAt < 8000 ? this.lastShownAt : 0 };
   }
 
-  /** A sentence Max said. Once he has been quiet a moment, the turn is checked. */
+  /** A sentence Empathika said. Once he has been quiet a moment, the turn is checked. */
   maxSaid(text: string): void {
     if (!this.cfg.face.enabled) return;
     if (!this.turn) this.turn = { request: '', at: Date.now(), reply: [], shownAt: 0 };

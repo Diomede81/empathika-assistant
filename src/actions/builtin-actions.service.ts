@@ -22,7 +22,7 @@ type Handler = (args: Record<string, unknown>) => string | Promise<string>;
 export const EXTERNAL_FLAG = '__afterExternalContent';
 
 /**
- * Actions Max can do on his own, without Home Assistant: tell the date/time, manage
+ * Actions Empathika can do on his own, without Home Assistant: tell the date/time, manage
  * timers and reminders, and remember things between conversations. Offered to the AI model next to the Home Assistant tools.
  */
 @Injectable()
@@ -56,7 +56,7 @@ export class BuiltinActionsService implements OnModuleInit {
       tool(
         'set_timer',
         'Start a countdown TIMER, e.g. "set a timer for 10 minutes", "pasta timer for 8 minutes". Only for countdowns: ' +
-          'when the user says "remind me" or "reminder", use set_reminder instead. Max announces it when it finishes.',
+          'when the user says "remind me" or "reminder", use set_reminder instead. Empathika announces it when it finishes.',
         {
           hours: { type: 'number', description: 'Hours (optional)' },
           minutes: { type: 'number', description: 'Minutes (optional)' },
@@ -92,7 +92,7 @@ export class BuiltinActionsService implements OnModuleInit {
       ),
       tool(
         'device_power',
-        'Turn this device (the Max box) off, or restart it. ONLY when the user clearly asks to turn you off, shut down, ' +
+        'Turn this device (the Empathika box) off, or restart it. ONLY when the user clearly asks to turn you off, shut down, ' +
           'power off or restart the device. Ask "Are you sure?" first and call with confirmed=true only after they say yes. ' +
           'Not for "stop" or "go to sleep" (that is end_conversation), and not for other devices (lights, TV: Home Assistant).',
         {
@@ -265,7 +265,7 @@ export class BuiltinActionsService implements OnModuleInit {
         const off = a.action !== 'restart';
         if (this.modes.mode === 'guest') return 'Not done: in guest mode the box can only be turned off by the household (the screen menu, or the power button).';
         if (a.confirmed !== true) return `Not done yet: ask the user to confirm ("Shall I ${off ? 'turn off' : 'restart'}?"), then call again with confirmed=true.`;
-        if (!this.cfg.face.onBox) return 'Turning off and restarting only work on the Max box, not on this computer.';
+        if (!this.cfg.face.onBox) return 'Turning off and restarting only work on the Empathika box, not on this computer.';
         // A few seconds to say goodbye before the box goes down.
         setTimeout(() => requestPower(this.cfg, off ? 'poweroff' : 'reboot'), 6000);
         return off
@@ -412,7 +412,7 @@ export class BuiltinActionsService implements OnModuleInit {
   }
 
   /**
-   * "Your day" on the screen: reminders and to-dos now; calendar events join it when Max reads the
+   * "Your day" on the screen: reminders and to-dos now; calendar events join it when Empathika reads the
    * calendar. Tapping the face shows it too, with the events and weather the screen already knows.
    */
   dayCard(extra: { events?: CardLine[]; weather?: string } = {}, redraw = false): void {
@@ -442,7 +442,7 @@ export class BuiltinActionsService implements OnModuleInit {
     }
     lines.push(...this.dayTicks.doneLines());
     const date = new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
-    const shown = lines.length ? lines : [{ text: 'Nothing due today', sub: 'Calendar events appear here as Max reads them' }];
+    const shown = lines.length ? lines : [{ text: 'Nothing due today', sub: 'Calendar events appear here as Empathika reads them' }];
     showCard({
       id: 'my-day',
       kind: 'list',

@@ -1,0 +1,7 @@
+[Unit]
+Description=Empathika: set the screen brightness on request
+
+[Service]
+Type=oneshot
+Environment=EMPATHIKA_RUN_DIR=/run/empathika
+ExecStart=/usr/local/lib/empathika/empathika-brightness.sh

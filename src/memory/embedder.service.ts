@@ -51,7 +51,7 @@ export class EmbedderService {
       this.failed = true;
       this.log.warn(
         `Meaning search unavailable (${(err as Error).message.split('\n')[0]}); memory search uses keywords only. ` +
-          'Rebuild the image (docker compose build max) to download the search model.',
+          'Rebuild the image (docker compose build empathika) to download the search model.',
       );
       return undefined;
     }

@@ -38,7 +38,7 @@ interface Seen {
 /**
  * Notifications on the round screen, shown when something needs you even though you didn't
  * ask: your news briefing is ready, an important email arrived, a to-do is overdue. They wait
- * politely: never while you're talking to Max, never over a card you're using (a recipe, a
+ * politely: never while you're talking to Empathika, never over a card you're using (a recipe, a
  * timer), never during his sleep hours, and never in guest mode (visitors don't see your mail).
  * Each one can be switched off on the control panel (Settings → Screen).
  */
@@ -131,7 +131,7 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
         icon: '📰',
         title: 'News',
         big: `Your ${r.name} is ready`,
-        subtitle: `${b.articles.length} article${b.articles.length === 1 ? '' : 's'} · say "Hey Max, what's the news?"`,
+        subtitle: `${b.articles.length} article${b.articles.length === 1 ? '' : 's'} · say "Hey Empathika, what's the news?"`,
         actions: [{ id: 'headlines', label: 'Headlines', style: 'primary' }, { id: 'ok', label: 'Later' }],
       },
       { headlines: () => this.routines?.showHeadlines(r, b, 5 * 60_000), ok: () => this.face.dismissCard(id) },
@@ -147,7 +147,7 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
     const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: timeZone(), hour: '2-digit', hourCycle: 'h23' }).format(now));
     const overdue = this.todos.items().filter(({ task }) => {
       if (!task.due || this.seen.todos[task.id] === today) return false;
-      if (task.due.includes('T')) return !task.remind && (dueEpoch(task.due) ?? Infinity) < now; // with a reminder, Max already says it
+      if (task.due.includes('T')) return !task.remind && (dueEpoch(task.due) ?? Infinity) < now; // with a reminder, Empathika already says it
       return task.due.slice(0, 10) < today && hour >= 8; // date only: a morning nudge
     });
     if (!overdue.length) return;

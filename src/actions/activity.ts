@@ -1,6 +1,6 @@
 /**
  * A friendly description of what an action is doing, for the face ("📧 Checking your email…")
- * and, if it takes a moment, for Max to say. Instant actions (time, timers, modes) return
+ * and, if it takes a moment, for Empathika to say. Instant actions (time, timers, modes) return
  * undefined: nothing to show.
  */
 export interface Activity {

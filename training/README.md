@@ -1,11 +1,11 @@
-# Training the "Hey Max" wake word
+# Training the "Hey Empathika" wake word
 
-Max listens with **openWakeWord**, which runs on your Ubuntu machine. No audio leaves the
-house until the wake word is heard. "Hey Max" isn't a built-in phrase, so we train a small
+Empathika listens with **openWakeWord**, which runs on your Ubuntu machine. No audio leaves the
+house until the wake word is heard. "Hey Empathika" isn't a built-in phrase, so we train a small
 custom model once. After that it costs nothing to run.
 
 **How it works:** you don't record hundreds of clips yourself. The trainer generates
-thousands of synthetic "hey max" voices (different accents, speeds and pitches), mixes them
+thousands of synthetic "hey empathika" voices (different accents, speeds and pitches), mixes them
 with background noise, and teaches a small model to tell them apart from everyday speech
 and TV.
 
@@ -18,7 +18,7 @@ and TV.
 > **The official openWakeWord notebook no longer works on Colab** (it fails with
 > `No module named 'piper_phonemize'` / `torchvision==0.20.0` errors, because Colab moved to
 > a newer Python). Use the community-maintained notebook below instead: it's patched for
-> current Colab and exports the **`.tflite`** file Max needs. It's a third-party project, so
+> current Colab and exports the **`.tflite`** file Empathika needs. It's a third-party project, so
 > if it breaks in future, check its GitHub page for updates.
 
 1. Open the notebook:
@@ -27,14 +27,14 @@ and TV.
 2. In Colab: **Runtime → Change runtime type → T4 GPU** (free tier is fine).
 3. Find the configuration cell (it contains `TARGET_PHRASE`) and set:
    ```python
-   TARGET_PHRASE = ['hey max']
-   MODEL_NAME    = 'hey_max'
+   TARGET_PHRASE = ['hey empathika']
+   MODEL_NAME    = 'hey_empathika'
    ```
-   `MODEL_NAME` must be exactly `hey_max`: it becomes the file name and the wake word name.
+   `MODEL_NAME` must be exactly `hey_empathika`: it becomes the file name and the wake word name.
 4. **Runtime → Run all**, then leave the tab open and your computer awake. It takes
    about 75–90 minutes on the free T4 (it downloads ~25 GB of training data inside Colab,
    not to your computer).
-5. The last cell downloads **`hey_max.tflite`** (and a `.onnx` you don't need).
+5. The last cell downloads **`hey_empathika.tflite`** (and a `.onnx` you don't need).
 
 If the free runtime disconnects part-way, reconnect and **Run all** again: the notebook
 skips the steps it already finished.
@@ -54,9 +54,9 @@ skips the steps it already finished.
 > Already downloaded a broken `.tflite`? Keep the `.onnx` it also downloaded and convert that
 > again the same way (or ask for help: it takes a minute and no retraining).
 >
-> **Check any model** (run in the `max-assistant` folder; the input must be `[1, 16, 96]`):
+> **Check any model** (run in the `empathika-assistant` folder; the input must be `[1, 16, 96]`):
 > ```bash
-> docker compose exec openwakeword sh -c '$(ls /app/.venv/bin/python3 2>/dev/null || echo python3) -c "from pyopen_wakeword import OpenWakeWord as W; m=W.from_model(\"/custom/hey_max.tflite\"); L,t=m.lib,m.input_tensor; print([L.TfLiteTensorDim(t,i) for i in range(L.TfLiteTensorNumDims(t))])"'
+> docker compose exec openwakeword sh -c '$(ls /app/.venv/bin/python3 2>/dev/null || echo python3) -c "from pyopen_wakeword import OpenWakeWord as W; m=W.from_model(\"/custom/hey_empathika.tflite\"); L,t=m.lib,m.input_tensor; print([L.TfLiteTensorDim(t,i) for i in range(L.TfLiteTensorNumDims(t))])"'
 > ```
 
 ## Option B: Train on your own Ubuntu machine (more control, needs an NVIDIA GPU)
@@ -65,7 +65,7 @@ Use the detailed notebook
 [`notebooks/automatic_model_training.ipynb`](https://github.com/dscripka/openWakeWord/blob/main/notebooks/automatic_model_training.ipynb)
 from the openWakeWord repository. It runs the same process with every setting exposed:
 more examples, longer training, and your own background-noise recordings from the room
-Max will live in. Plan for roughly 20–30 GB of free disk space for the training datasets.
+Empathika will live in. Plan for roughly 20–30 GB of free disk space for the training datasets.
 
 ---
 
@@ -73,17 +73,17 @@ Max will live in. Plan for roughly 20–30 GB of free disk space for the trainin
 
 Three layers stop false wake-ups (noise, music, TV), from cheapest to strongest:
 
-1. **The double-check (on by default).** When the wake word engine fires, Max runs the last 2.5 seconds
+1. **The double-check (on by default).** When the wake word engine fires, Empathika runs the last 2.5 seconds
    through his own on-device speech recogniser. If nothing in it sounds like the wake word, he stays
    asleep: no chime, no face change. It's lenient with mishearings ("Marx", "Mats", "Mex" all count),
    and **saying it again within 10 seconds always wakes him**. The log shows
    `Ignored a possible false wake-up: heard "…"`. It adds a fraction of a second before the chime.
    `WAKEWORD_VERIFY=off` disables it.
 2. **`WAKEWORD_TRIGGER_LEVEL=2`** in `.env`: the engine must hear the wake word for two moments in a row.
-   Noise blips are ignored; a real "hey max" easily passes.
+   Noise blips are ignored; a real "hey empathika" easily passes.
 3. **A higher `WAKEWORD_THRESHOLD`** (e.g. 0.6–0.7).
 
-Apply changes with `docker compose --profile max up -d`. The coach's background test shows which of
+Apply changes with `docker compose --profile empathika up -d`. The coach's background test shows which of
 these you need.
 
 **Now it's hard to wake him?** Undo the last two first: remove `WAKEWORD_TRIGGER_LEVEL` and set
@@ -99,16 +99,16 @@ settings make the model stronger overall. Same Colab notebook, same ~90 minutes 
 with the larger settings).
 
 1. **Record yourself:** run `./scripts/wake-coach.sh` 3 or 4 times, in different rooms and at
-   different distances (and once per person in the house, if others will use Max). That gives
+   different distances (and once per person in the house, if others will use Empathika). That gives
    30–40 recordings in the `wake-coach` folder.
 2. **In the configuration cell** (the one with `TARGET_PHRASE`), use:
    ```python
-   TARGET_PHRASE = ['hey max', 'hey maks', 'hey macks']   # spellings that sound like "max" in different accents
-   MODEL_NAME    = 'hey_max'
+   TARGET_PHRASE = ['hey empathika', 'hey empatika', 'hey empathica']   # spellings that sound like "empathika" in different accents
+   MODEL_NAME    = 'hey_empathika'
    ```
    and in the settings below it change:
    ```python
-   'custom_negative_phrases': ['max', 'hey mike', 'hey mac', 'hey man', 'taxi', 'relax'],
+   'custom_negative_phrases': ['empathy', 'empathic', 'sympathetic', 'hey erica', 'hey monica'],
    'n_samples':       10000,   # was 2000: more voices to learn from
    'n_samples_val':   2000,
    'steps':           40000,   # was 20000
@@ -146,10 +146,10 @@ with the larger settings).
 ## Install the model
 
 ```bash
-cp ~/Downloads/hey_max.tflite wakewords/
+cp ~/Downloads/hey_empathika.tflite wakewords/
 docker compose restart openwakeword
 ```
-In `.env`, make sure you have `WAKEWORD_NAMES=hey_max`.
+In `.env`, make sure you have `WAKEWORD_NAMES=hey_empathika`.
 
 ## Test and tune: the wake word coach (5 minutes)
 
@@ -159,7 +159,7 @@ In `.env`, make sure you have `WAKEWORD_NAMES=hey_max`.
 
 It asks you to say the wake word 10 times (normally, quieter, faster, from further away), to read
 three ordinary sentences, and records 45 seconds of your room's usual background sound (TV, music).
-Then it scores every attempt with the same engine Max uses:
+Then it scores every attempt with the same engine Empathika uses:
 
 ```
 clip                level    score  at good level
@@ -170,28 +170,27 @@ Result: woke on 4 of 10 attempts.
  - The model does recognise you, just below the bar. Set WAKEWORD_THRESHOLD=0.35 in .env ...
 ```
 
-**Score** is how sure the model is that it heard the wake word (0 to 1). Max wakes when it's
+**Score** is how sure the model is that it heard the wake word (0 to 1). Empathika wakes when it's
 above `WAKEWORD_THRESHOLD` (default 0.5). The coach tells you which of these applies:
 
 | What it finds | What it means | What to do |
 |---|---|---|
 | Most scores just under the bar | The model knows your voice, the bar is too high | Set the `WAKEWORD_THRESHOLD` it suggests in `.env`, then `docker compose up -d openwakeword` |
 | Scores near 0 | The model doesn't recognise your voice: **no threshold will fix it** | Retrain with your own voice (below), or try a longer phrase |
-| "Your microphone is quiet" | The sound reaching Max is too faint | Raise the input volume, or sit closer |
+| "Your microphone is quiet" | The sound reaching Empathika is too faint | Raise the input volume, or sit closer |
 | A normal sentence or the background sound would have woken him | False wake-ups | It suggests `WAKEWORD_TRIGGER_LEVEL=2` and/or a higher `WAKEWORD_THRESHOLD`; keep `WAKEWORD_VERIFY` on |
 
 Your recordings are kept in `wake-coach/<date>/` (not uploaded anywhere) for retraining.
 
 You can also watch live detections and microphone levels with `npm run mic-check`.
 
-The same screen helps set **`VAD_RMS_THRESHOLD`** in `.env` (how Max knows you've
+The same screen helps set **`VAD_RMS_THRESHOLD`** in `.env` (how Empathika knows you've
 stopped talking). Pick a value roughly midway between the "quiet room" level and your
 normal speaking level.
 
-**About the phrase:** "Hey Max" is short, and "Max" is a common word and name, so it is
-more prone to accidental wake-ups than a longer phrase. Tuning the threshold usually
-solves it. If it doesn't, "Hey Max, …" can be trained alongside a longer variant such as
-"Okay Max", and you can keep whichever performs better.
+**About the phrase:** "Hey Empathika" is distinctive, so accidental wake-ups should be rare;
+if they happen, tuning the threshold usually solves it. If it doesn't, "Hey Empathika, …" can be trained alongside a longer variant such as
+"Okay Empathika", and you can keep whichever performs better.
 
 **Until the model is trained:** set `WAKEWORD_NAMES=hey_jarvis`. That phrase is built in,
 so you can use everything else straight away.

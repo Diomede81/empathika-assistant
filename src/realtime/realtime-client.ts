@@ -80,7 +80,7 @@ export class RealtimeClient extends EventEmitter implements VoiceClient {
     this.send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: callId, output } });
   }
 
-  /** Drop any audio the server has buffered but not yet acted on (e.g. Max's own echo). */
+  /** Drop any audio the server has buffered but not yet acted on (e.g. Empathika's own echo). */
   clearInput(): void {
     this.send({ type: 'input_audio_buffer.clear' });
   }

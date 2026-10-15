@@ -1,6 +1,6 @@
 /**
  * Finds out exactly what Gemini Live rejects ("Request contains an invalid argument").
- *   docker compose run --rm max node dist/tools/gemini-check.js
+ *   docker compose run --rm empathika node dist/tools/gemini-check.js
  * Uses your real .env settings and Gemini key. Each test opens a short session, sends a
  * typed "say hello" (Gemini only validates everything when it starts answering) and
  * reports OK or Google's reason. If actions are the problem, it narrows it down to the
@@ -36,7 +36,7 @@ type Result = { ok: boolean; detail: string };
 function trySession(cfg: AppConfig, tools: ChatCompletionTool[], parts: GeminiSetupParts = {}): Promise<Result> {
   const rt = cfg.realtime;
   const opts: VoiceClientOptions = {
-    url: rt.url, apiKey: rt.apiKey, model: rt.model, voice: rt.voice, instructions: 'You are Max, a helpful assistant.',
+    url: rt.url, apiKey: rt.apiKey, model: rt.model, voice: rt.voice, instructions: 'You are Empathika, a helpful assistant.',
     tools, silenceMs: rt.silenceMs, interruptResponse: false, language: rt.language,
   };
   return new Promise((resolve) => {
@@ -124,7 +124,7 @@ async function main(): Promise<void> {
   console.log('');
   if (!optionsOk) console.log('=> One of the voice options above is rejected; see which line failed.');
   if (culprits.length) {
-    console.log(`=> Gemini rejects ${culprits.length} action(s). Quick fix: add this line to .env and restart Max:`);
+    console.log(`=> Gemini rejects ${culprits.length} action(s). Quick fix: add this line to .env and restart Empathika:`);
     console.log(`   REALTIME_EXCLUDE_TOOLS=${culprits.map(nameOf).join(',')}`);
     console.log('   Please also send this whole output so the action can be fixed properly. What was sent for them:');
     for (const d of geminiDeclarations(culprits)) console.log(JSON.stringify(d));

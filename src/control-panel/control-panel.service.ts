@@ -23,7 +23,7 @@ import { PanelData, renderPanel } from './page';
 import { SOUL_DOCS, SOUL_MAX_CHARS, SoulDoc, SoulService } from '../soul/soul.service';
 
 /**
- * A small web page (default http://localhost:8099) to see what Max is connected to and
+ * A small web page (default http://localhost:8099) to see what Empathika is connected to and
  * to sign in to apps through Composio. Only reachable from this computer by default.
  */
 @Injectable()
@@ -123,7 +123,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
         ok = !msg.startsWith('The time');
       } else {
         const a = await u.check(true);
-        msg = !a ? 'The installed version is unknown.' : a.error ?? (a.behind ? `${a.behind} new change${a.behind === 1 ? '' : 's'} available.` : 'Max is up to date.');
+        msg = !a ? 'The installed version is unknown.' : a.error ?? (a.behind ? `${a.behind} new change${a.behind === 1 ? '' : 's'} available.` : 'Empathika is up to date.');
         ok = Boolean(a && !a.error);
       }
       return this.redirect(res, `/?${ok ? 'ok' : 'error'}=${encodeURIComponent(msg)}#updates`);
@@ -141,10 +141,10 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       if (!requestPower(this.cfg, action)) return this.redirect(res, '/?error=Only%20available%20on%20the%20Max%20box.#device');
       this.log.log(action === 'reboot' ? 'Restarting (asked from the control panel)' : 'Turning off (asked from the control panel)');
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(
-        `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Max</title><body style="font:16px system-ui;margin:40px;max-width:520px">` +
+        `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Empathika</title><body style="font:16px system-ui;margin:40px;max-width:520px">` +
           (action === 'reboot'
-            ? '<h1>Restarting…</h1><p>Max will be back in about a minute. <a href="/">Open the control panel again</a>.</p>'
-            : "<h1>Turning off</h1><p>When Max's screen goes dark it's safe to unplug. To turn him on again, press the power button on the Raspberry Pi.</p>"),
+            ? '<h1>Restarting…</h1><p>Empathika will be back in about a minute. <a href="/">Open the control panel again</a>.</p>'
+            : "<h1>Turning off</h1><p>When Empathika's screen goes dark it's safe to unplug. To turn him on again, press the power button on the Raspberry Pi.</p>"),
       );
       return;
     }
@@ -282,7 +282,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
         // A new briefing with interests but no websites yet: start suggesting straight away.
         if (created && !created.sources.length) {
           void r.suggest(created.id);
-          return back(`${msg} Max is now finding websites for your interests: tick the ones you want.`, true, `routine-${created.id}`);
+          return back(`${msg} Empathika is now finding websites for your interests: tick the ones you want.`, true, `routine-${created.id}`);
         }
         return back(msg, ok, created ? `routine-${created.id}` : id ? `routine-${id}` : 'routine-new');
       }
@@ -360,9 +360,9 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
         this.soul.reset(doc);
         return back('Back to the starter version.');
       case 'journal-add':
-        return this.soul.addEntry(f.get('text') ?? '', 'panel', f.get('mode') === 'work' ? 'work' : 'personal') ? back('Added to Max\'s journal.') : back('Nothing added (empty, or already there).', false);
+        return this.soul.addEntry(f.get('text') ?? '', 'panel', f.get('mode') === 'work' ? 'work' : 'personal') ? back('Added to Empathika\'s journal.') : back('Nothing added (empty, or already there).', false);
       case 'journal-delete':
-        return back(this.soul.removeEntry(f.get('id') ?? '') ? 'Removed from Max\'s journal.' : 'Could not find that entry.');
+        return back(this.soul.removeEntry(f.get('id') ?? '') ? 'Removed from Empathika\'s journal.' : 'Could not find that entry.');
       default:
         res.writeHead(404).end();
     }
@@ -548,7 +548,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
 
   private async page(res: ServerResponse, url: URL): Promise<void> {
     const d = await this.data();
-    if (url.searchParams.has('connected')) d.notice = { kind: 'ok', text: 'Signed in. Max can use this app now.' };
+    if (url.searchParams.has('connected')) d.notice = { kind: 'ok', text: 'Signed in. Empathika can use this app now.' };
     else if (url.searchParams.has('refreshed')) d.notice = { kind: 'ok', text: 'Refreshed.' };
     else if (url.searchParams.get('ok')) d.notice = { kind: 'ok', text: url.searchParams.get('ok')! };
     else if (url.searchParams.get('error')) d.notice = { kind: 'error', text: url.searchParams.get('error')! };
@@ -560,7 +560,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
     if (d.soul && SOUL_DOCS.includes(url.searchParams.get('doc') as SoulDoc)) d.soul.doc = url.searchParams.get('doc') as SoulDoc;
     // Which tab opens first (a #section in the address, e.g. after saving, takes precedence in the browser).
     const q = url.searchParams;
-    d.tab = q.get('tab') ?? (q.has('doc') ? 'max' : q.has('project') ? 'projects' : q.has('vault') || q.has('q') ? 'memory' : q.has('connected') ? 'connections' : undefined);
+    d.tab = q.get('tab') ?? (q.has('doc') ? 'empathika' : q.has('project') ? 'projects' : q.has('vault') || q.has('q') ? 'memory' : q.has('connected') ? 'connections' : undefined);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(renderPanel(d));
   }
 

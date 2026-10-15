@@ -1,4 +1,4 @@
-# Boot screen for the Max box: the logo in the middle of a dark screen (the face's own
+# Boot screen for the Empathika box: the logo in the middle of a dark screen (the face's own
 # background colour), gently "breathing" while the box starts. A large logo is scaled down to
 # fit the round screen.
 Window.SetBackgroundTopColor(0.024, 0.035, 0.051);

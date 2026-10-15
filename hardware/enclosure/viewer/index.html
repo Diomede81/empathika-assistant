@@ -1,4 +1,4 @@
-<title>Max Box Enclosure</title>
+<title>Empathika Box Enclosure</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
@@ -71,8 +71,8 @@ ul.parts li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; ga
 <div class="wrap">
   <header>
     <div>
-      <h1>Max Box</h1>
-      <p class="sub">Enclosure for Max: round 4″ face, 4-mic array on top, sealed 2.5″ speaker below, Raspberry Pi 5 inside. Drag to rotate, pinch or scroll to zoom.</p>
+      <h1>Empathika Box</h1>
+      <p class="sub">Enclosure for Empathika: round 4″ face, 4-mic array on top, sealed 2.5″ speaker below, Raspberry Pi 5 inside. Drag to rotate, pinch or scroll to zoom.</p>
     </div>
     <div class="dims">136 W × 120 D × 218 H mm</div>
   </header>
@@ -94,7 +94,7 @@ ul.parts li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; ga
           <button class="swatch" data-c="#c98b6b" data-f="#b97b5c" style="background:#c98b6b" aria-label="Clay" aria-pressed="false"></button>
         </div>
       </div>
-      <p class="hint">The face on the screen is a placeholder for Max's animated face. Grey and green blocks inside are stand-ins for the electronics.</p>
+      <p class="hint">The face on the screen is a placeholder for Empathika's animated face. Grey and green blocks inside are stand-ins for the electronics.</p>
     </section>
 
     <aside>
@@ -134,7 +134,7 @@ ul.parts li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; ga
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script>
 (() => {
-  // Dimensions from max-box.scad (mm, OpenSCAD axes: X width, Y depth with the front at 0, Z up).
+  // Dimensions from empathika-box.scad (mm, OpenSCAD axes: X width, Y depth with the front at 0, Z up).
   const W = 136, D = 120, H = 218, frontT = 4, lip = 1.4;
   const screen = { glass: 108, body: 100, glassT: 2.4, depth: 12, cz: H - 80 };
   const spk = { frame: 66.5, cz: 46, depth: 32 };
@@ -169,7 +169,7 @@ ul.parts li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; ga
   const shellMat = mat('#e9e5dc'), frontMat = mat('#dcd6ca'), innerMat = mat('#cfc8ba'), ringMat = mat('#b9b1a2');
   const parts = {};
 
-  // Inverse of the print orientation used for each STL in max-box.scad.
+  // Inverse of the print orientation used for each STL in empathika-box.scad.
   const place = {
     body: (g) => { g.rotateX(Math.PI / 2); g.translate(0, D, 0); },
     front: (g) => { g.rotateX(-Math.PI / 2); },

@@ -49,7 +49,7 @@ export class McpConnection {
       const transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
         requestInit: { headers: this.config.headers ?? {} },
       });
-      const client = new Client({ name: 'max-assistant', version: '0.1.0' });
+      const client = new Client({ name: 'empathika-assistant', version: '0.1.0' });
       await client.connect(transport);
       this.client = client;
       await this.refresh();
@@ -76,7 +76,7 @@ export class McpConnection {
       },
     }));
     this.log.log(
-      `${this.tools.length} of ${tools.length} tools offered to Max` +
+      `${this.tools.length} of ${tools.length} tools offered to Empathika` +
         (this.tools.length ? `: ${this.tools.map((t) => (t.type === 'function' ? t.function.name : '')).join(', ')}` : ''),
     );
     if (allowed?.length && !this.tools.length && tools.length && !allowed.includes('__none__')) {

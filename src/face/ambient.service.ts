@@ -29,7 +29,7 @@ export interface AmbientSettings {
   frameFrom: string;
   frameTo: string;
   frameEverySec: number;
-  /** Live captions under the face: what Max heard and what he says. Off unless switched on. */
+  /** Live captions under the face: what Empathika heard and what he says. Off unless switched on. */
   captions: boolean;
   /** Notifications on the screen (NotifyService). */
   notifyBriefing: boolean;
@@ -42,11 +42,11 @@ const PHOTO_MAX = 15 * 1024 * 1024;
 const PHOTO_EXT: Record<string, string> = { ffd8ff: 'jpg', '89504e': 'png', '524946': 'webp' };
 
 /**
- * What the screen shows around Max's face when nothing is happening: the weather, the next
+ * What the screen shows around Empathika's face when nothing is happening: the weather, the next
  * meeting and the to-dos that matter ("2 critical · 1 overdue"); and, in the evening, a photo
  * frame of your own pictures. In guest mode only the time and weather show: visitors don't
  * see meetings or to-dos. The next meeting comes from the calendar app of the current mode,
- * checked quietly every 20 minutes (and whenever Max reads the calendar for you).
+ * checked quietly every 20 minutes (and whenever Empathika reads the calendar for you).
  */
 @Injectable()
 export class AmbientService implements OnModuleInit, OnModuleDestroy {
@@ -120,7 +120,7 @@ export class AmbientService implements OnModuleInit, OnModuleDestroy {
     return this.weather?.now;
   }
 
-  /** Events Max just read for you (a calendar question): the glance uses them too. */
+  /** Events Empathika just read for you (a calendar question): the glance uses them too. */
   noteEvents(list: CalEvent[]): void {
     if (list.length) this.events = { list, at: Date.now(), mode: this.modes?.mode ?? '' };
   }

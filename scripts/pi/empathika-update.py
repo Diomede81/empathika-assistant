@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Updates the Max box from GitHub: download the latest version, set it up, restart if needed.
+"""Updates the Empathika box from GitHub: download the latest version, set it up, restart if needed.
 
-Started by max-update.service when Max asks (the control panel's "Update now", "Max, update
-yourself", or the nightly automatic update): Max leaves a note in /run/max/update-request.
-Runs as root, the way the setup does, and reports progress in /run/max/update.json (the
-control panel and the face read it). The full log is in /var/log/max-update.log.
+Started by empathika-update.service when Empathika asks (the control panel's "Update now", "Empathika, update
+yourself", or the nightly automatic update): Empathika leaves a note in /run/empathika/update-request.
+Runs as root, the way the setup does, and reports progress in /run/empathika/update.json (the
+control panel and the face read it). The full log is in /var/log/empathika-update.log.
 
-    max-update.py            update now (if there is something new)
-    max-update.py version    only write /run/max/version.json (at every start)
+    empathika-update.py            update now (if there is something new)
+    empathika-update.py version    only write /run/empathika/version.json (at every start)
 
-It uses the answers from the first setup (/etc/max/box.conf: user, folder, screen), so it never
-asks anything. Your .env, Max's memory (data/) and boot-logo.png are untouched: they aren't
+It uses the answers from the first setup (/etc/empathika/box.conf: user, folder, screen), so it never
+asks anything. Your .env, Empathika's memory (data/) and boot-logo.png are untouched: they aren't
 part of the code. Local edits to the code are put aside first (git stash), never lost.
 If the setup fails, the code goes back to the version that was running.
 """
@@ -22,10 +22,10 @@ import subprocess
 import sys
 import time
 
-RUN = os.environ.get('MAX_RUN_DIR', '/run/max')
-CONF = '/etc/max/box.conf'
-LOG = '/var/log/max-update.log'
-BRANCH = os.environ.get('MAX_UPDATE_BRANCH', 'main')
+RUN = os.environ.get('EMPATHIKA_RUN_DIR', '/run/empathika')
+CONF = '/etc/empathika/box.conf'
+LOG = '/var/log/empathika-update.log'
+BRANCH = os.environ.get('EMPATHIKA_UPDATE_BRANCH', 'main')
 # Start-up settings: when the setup changes one of these, the box must restart to apply it.
 BOOT_FILES = ['/boot/firmware/config.txt', '/boot/firmware/cmdline.txt']
 
@@ -44,8 +44,8 @@ def conf():
 
 
 CONF_VALUES = conf()
-USER = CONF_VALUES.get('MAX_USER', '')
-REPO = CONF_VALUES.get('MAX_REPO', '')
+USER = CONF_VALUES.get('EMPATHIKA_USER', '')
+REPO = CONF_VALUES.get('EMPATHIKA_REPO', '')
 
 
 def log(msg):
@@ -73,7 +73,7 @@ def status(state, message, **extra):
 
 
 def git(*args, timeout=180):
-    """git in Max's folder, as its owner (git refuses folders owned by someone else)."""
+    """git in Empathika's folder, as its owner (git refuses folders owned by someone else)."""
     cmd = ['runuser', '-u', USER, '--', 'git', '-C', REPO, *args] if USER and os.geteuid() == 0 else ['git', '-C', REPO, *args]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     if r.returncode != 0:
@@ -83,7 +83,7 @@ def git(*args, timeout=180):
 
 def source_url():
     """Where updates come from: the folder's GitHub address, as https (public repositories need no login)."""
-    url = os.environ.get('MAX_UPDATE_URL') or CONF_VALUES.get('MAX_UPDATE_URL') or ''
+    url = os.environ.get('EMPATHIKA_UPDATE_URL') or CONF_VALUES.get('EMPATHIKA_UPDATE_URL') or ''
     if not url:
         try:
             url = git('remote', 'get-url', 'origin')
@@ -145,25 +145,25 @@ def update():
         status('failed', f'Could not reach GitHub ({e}). Check the internet connection.')
         return 1
     if new == old:
-        status('uptodate', 'Max is already up to date.')
+        status('uptodate', 'Empathika is already up to date.')
         write_version()
         return 0
     count = git('rev-list', '--count', f'{old}..{new}')
-    status('updating', f'Installing the new version ({count} change{"" if count == "1" else "s"}). Max restarts on his own; this takes 5 to 15 minutes.',
+    status('updating', f'Installing the new version ({count} change{"" if count == "1" else "s"}). Empathika restarts on his own; this takes 5 to 15 minutes.',
            old=old, new=new)
     if git('status', '--porcelain', '--untracked-files=no'):
         git('stash', 'push', '--quiet', '-m', f'Local changes put aside by the update on {time.strftime("%Y-%m-%d %H:%M")}')
         log('Local changes to the code were put aside (see: git stash list)')
     git('checkout', '--quiet', '-B', BRANCH, new)
     before = fingerprint()
-    env = {**os.environ, 'MAX_USER': USER, 'MAX_UNATTENDED': '1'}
+    env = {**os.environ, 'EMPATHIKA_USER': USER, 'EMPATHIKA_UNATTENDED': '1'}
     with open(LOG, 'a') as out:
         r = subprocess.run(['bash', os.path.join(REPO, 'scripts/pi/setup.sh')], cwd=REPO, env=env,
                            stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, timeout=3600)
     if r.returncode != 0:
         git('checkout', '--quiet', '-B', BRANCH, old)
         write_version()
-        status('failed', 'The update did not finish, so Max stays on the version he had. Details: /var/log/max-update.log',
+        status('failed', 'The update did not finish, so Empathika stays on the version he had. Details: /var/log/empathika-update.log',
                old=old, new=new)
         return 1
     write_version()

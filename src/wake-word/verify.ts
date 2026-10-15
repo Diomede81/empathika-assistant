@@ -1,12 +1,12 @@
 /**
  * Second opinion on a wake-up. The wake word engine listens for a sound pattern, so a clatter,
- * a song or the TV can occasionally look like "hey max". When it fires, the last couple of
- * seconds are run through Max's own (local) speech recogniser: if nothing in it sounds like the
- * wake word, it was a false alarm and Max stays asleep.
+ * a song or the TV can occasionally look like "hey empathika". When it fires, the last couple of
+ * seconds are run through Empathika's own (local) speech recogniser: if nothing in it sounds like the
+ * wake word, it was a false alarm and Empathika stays asleep.
  *
  * It's deliberately lenient: the engine has already matched the sound, so this only needs to
  * rule out noise, music and unrelated talk. Recognisers often mishear names (especially with an
- * accent: "Max" -> "Marx", "Mats", "Mex"), so any word starting with the same sound and close
+ * accent: "Empathika" -> "Empathica", "Empatika", "Empathy"), so any word starting with the same sound and close
  * in spelling counts.
  */
 
@@ -14,14 +14,14 @@ const FILLER = new Set(['hey', 'hi', 'ok', 'okay', 'oi', 'yo', 'hello']);
 
 /** Ways speech recognisers commonly write the key word (they hear names imperfectly). */
 const SOUND_ALIKES: Record<string, string[]> = {
-  max: ['mac', 'macs', 'mack', 'macks', 'maks', 'maxi', 'maxie', 'maxy', 'marks', 'mags', 'maxx'],
+  empathika: ['empathica', 'empatika', 'empatica', 'empathiker', 'empathic', 'empathy', 'empathik', 'empatheka'],
   jarvis: ['jervis', 'javis', 'jarvas', 'jarvi', 'service'],
   nabu: ['nabou', 'naboo', 'nabo'],
   mycroft: ['microsoft', 'micro'],
   alexa: ['alexia', 'alexis', 'lexa'],
 };
 
-/** "hey_max" -> ["max"]: the distinctive word(s) of each configured wake word. */
+/** "hey_empathika" -> ["empathika"]: the distinctive word(s) of each configured wake word. */
 export function keyWords(names: string[]): string[] {
   return [...new Set(names.flatMap((n) => n.toLowerCase().split(/[_\s-]+/).filter((w) => w && !FILLER.has(w))))];
 }

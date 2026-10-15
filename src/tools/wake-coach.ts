@@ -21,7 +21,7 @@ const RATE = 16000;
 const ATTEMPTS = 10;
 const SENTENCES = [
   "I'm going to the shop to buy some milk and bread.",
-  'Max, can you pass me that box over there?',
+  'Empathika, can you pass me that box over there?',
   'Hey Mike, how was your weekend?',
 ];
 
@@ -90,7 +90,7 @@ async function main(): Promise<void> {
   const cfg = loadConfig();
   const out = process.argv[2] ?? join('wake-coach', new Date().toISOString().replace(/[:.]/g, '-'));
   mkdirSync(out, { recursive: true });
-  const phrase = (cfg.wakeWord.names[0] ?? 'hey_max').replace(/_/g, ' ');
+  const phrase = (cfg.wakeWord.names[0] ?? 'hey_empathika').replace(/_/g, ' ');
   const device = cfg.audio.inputDevice;
   const save = (name: string, pcm: Buffer) => {
     writeFileSync(join(out, `${name}.wav`), wav(pcm));
@@ -99,7 +99,7 @@ async function main(): Promise<void> {
   };
 
   console.log(`\nWAKE WORD COACH\n`);
-  console.log(`Sit or stand where you normally talk to Max, and speak as you normally would.`);
+  console.log(`Sit or stand where you normally talk to Empathika, and speak as you normally would.`);
   console.log(`I'll ask you to say "${phrase}" ${ATTEMPTS} times, read ${SENTENCES.length} short sentences, then record your room's usual background sounds.`);
   await sleep(2500);
 

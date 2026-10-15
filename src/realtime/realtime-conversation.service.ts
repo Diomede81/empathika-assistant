@@ -22,12 +22,12 @@ import { isStopRequest } from '../conversation/stop';
 import { ConversationControl } from '../actions/conversation-control';
 
 const PCM24 = { rate: 24000, width: 2, channels: 1 };
-/** Skip the first moments after the wake word: that's Max's own chime. */
+/** Skip the first moments after the wake word: that's Empathika's own chime. */
 const CHIME_SKIP_MS = 400;
 const FIRST_TURN_WAIT_MS = 7000;
 /** If a provider never answers after the user spoke, stop waiting (keeps sessions from hanging open). */
 const NO_ANSWER_MS = 15000;
-/** After an interruption, listen again almost immediately (Max's audio has been cut). */
+/** After an interruption, listen again almost immediately (Empathika's audio has been cut). */
 const INTERRUPT_REOPEN_MS = 250;
 
 /**
@@ -95,7 +95,7 @@ export class RealtimeConversationService {
     this.log.log(
       `Actions offered this session: ${options.tools.length}` +
         (rt.tools ? '' : ' (REALTIME_TOOLS=off)') +
-        (capabilities ? '' : ' - no email/web apps among them, so Max will say he has no access'),
+        (capabilities ? '' : ' - no email/web apps among them, so Empathika will say he has no access'),
     );
     const client: VoiceClient = rt.provider === 'gemini' ? new GeminiLiveClient(options) : new RealtimeClient(options);
     const resampler = new Resampler(micRate, client.inputRate);
@@ -104,15 +104,15 @@ export class RealtimeConversationService {
     // Capture what the user says while we connect (they often keep talking after the wake word).
     let connected = false;
     const early: Buffer[] = [];
-    // Max's replies play strictly one after another, and the mic stays deaf until the last
+    // Empathika's replies play strictly one after another, and the mic stays deaf until the last
     // one has finished coming out of the speakers (tracked by the clock: the Mac sound bridge
     // keeps playing buffered audio after the player process exits) plus an echo tail.
     let audioEndsAt = 0;
     const echoTail = this.cfg.audio.echoTailMs;
     const speaking = () => Date.now() < audioEndsAt;
     const deaf = () => Date.now() < audioEndsAt + echoTail;
-    // The wake word detector keeps listening during the conversation, even while Max talks,
-    // so "Hey Jarvis" interrupts him. Max never says the wake word, so his voice can't trigger it.
+    // The wake word detector keeps listening during the conversation, even while Empathika talks,
+    // so "Hey Jarvis" interrupts him. Empathika never says the wake word, so his voice can't trigger it.
     const micFormat = { rate: micRate, width: 2, channels: 1 };
     let interrupt: () => void = () => undefined;
     let wakeArmed = false;
@@ -181,7 +181,7 @@ export class RealtimeConversationService {
     const transcript: TranscriptLine[] = [];
 
     interrupt = () => {
-      if (!speaking()) return; // only meaningful while Max is talking
+      if (!speaking()) return; // only meaningful while Empathika is talking
       generation++;
       this.speaker.stop();
       player?.close();
@@ -195,7 +195,7 @@ export class RealtimeConversationService {
       busy = false;
       audioEndsAt = Date.now() - echoTail + INTERRUPT_REOPEN_MS; // reopen the mic almost at once
       lastActivity = Date.now();
-      this.log.log('Interrupted - Max stopped talking, listening to you');
+      this.log.log('Interrupted - Empathika stopped talking, listening to you');
     };
 
     client.on('speech-started', () => {
@@ -217,7 +217,7 @@ export class RealtimeConversationService {
       if (!player) {
         if (!rt.bargeIn && !speaking()) client.clearInput();
         if (firstAudioThisTurn && speechStoppedAt) {
-          this.log.log(`voice-to-voice ${Date.now() - speechStoppedAt} ms (end of your speech -> Max starts talking)`);
+          this.log.log(`voice-to-voice ${Date.now() - speechStoppedAt} ms (end of your speech -> Empathika starts talking)`);
           firstAudioThisTurn = false;
         }
         const q = (player = new AsyncQueue<Buffer>());
@@ -260,7 +260,7 @@ export class RealtimeConversationService {
       }
       player?.close();
       player = undefined;
-      // Discard anything the server buffered while Max was still audible (his own echo).
+      // Discard anything the server buffered while Empathika was still audible (his own echo).
       if (!rt.bargeIn) {
         clearTimeout(clearTimer);
         clearTimer = setTimeout(() => client.clearInput(), Math.max(0, audioEndsAt + echoTail - Date.now()));
@@ -270,8 +270,8 @@ export class RealtimeConversationService {
         const work = pendingTools;
         pendingTools = [];
         await Promise.all(work);
-        if (this.control?.consumeEnd()) return hush('Max ended it (told to stop, or the speech was not meant for him)');
-        client.requestResponse(); // let Max say what happened
+        if (this.control?.consumeEnd()) return hush('Empathika ended it (told to stop, or the speech was not meant for him)');
+        client.requestResponse(); // let Empathika say what happened
         return;
       }
       turns++;
@@ -292,15 +292,15 @@ export class RealtimeConversationService {
     });
     client.on('assistant-transcript', (t: string) => {
       for (const s of sentences.flush()) this.face?.said(s);
-      this.log.log(`Max: "${t}"`);
-      transcript.push({ who: 'max', text: t });
+      this.log.log(`Empathika: "${t}"`);
+      transcript.push({ who: 'empathika', text: t });
     });
     client.on('error', (err: Error) => {
       this.log.error(`${providerName}: ${err.message}`);
       if (/invalid argument/i.test(err.message) && rt.tools) {
         this.log.warn(
           `${providerName} rejected part of the session set-up (${options.tools.length} actions offered). ` +
-            'Find out which part with: docker compose run --rm max node dist/tools/gemini-check.js',
+            'Find out which part with: docker compose run --rm empathika node dist/tools/gemini-check.js',
         );
       }
     });

@@ -23,10 +23,10 @@ export interface DeviceStatus {
 
 /**
  * The box's speaker volume and screen brightness, from the screen's menu, by voice or from the
- * control panel. Volume is the sound system's own (it covers Max's voice and the music) and
- * the sound system remembers it. Brightness is the screen's backlight: Max runs in a container,
- * so he asks the box through the folder they share (/run/max/brightness-request; the box's
- * max-brightness service applies it) and keeps the level so it is set again after a restart.
+ * control panel. Volume is the sound system's own (it covers Empathika's voice and the music) and
+ * the sound system remembers it. Brightness is the screen's backlight: Empathika runs in a container,
+ * so he asks the box through the folder they share (/run/empathika/brightness-request; the box's
+ * empathika-brightness service applies it) and keeps the level so it is set again after a restart.
  */
 @Injectable()
 export class DeviceService implements OnModuleInit {
@@ -91,7 +91,7 @@ export class DeviceService implements OnModuleInit {
 
   /** Sets the screen brightness (5-100). Returns the new level, or an error message. */
   setBrightness(pct: number): number | string {
-    if (!this.cfg.face.onBox) return 'Screen brightness can only be changed on the Max box';
+    if (!this.cfg.face.onBox) return 'Screen brightness can only be changed on the Empathika box';
     this.level = clamp(pct, MIN_BRIGHTNESS);
     this.store.save({ brightness: this.level }).catch((err) => this.log.warn(`Could not save the brightness: ${(err as Error).message}`));
     if (!this.applyBrightness()) return "Couldn't reach the box's screen settings";
@@ -112,7 +112,7 @@ export class DeviceService implements OnModuleInit {
     }
   }
 
-  /** What the box reported after applying the last change (written by max-brightness.sh). */
+  /** What the box reported after applying the last change (written by empathika-brightness.sh). */
   private backlight(): { supported: boolean } | undefined {
     if (!this.cfg.face.onBox) return { supported: false };
     try {

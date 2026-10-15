@@ -44,7 +44,7 @@ export class ProjectsService extends EventEmitter implements OnModuleInit, OnMod
 
   // ---------- Finding ----------
 
-  /** Projects Max may use right now (open vaults). */
+  /** Projects Empathika may use right now (open vaults). */
   visible(): Project[] {
     return this.memory.projectsIn(this.modes.readable());
   }

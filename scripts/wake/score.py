@@ -1,11 +1,11 @@
-"""Scores recorded wake word attempts with the exact engine Max uses (openWakeWord).
+"""Scores recorded wake word attempts with the exact engine Empathika uses (openWakeWord).
 
 Runs inside the openwakeword container (it has the engine and the models); started by
 scripts/wake-coach.sh. Prints, for every clip, the highest confidence the model gave it,
 then a plain-English verdict: works, threshold too strict, microphone too quiet, or the
 model doesn't recognise this voice (retrain with these clips).
 
-    python3 score.py <clips dir> --names hey_max --threshold 0.5 --custom-dir /custom
+    python3 score.py <clips dir> --names hey_empathika --threshold 0.5 --custom-dir /custom
 """
 
 import argparse
@@ -65,7 +65,7 @@ def db(v: float) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("clips")
-    ap.add_argument("--names", default="hey_max")
+    ap.add_argument("--names", default="hey_empathika")
     ap.add_argument("--threshold", type=float, default=0.5)
     ap.add_argument("--custom-dir", default="/custom")
     ap.add_argument("--json", help="also write the results here")
@@ -123,7 +123,7 @@ def verdict(rows: list, threshold: float, phrase: str) -> None:
     if median_peak < 0.08:
         tips.append(
             f"Your microphone is quiet (typical peak {db(median_peak)}; healthy is about -12 to -3 dB). "
-            "Raise the input volume (Mac: System Settings > Sound > Input; Max box: "
+            "Raise the input volume (Mac: System Settings > Sound > Input; Empathika box: "
             "'wpctl set-volume @DEFAULT_SOURCE@ 1.0'), or sit closer."
         )
         if np.median(boosted) > threshold > np.median(scores):
@@ -161,10 +161,10 @@ def verdict(rows: list, threshold: float, phrase: str) -> None:
                 f"   • Raise WAKEWORD_THRESHOLD to {raise_to}: still wakes on {keeps} of your {len(scores)} attempts."
             )
         tips.append(
-            "   • Keep WAKEWORD_VERIFY on (the default): Max double-checks each wake-up with his speech recogniser "
+            "   • Keep WAKEWORD_VERIFY on (the default): Empathika double-checks each wake-up with his speech recogniser "
             "and ignores it if he didn't hear the wake word."
         )
-        tips.append("   Then apply with 'docker compose --profile max up -d'.")
+        tips.append("   Then apply with 'docker compose --profile empathika up -d'.")
     for t in tips or ["Mixed results: run the coach again from where you usually sit, and send me the output."]:
         print(f"     {t.strip()}" if t.startswith("   ") else f" - {t}")
 

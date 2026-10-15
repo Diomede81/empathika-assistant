@@ -181,7 +181,7 @@ export class LlmService {
 }
 
 /**
- * Turns an AI provider error into a short spoken sentence plus a log hint, so Max says
+ * Turns an AI provider error into a short spoken sentence plus a log hint, so Empathika says
  * *why* he can't answer (rate limit, bad key, no credit...) instead of a generic apology.
  */
 export function explainLlmError(err: unknown): { spoken: string; log: string } {

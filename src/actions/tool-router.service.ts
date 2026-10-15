@@ -33,12 +33,12 @@ const CONFIRM_PARAM = 'confirmed';
 const EXTERNAL_CONTENT_WINDOW_MS = 10 * 60 * 1000;
 
 /**
- * Every action Max can take, in one place: built-in actions (time, timers), Home
+ * Every action Empathika can take, in one place: built-in actions (time, timers), Home
  * Assistant, and extra MCP servers (Composio apps such as Office 365, WhatsApp...).
  * Used by both voice modes.
  *
  * Safety: risky actions on external apps (sending email, deleting, accepting invites…)
- * are never run on the first request. Max must read the details back and get a "yes";
+ * are never run on the first request. Empathika must read the details back and get a "yes";
  * the action only runs when the same request comes back with confirmed=true within
  * 3 minutes. Voice is easy to mishear, so this is enforced here, not left to the AI.
  */
@@ -116,7 +116,7 @@ export class ToolRouterService {
 
   async call(name: string, args: Record<string, unknown>): Promise<string> {
     // Belt and braces: nothing runs while the start-up code hasn't been entered.
-    if (this.lock?.locked) return 'Not done: Max is locked. The start-up code has to be entered on his screen first.';
+    if (this.lock?.locked) return 'Not done: Empathika is locked. The start-up code has to be entered on his screen first.';
     const what = describeActivity(name);
     if (!what) return this.run(name, args);
     const ev: ActivityEvent = { id: ++this.activityId, name, ...what };

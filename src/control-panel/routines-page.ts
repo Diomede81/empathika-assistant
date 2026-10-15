@@ -43,9 +43,9 @@ const LIST = { personal: 'Personal', work: 'Work', household: 'Household (shared
 export function routinesSection(r: PanelRoutines, esc: Esc): string {
   const cards = r.list.map((x) => routineCard(x, r.firecrawl, esc)).join('');
   return `<section id="routines"><h2>Routines</h2>
-<p class="meta">Jobs Max does on a schedule, so the result is ready when you ask. The <b>news briefing</b> checks your websites, picks the
-articles that match your interests, reads them and prepares a short summary of each. Ask "Hey Max, what's the news?", or hear about it in
-"what's going on in my day?". ${r.firecrawl ? '' : 'Tip: add a Firecrawl key (Connections tab) so Max can also read sites that need a browser and search the news for your interests.'}</p>
+<p class="meta">Jobs Empathika does on a schedule, so the result is ready when you ask. The <b>news briefing</b> checks your websites, picks the
+articles that match your interests, reads them and prepares a short summary of each. Ask "Hey Empathika, what's the news?", or hear about it in
+"what's going on in my day?". ${r.firecrawl ? '' : 'Tip: add a Firecrawl key (Connections tab) so Empathika can also read sites that need a browser and search the news for your interests.'}</p>
 ${r.list.length ? '' : '<p class="empty">No routines yet: create your first news briefing below.</p>'}</section>
 ${cards}
 <section id="routine-new"><h2>New news briefing</h2>${routineForm(undefined, r.firecrawl, esc)}</section>`;
@@ -75,7 +75,7 @@ function routineCard(x: PanelRoutine, firecrawl: boolean, esc: Esc): string {
   return `<section id="routine-${esc(x.id)}"><h2>${esc(x.name)} ${status}</h2>
 <p class="meta">${esc(x.daysText)} at ${esc(x.time)} · ${x.count} articles · ${esc(LIST[x.vault] ?? x.vault)} · ${x.sources.length} website${x.sources.length === 1 ? '' : 's'}: ${esc(x.sources.map(host).join(', ') || 'none')}${x.search ? ' · plus a news search' : ''}</p>
 ${x.lastError && !x.running ? `<p class="hint">Last run: ${esc(x.lastError)}</p>` : ''}
-<h3>Latest briefing</h3>${meta ? `<p class="meta">${meta}</p>` : ''}${note}${articles}${b?.articles.length ? '<p class="meta">👍 / 👎 teach Max what you like: he uses them when choosing the next articles.</p>' : ''}
+<h3>Latest briefing</h3>${meta ? `<p class="meta">${meta}</p>` : ''}${note}${articles}${b?.articles.length ? '<p class="meta">👍 / 👎 teach Empathika what you like: he uses them when choosing the next articles.</p>' : ''}
 <div class="acts" style="margin-top:12px">
 <form method="post" action="/routines/run"><input type="hidden" name="id" value="${esc(x.id)}"><button class="btn" type="submit" ${x.running ? 'disabled' : ''}>Run now</button></form>
 <form method="post" action="/routines/toggle"><input type="hidden" name="id" value="${esc(x.id)}"><button class="btn secondary" type="submit">${x.enabled ? 'Pause' : 'Resume'}</button></form>
@@ -92,11 +92,11 @@ const VIA: Record<string, string> = {
   firecrawl: '<span class="badge off">via Firecrawl</span>',
 };
 
-/** "Suggest websites": Max proposes sources for the interests; tick the ones to add. */
+/** "Suggest websites": Empathika proposes sources for the interests; tick the ones to add. */
 function suggestBlock(x: PanelRoutine, esc: Esc): string {
   const s = x.suggestions;
   const button = `<form method="post" action="/routines/suggest"><input type="hidden" name="id" value="${esc(x.id)}"><button class="btn secondary" type="submit" ${s?.running || !x.interests ? 'disabled' : ''}>${s?.items.length ? 'Suggest again' : 'Suggest websites'}</button></form>`;
-  const intro = `<p class="meta">${x.interests ? `Max finds websites for your interests (${esc(x.interests.slice(0, 120))}${x.interests.length > 120 ? '…' : ''}) and checks each one, looking for its news feed.` : 'Add your interests in Settings below, then Max can suggest websites.'}</p>`;
+  const intro = `<p class="meta">${x.interests ? `Empathika finds websites for your interests (${esc(x.interests.slice(0, 120))}${x.interests.length > 120 ? '…' : ''}) and checks each one, looking for its news feed.` : 'Add your interests in Settings below, then Empathika can suggest websites.'}</p>`;
   if (s?.running) return `<h3>Suggested websites</h3><p class="meta"><span class="badge warn">looking…</span> Finding and checking websites: this takes about a minute. The page refreshes by itself.</p><span data-wait></span>`;
   const list = s?.items.length
     ? `<form method="post" action="/routines/add-suggested"><input type="hidden" name="id" value="${esc(x.id)}"><ul class="suggest">${s.items
@@ -120,7 +120,7 @@ function routineForm(x: PanelRoutine | undefined, firecrawl: boolean, esc: Esc):
   const counts = [3, 4, 5, 6, 7, 8, 10].map((n) => `<option ${n === (x?.count ?? 6) ? 'selected' : ''}>${n}</option>`).join('');
   return `<form class="stack routine" method="post" action="/routines/save">${x ? `<input type="hidden" name="id" value="${esc(x.id)}">` : ''}
 <label>Name<input name="name" maxlength="60" value="${esc(x?.name ?? 'Morning news')}"></label>
-<label>Websites <span class="meta">(one per line: a news site, a section of it, or its RSS feed. Not sure? Leave it empty: Max suggests some for your interests)</span>
+<label>Websites <span class="meta">(one per line: a news site, a section of it, or its RSS feed. Not sure? Leave it empty: Empathika suggests some for your interests)</span>
 <textarea name="sources" rows="4" placeholder="bbc.co.uk/news&#10;theverge.com&#10;formula1.com/en/latest">${esc((x?.sources ?? []).join('\n'))}</textarea></label>
 <label>What interests you <span class="meta">(topics, people, places; separated by commas)</span>
 <textarea name="interests" rows="2" placeholder="Formula 1, AI start-ups, Brighton local news, Italian politics">${esc(x?.interests ?? '')}</textarea></label>

@@ -1,7 +1,7 @@
 /**
  * Live tuning tool: shows microphone loudness and every wake word detection.
  *   npm run mic-check
- * Use it to (1) confirm "hey max" triggers reliably from across the room, (2) check it
+ * Use it to (1) confirm "hey empathika" triggers reliably from across the room, (2) check it
  * does NOT trigger during normal conversation / TV, and (3) pick VAD_RMS_THRESHOLD:
  * set it between the "quiet room" level and the "talking" level shown here.
  */

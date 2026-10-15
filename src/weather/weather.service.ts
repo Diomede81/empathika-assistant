@@ -130,7 +130,7 @@ export class WeatherService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async get(url: string): Promise<unknown> {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000), headers: { 'User-Agent': 'max-assistant' } });
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000), headers: { 'User-Agent': 'empathika-assistant' } });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     return res.json();
   }

@@ -17,7 +17,7 @@ export class Endpointer {
     private readonly silenceMs: number,
     private readonly maxUtteranceMs: number,
     private readonly noSpeechTimeoutMs = 4000,
-    /** Ignore the first ms of audio (e.g. Max's own wake chime) when deciding if someone spoke. */
+    /** Ignore the first ms of audio (e.g. Empathika's own wake chime) when deciding if someone spoke. */
     private readonly graceMs = 0,
   ) {}
 

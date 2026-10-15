@@ -20,7 +20,7 @@ export const SERVER: Record<Side, string> = { personal: 'composio', work: 'compo
 
 /**
  * Office 365, Gmail, WhatsApp, LinkedIn and other apps through Composio. Composio holds the
- * logins (OAuth); Max keeps two separate sets of them, as two Composio "users":
+ * logins (OAuth); Empathika keeps two separate sets of them, as two Composio "users":
  *  - personal (COMPOSIO_USER_ID, apps in COMPOSIO_TOOLKITS): used in personal mode
  *  - work (COMPOSIO_WORK_USER_ID, apps in COMPOSIO_WORK_TOOLKITS): used in work mode
  * so the same app (e.g. Outlook) can be connected twice: your own mailbox and your work one.
@@ -96,7 +96,7 @@ export class ComposioService implements OnModuleInit {
     this.connectedCount[side] = connected.length;
     // Only offer tools for apps that are actually connected. Apps with their own patterns in
     // COMPOSIO_ALLOWED_TOOLS are narrowed to those; any other connected app gets all its tools,
-    // so adding an app never silently gives Max zero actions.
+    // so adding an app never silently gives Empathika zero actions.
     const patterns = connected.flatMap((slug) => {
       const own = this.cfg.composio.allowedTools.filter((p) => p === '*' || p.toUpperCase().startsWith(`${slug}_`));
       return own.length ? own : [`${slug}_*`];
@@ -115,18 +115,18 @@ export class ComposioService implements OnModuleInit {
     if (side !== 'personal') return;
     const d = await this.diagnostics();
     if (d.notEnabled.length) {
-      this.log.warn(`Connected in Composio but not enabled in Max: ${d.notEnabled.join(', ')}. Add to COMPOSIO_TOOLKITS / COMPOSIO_WORK_TOOLKITS in .env and restart`);
+      this.log.warn(`Connected in Composio but not enabled in Empathika: ${d.notEnabled.join(', ')}. Add to COMPOSIO_TOOLKITS / COMPOSIO_WORK_TOOLKITS in .env and restart`);
     }
     if (d.otherUser.length) {
       this.log.warn(
-        `Connected in Composio under a user Max doesn't use: ${d.otherUser.join(', ')}. ` +
-          'Connect them from Max\'s control panel instead (Personal or Work)',
+        `Connected in Composio under a user Empathika doesn't use: ${d.otherUser.join(', ')}. ` +
+          'Connect them from Empathika\'s control panel instead (Personal or Work)',
       );
     }
   }
 
   /**
-   * Apps connected in the Composio project that Max can't use: connected for one of Max's
+   * Apps connected in the Composio project that Empathika can't use: connected for one of Empathika's
    * users but missing from that side's app list, or connected only under another user ID
    * (e.g. via Composio's own dashboard).
    */

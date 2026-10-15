@@ -21,7 +21,7 @@ export const COUNTRIES: Record<string, string> = {
 
 /**
  * Where home is. Set on the control panel (or HOME_LOCATION / HOME_COUNTRY in .env as a default),
- * kept encrypted next to the memory. Max is told it at the start of every conversation, so local
+ * kept encrypted next to the memory. Empathika is told it at the start of every conversation, so local
  * questions (weather, opening hours, events, "near me") are about the right place, and web
  * searches are geo-targeted to it.
  */
@@ -69,7 +69,7 @@ export class LocationService implements OnModuleInit {
     this.saved = { place, postcode, country };
     await this.store?.save(this.saved);
     this.log.log(`Home location set: ${describe(this.saved)}`);
-    return `Saved: ${describe(this.saved)}. Max uses it from the next question.`;
+    return `Saved: ${describe(this.saved)}. Empathika uses it from the next question.`;
   }
 
   /**

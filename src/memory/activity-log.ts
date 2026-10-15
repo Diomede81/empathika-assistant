@@ -22,7 +22,7 @@ const PREVIEW = 90;
 const NAME = 'activity';
 
 /**
- * Who-saw-what log for Max's memory: which memories were shared with the AI service in each
+ * Who-saw-what log for Empathika's memory: which memories were shared with the AI service in each
  * conversation, what was searched, saved, changed or forgotten, and mode switches. Encrypted
  * like the vaults (it quotes memories), kept for 30 days, shown on the control panel.
  */

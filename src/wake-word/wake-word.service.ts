@@ -4,7 +4,7 @@ import { WyomingClient } from '../wyoming/wyoming-client';
 
 /**
  * Streams microphone audio to a local openWakeWord service (Wyoming protocol) and
- * resolves when the wake word is heard. "hey_max" is a custom model (see training/README.md);
+ * resolves when the wake word is heard. "hey_empathika" is a custom model (see training/README.md);
  * the built-in "hey_jarvis" works out of the box as a stand-in until it is trained.
  * Runs fully on-device: no audio leaves the house until the wake word fires.
  */
@@ -30,7 +30,7 @@ export class WakeWordService {
   }
 
   /**
-   * Logs which phrase will actually wake Max. If none of the configured wake words is
+   * Logs which phrase will actually wake Empathika. If none of the configured wake words is
    * installed, the service silently listens for "okay_nabu" instead, so say that loudly.
    */
   async checkConfiguredNames(): Promise<void> {
@@ -46,7 +46,7 @@ export class WakeWordService {
         );
       }
       const phrases = (active.length ? active : ['okay_nabu']).map((n) => `"${n.replace(/_/g, ' ')}"`);
-      this.log.log(`>>> Say ${phrases.join(' or ')} to wake Max <<<`);
+      this.log.log(`>>> Say ${phrases.join(' or ')} to wake Empathika <<<`);
     } catch (err) {
       this.log.warn(`Could not list installed wake words: ${(err as Error).message}`);
     }

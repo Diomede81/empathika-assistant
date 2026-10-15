@@ -17,7 +17,7 @@ interface Synthesis {
  *  - openai: any OpenAI-compatible /audio/speech API, e.g. Kokoro running locally in
  *            Docker (natural, free) or OpenAI's cloud voices (most expressive, paid)
  * Sentences are synthesised as soon as the LLM produces them and played back in order,
- * so Max starts talking after the first sentence instead of waiting for the whole answer.
+ * so Empathika starts talking after the first sentence instead of waiting for the whole answer.
  */
 @Injectable()
 export class TtsService {
@@ -113,7 +113,7 @@ export class TtsService {
     const audio = new AsyncQueue<Buffer>();
     const client = new WyomingClient(this.cfg.tts.host, this.cfg.tts.port);
     const format = new Promise<PcmFormat>((resolve, reject) => {
-      // Never wait forever: a voice service that doesn't answer would freeze Max.
+      // Never wait forever: a voice service that doesn't answer would freeze Empathika.
       const timer = setTimeout(() => fail(new Error(`no audio from the voice service within ${SYNTH_TIMEOUT_MS / 1000}s`)), SYNTH_TIMEOUT_MS);
       const fail = (err: Error) => {
         clearTimeout(timer);
@@ -147,7 +147,7 @@ export class TtsService {
     return { format, audio };
   }
 
-  /** A short rising two-note chime, so you know Max is listening. */
+  /** A short rising two-note chime, so you know Empathika is listening. */
   chime(): Promise<void> {
     const rate = 22050;
     const notes = [880, 1320];

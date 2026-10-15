@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Empathika
+Description=Empathika's face (or your own logo) while the box starts and shuts down
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/empathika
+ScriptFile=/usr/share/plymouth/themes/empathika/empathika.script

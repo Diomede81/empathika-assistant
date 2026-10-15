@@ -23,7 +23,7 @@ const APPS: Record<string, string> = {
 const BUILTIN = new Set(['get_current_datetime', 'end_conversation', 'set_timer', 'set_reminder', 'list_timers', 'cancel_timer', 'remember', 'forget', 'recall']);
 
 /**
- * A short briefing of what Max can reach right now, built from the actions actually
+ * A short briefing of what Empathika can reach right now, built from the actions actually
  * offered. Without it, AI models fall back on their default "I can't access your email /
  * browse the internet", even when the tools are right there.
  */

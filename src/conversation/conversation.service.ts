@@ -34,7 +34,7 @@ const VERIFY_TIMEOUT_MS = 2500;
 const INTERRUPT_REOPEN_MS = 300;
 /** Say what he's doing when an action is still running after this long and he hasn't spoken yet. */
 const SPOKEN_CUE_MS = 1000;
-/** A second wake word this soon after an ignored one always wakes Max up. */
+/** A second wake word this soon after an ignored one always wakes Empathika up. */
 const REPEAT_WAKE_MS = 10_000;
 
 function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
@@ -69,14 +69,14 @@ export class ConversationService implements OnApplicationBootstrap {
 
   /** Personal / work / guest: the conversation context never carries over a mode switch. */
   @Optional() @Inject(ModesService) private readonly modes?: ModesService;
-  /** The start-up code: while locked, Max doesn't answer or announce anything. */
+  /** The start-up code: while locked, Empathika doesn't answer or announce anything. */
   @Optional() @Inject(LockService) private readonly lock?: LockService;
   private historyMode?: Mode;
   private lastIgnoredWakeAt = 0;
   /** end_conversation: the AI decided the conversation is over. */
   @Optional() @Inject(ConversationControl) private readonly control?: ConversationControl;
   @Optional() @Inject(ToolRouterService) private readonly toolRouter?: ToolRouterService;
-  /** Music is turned down while Max talks (property-injected: optional, e.g. no Spotify speaker). */
+  /** Music is turned down while Empathika talks (property-injected: optional, e.g. no Spotify speaker). */
   @Optional() @Inject(MusicService) private readonly music?: MusicService;
   /** The box's screen: idle / listening / thinking (speaking follows the audio). */
   @Optional() @Inject(FaceService) private readonly face?: FaceService;
@@ -91,7 +91,7 @@ export class ConversationService implements OnApplicationBootstrap {
     }
     this.mic.on('chunk', (c: Buffer) => this.onChunk(c));
     this.mic.start();
-    // Timers/reminders are announced straight away when Max is idle, otherwise as soon as
+    // Timers/reminders are announced straight away when Empathika is idle, otherwise as soon as
     // the current conversation ends (never in the middle of an answer).
     this.timers.on('fired', (t) => {
       this.pendingAnnouncements.push({ text: announcement(t), timer: !t.say });
@@ -129,7 +129,7 @@ export class ConversationService implements OnApplicationBootstrap {
   /**
    * A second opinion before waking up: do the words in the last couple of seconds contain the
    * wake word? Catches false alarms from noise, music and TV. If the speech recogniser can't be
-   * reached in time, Max wakes up as usual.
+   * reached in time, Empathika wakes up as usual.
    */
   private async confirmWake(audio: Buffer, fmt: { rate: number; width: number; channels: number }): Promise<boolean> {
     const started = Date.now();
@@ -192,7 +192,7 @@ export class ConversationService implements OnApplicationBootstrap {
     }
 
     if (this.lock?.locked) {
-      this.log.log(`Wake word "${name}" detected, but Max is locked (start-up code)`);
+      this.log.log(`Wake word "${name}" detected, but Empathika is locked (start-up code)`);
       const speech = this.tts.session();
       speech.say("I'm locked. Please enter my code on the screen.");
       await speech.done().catch(() => undefined);
@@ -251,11 +251,11 @@ export class ConversationService implements OnApplicationBootstrap {
         }
         const outcome = await this.respond(text.value, text.endOfSpeech);
         if (outcome === 'ended') {
-          this.log.log('Conversation ended by Max (told to stop, or the speech was not meant for him)');
+          this.log.log('Conversation ended by Empathika (told to stop, or the speech was not meant for him)');
           return;
         }
         if (outcome === 'interrupted') {
-          // "Hey Max" over his voice: he's stopped talking; listen for what comes next ("stop", or a new question).
+          // "Hey Empathika" over his voice: he's stopped talking; listen for what comes next ("stop", or a new question).
           noSpeechMs = FOLLOW_UP_WINDOW_MS;
           await new Promise((r) => setTimeout(r, INTERRUPT_REOPEN_MS));
           continue;
@@ -266,7 +266,7 @@ export class ConversationService implements OnApplicationBootstrap {
         return;
       }
       noSpeechMs = FOLLOW_UP_WINDOW_MS;
-      // Let Max's voice finish coming out of the speakers before listening again, so he
+      // Let Empathika's voice finish coming out of the speakers before listening again, so he
       // doesn't transcribe (and answer) the end of his own sentence.
       await new Promise((r) => setTimeout(r, this.cfg.audio.echoTailMs));
     }
@@ -274,7 +274,7 @@ export class ConversationService implements OnApplicationBootstrap {
 
   /**
    * Records one utterance and transcribes it. Returns undefined (and logs why) when
-   * nobody spoke or nothing was understood, so Max never goes quiet without a reason.
+   * nobody spoke or nothing was understood, so Empathika never goes quiet without a reason.
    */
   private async listen(
     noSpeechMs: number,
@@ -357,7 +357,7 @@ export class ConversationService implements OnApplicationBootstrap {
     const splitter = new SentenceSplitter();
     let firstSpoken = 0;
     let reply = '';
-    // While he answers, the wake word still works: "Hey Max" cuts him off.
+    // While he answers, the wake word still works: "Hey Empathika" cuts him off.
     let interrupted = false;
     // A slow action (email, web...) before he's said anything: tell the user what he's doing.
     let cued = false;
@@ -373,7 +373,7 @@ export class ConversationService implements OnApplicationBootstrap {
     const stopInterrupt = this.armInterrupt(() => {
       interrupted = true;
       speech.interrupt();
-      this.log.log('Interrupted - Max stopped talking, listening to you');
+      this.log.log('Interrupted - Empathika stopped talking, listening to you');
     });
     try {
       for await (const fragment of this.llm.respond(this.history)) {
@@ -398,14 +398,14 @@ export class ConversationService implements OnApplicationBootstrap {
       speech.say(sentence);
     }
     if (firstSpoken) {
-      this.log.log(`Max: "${reply.trim()}"  (end-of-speech -> first sentence ${firstSpoken - tEndOfSpeech} ms)`);
+      this.log.log(`Empathika: "${reply.trim()}"  (end-of-speech -> first sentence ${firstSpoken - tEndOfSpeech} ms)`);
     }
     for (const m of this.history.slice(historyStart)) {
       if (m.role === 'assistant' && 'tool_calls' in m && m.tool_calls) {
         for (const c of m.tool_calls) if (c.type === 'function') this.transcript.push({ who: 'action', text: c.function.name });
       }
     }
-    if (reply.trim()) this.transcript.push({ who: 'max', text: reply.trim() });
+    if (reply.trim()) this.transcript.push({ who: 'empathika', text: reply.trim() });
     this.toolRouter?.activity.off('start', onActivity);
     if (this.control?.endRequested) speech.interrupt();
     await speech.done();
@@ -416,7 +416,7 @@ export class ConversationService implements OnApplicationBootstrap {
     return interrupted ? 'interrupted' : 'done';
   }
 
-  /** Listens for the wake word while Max is talking; returns a function that stops listening. */
+  /** Listens for the wake word while Empathika is talking; returns a function that stops listening. */
   private armInterrupt(onWake: () => void): () => void {
     if (!this.cfg.realtime.wakeInterrupt) return () => undefined;
     const fmt = this.mic.format;

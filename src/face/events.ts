@@ -17,7 +17,7 @@ const END = ['end', 'endTime', 'end_time', 'endDateTime', 'end_datetime'];
 /**
  * Calendar events from a calendar app's answer (Outlook, Google Calendar...), whatever its
  * exact shape: any object with a title and a start time. Used to show the events on screen
- * when Max reads the calendar.
+ * when Empathika reads the calendar.
  */
 export function extractEvents(answer: string): CalEvent[] {
   let data: unknown;

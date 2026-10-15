@@ -21,7 +21,7 @@ export interface Provider {
   where?: string;
 }
 
-/** Providers with an OpenAI-compatible API: Max talks to all of them the same way. */
+/** Providers with an OpenAI-compatible API: Empathika talks to all of them the same way. */
 const KNOWN: Provider[] = [
   { id: 'openai', label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', setting: 'OPENAI_API_KEY', where: 'https://platform.openai.com/api-keys' },
   { id: 'anthropic', label: 'Anthropic (Claude)', baseUrl: 'https://api.anthropic.com/v1/', setting: 'ANTHROPIC_API_KEY', where: 'https://console.anthropic.com/settings/keys' },
@@ -34,7 +34,7 @@ const KNOWN: Provider[] = [
 
 export interface Assignment {
   provider: string;
-  /** Empty = Max's main model (LLM_MODEL). */
+  /** Empty = Empathika's main model (LLM_MODEL). */
   model: string;
 }
 
@@ -52,7 +52,7 @@ const LIST_CACHE_MS = 10 * 60_000;
  * Bring your own model: any OpenAI-compatible provider (OpenAI, Anthropic, Gemini, OpenRouter,
  * Groq, DeepSeek, Mistral, a local Ollama, or your own endpoint) for each background job.
  * Keys stay in .env; the choice of model per job is made on the control panel and kept in
- * data/models.json. A job whose model fails falls back to Max's main model, so it still runs.
+ * data/models.json. A job whose model fails falls back to Empathika's main model, so it still runs.
  */
 @Injectable()
 export class ModelsService implements OnModuleInit {
@@ -83,7 +83,7 @@ export class ModelsService implements OnModuleInit {
   providers(): (Provider & { configured: boolean })[] {
     const m = this.cfg.models;
     return [
-      { id: 'default', label: `Max's main model (${this.cfg.llm.model})`, baseUrl: this.cfg.llm.baseUrl, setting: 'LLM_API_KEY', configured: true },
+      { id: 'default', label: `Empathika's main model (${this.cfg.llm.model})`, baseUrl: this.cfg.llm.baseUrl, setting: 'LLM_API_KEY', configured: true },
       ...KNOWN.map((p) => ({ ...p, configured: Boolean(m.keys[p.id]) })),
       { id: 'ollama', label: 'Ollama (on your own computer)', baseUrl: m.ollamaUrl || 'http://127.0.0.1:11434/v1', setting: 'OLLAMA_BASE_URL', configured: Boolean(m.ollamaUrl), where: 'https://ollama.com' },
       { id: 'custom', label: 'Your own endpoint (OpenAI-compatible)', baseUrl: m.customUrl, setting: 'CUSTOM_LLM_BASE_URL', configured: Boolean(m.customUrl) },
@@ -154,7 +154,7 @@ export class ModelsService implements OnModuleInit {
     if (!(task in TASKS)) return 'Unknown job.';
     const p = this.provider(provider);
     if (!p) return 'Unknown provider.';
-    if (!p.configured) return `${p.label} isn't set up: add ${p.setting} to .env and restart Max.`;
+    if (!p.configured) return `${p.label} isn't set up: add ${p.setting} to .env and restart Empathika.`;
     const m = model.trim();
     if (provider !== 'default' && !m) return `Choose which model to use from ${p.label.replace(/ \(.*\)$/, '')}.`;
     this.assignments[task] = { provider, model: provider === 'default' ? '' : m.slice(0, 120) };
@@ -165,7 +165,7 @@ export class ModelsService implements OnModuleInit {
 
   /**
    * One chat completion for a job, with its chosen model. If that model fails, the main model
-   * (LLM_*) does it instead, so a typo in a model name never stops Max's background work.
+   * (LLM_*) does it instead, so a typo in a model name never stops Empathika's background work.
    */
   async complete(task: Task, req: ChatRequest): Promise<string> {
     const a = this.assignment(task);
@@ -196,7 +196,7 @@ export class ModelsService implements OnModuleInit {
         model: main ? this.cfg.llm.model : a.model,
         temperature: req.temperature ?? 0.2,
         max_tokens: req.maxTokens,
-        // Only Max's main model has a configured thinking setting (LLM_REASONING_EFFORT).
+        // Only Empathika's main model has a configured thinking setting (LLM_REASONING_EFFORT).
         ...(main && this.cfg.llm.reasoningEffort ? { reasoning_effort: this.cfg.llm.reasoningEffort as 'low' } : {}),
         messages: [
           { role: 'system', content: req.system },

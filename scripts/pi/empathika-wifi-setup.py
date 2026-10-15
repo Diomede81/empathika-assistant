@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Max box WiFi setup.
+Empathika box WiFi setup.
 
 Watches the network. If the box has been offline for a minute (new router, moved house,
 changed password), or someone chooses WiFi setup in the screen's menu (hold the screen for 2 seconds), it starts its own temporary
-WiFi network "Max-Setup" with a random password. The face screen shows a QR code for it
-(this service writes the details to /run/max/wifi.json, which Max reads). Joining that
+WiFi network "Empathika-Setup" with a random password. The face screen shows a QR code for it
+(this service writes the details to /run/empathika/wifi.json, which Empathika reads). Joining that
 network opens a setup page on the phone (a captive portal, like hotel WiFi), where you
-pick your home network and type its password. The box then joins it, and Max says so.
+pick your home network and type its password. The box then joins it, and Empathika says so.
 
-Runs as root under systemd (max-wifi.service). Uses NetworkManager (nmcli), the network
+Runs as root under systemd (empathika-wifi.service). Uses NetworkManager (nmcli), the network
 manager in Raspberry Pi OS Bookworm and later. Standard library only.
 
-Settings (environment): MAX_RUN_DIR (/run/max), MAX_WIFI_IFACE (wlan0),
-MAX_WIFI_OFFLINE_S (60), MAX_WIFI_SETUP_TIMEOUT_S (600), MAX_WIFI_PORTAL_PORT (80),
-MAX_WIFI_PORTAL_BIND (10.42.0.1, NetworkManager's hotspot address).
+Settings (environment): EMPATHIKA_RUN_DIR (/run/empathika), EMPATHIKA_WIFI_IFACE (wlan0),
+EMPATHIKA_WIFI_OFFLINE_S (60), EMPATHIKA_WIFI_SETUP_TIMEOUT_S (600), EMPATHIKA_WIFI_PORTAL_PORT (80),
+EMPATHIKA_WIFI_PORTAL_BIND (10.42.0.1, NetworkManager's hotspot address).
 """
 import html
 import json
@@ -27,18 +27,18 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-RUN_DIR = os.environ.get('MAX_RUN_DIR', '/run/max')
-IFACE = os.environ.get('MAX_WIFI_IFACE', 'wlan0')
-OFFLINE_S = int(os.environ.get('MAX_WIFI_OFFLINE_S', '60'))
-SETUP_TIMEOUT_S = int(os.environ.get('MAX_WIFI_SETUP_TIMEOUT_S', '600'))
-PORTAL_PORT = int(os.environ.get('MAX_WIFI_PORTAL_PORT', '80'))
-PORTAL_BIND = os.environ.get('MAX_WIFI_PORTAL_BIND', '10.42.0.1')
-AP_SSID = 'Max-Setup'
-AP_CON = 'max-setup'
+RUN_DIR = os.environ.get('EMPATHIKA_RUN_DIR', '/run/empathika')
+IFACE = os.environ.get('EMPATHIKA_WIFI_IFACE', 'wlan0')
+OFFLINE_S = int(os.environ.get('EMPATHIKA_WIFI_OFFLINE_S', '60'))
+SETUP_TIMEOUT_S = int(os.environ.get('EMPATHIKA_WIFI_SETUP_TIMEOUT_S', '600'))
+PORTAL_PORT = int(os.environ.get('EMPATHIKA_WIFI_PORTAL_PORT', '80'))
+PORTAL_BIND = os.environ.get('EMPATHIKA_WIFI_PORTAL_BIND', '10.42.0.1')
+AP_SSID = 'Empathika-Setup'
+AP_CON = 'empathika-setup'
 STATUS = os.path.join(RUN_DIR, 'wifi.json')
 REQUEST = os.path.join(RUN_DIR, 'wifi-request')
-CANCEL = os.path.join(RUN_DIR, 'wifi-cancel')  # "Back to Max" on the screen
-CANCEL_PAUSE_S = int(os.environ.get('MAX_WIFI_CANCEL_PAUSE_S', '300'))
+CANCEL = os.path.join(RUN_DIR, 'wifi-cancel')  # "Back to Empathika" on the screen
+CANCEL_PAUSE_S = int(os.environ.get('EMPATHIKA_WIFI_CANCEL_PAUSE_S', '300'))
 TICK_S = 3
 
 
@@ -200,7 +200,7 @@ def wait_online(seconds):
 SETUP = Setup()
 
 PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Set up Max</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Set up Empathika</title>
 <style>
 :root{{--bg:#f4f6f5;--card:#fff;--ink:#14201d;--muted:#5b6b66;--line:#dfe6e3;--accent:#1f7a64;--warn:#a4521a}}
 @media (prefers-color-scheme:dark){{:root{{--bg:#0d1312;--card:#151d1b;--ink:#e6f2ee;--muted:#93a7a1;--line:#24302d;--accent:#7fd8bd;--warn:#f2a36b}}}}
@@ -216,7 +216,7 @@ input[type=text],input[type=password]{{width:100%;font:inherit;padding:11px 12px
 button{{font:inherit;font-weight:700;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}}
 small{{color:var(--muted)}}
 </style></head><body><main>
-<h1>Connect Max to WiFi</h1>
+<h1>Connect Empathika to WiFi</h1>
 <p>Choose your home network and enter its password.</p>
 {error}
 <form method="post" action="/connect">
@@ -227,7 +227,7 @@ small{{color:var(--muted)}}
 <label for="pw">Password</label>
 <input type="password" id="pw" name="password" autocomplete="off">
 <button type="submit">Connect</button>
-<small>Max will say when he's connected. This page will stop working then, which is normal.</small>
+<small>Empathika will say when he's connected. This page will stop working then, which is normal.</small>
 </form></main></body></html>"""
 
 DONE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -235,7 +235,7 @@ DONE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <style>body{{margin:0;font:17px/1.5 system-ui,-apple-system,sans-serif;background:#f4f6f5;color:#14201d}}
 @media (prefers-color-scheme:dark){{body{{background:#0d1312;color:#e6f2ee}}}}main{{max-width:440px;margin:0 auto;padding:40px 16px}}</style>
 </head><body><main><h1>Connecting to {ssid}…</h1>
-<p>Max will tell you when he's online, and his face will come back. If the password was wrong, the setup
+<p>Empathika will tell you when he's online, and his face will come back. If the password was wrong, the setup
 network appears again in a minute: just scan the code on his screen again.</p></main></body></html>"""
 
 # What phones and laptops ask to detect a captive portal: all get sent to the setup page.
@@ -331,7 +331,7 @@ def main():
         if SETUP.connecting:
             pass
         elif cancelled and SETUP.active:
-            # "Back to Max" on the screen: leave setup mode and try the known networks again. If the
+            # "Back to Empathika" on the screen: leave setup mode and try the known networks again. If the
             # box is still offline, setup mode only comes back by itself after a pause.
             SETUP.stop('cancelled from the screen')
             clear_status()

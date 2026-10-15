@@ -21,7 +21,7 @@ export interface VoiceClientOptions {
  * Gemini Live). Events:
  *  speech-started, speech-stopped, audio(Buffer 24 kHz 16-bit mono), response-done({ toolCalls,
  *  status, reason }), tool-call({ callId, name, args }), user-transcript(string),
- *  assistant-transcript(string), assistant-text(string: live pieces of what Max is saying),
+ *  assistant-transcript(string), assistant-text(string: live pieces of what Empathika is saying),
  *  error(Error), close()
  * `response-done` with toolCalls > 0 means "the model is waiting for tool results and a
  * requestResponse()"; providers that continue on their own report toolCalls: 0.

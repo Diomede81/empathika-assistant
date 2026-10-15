@@ -2,8 +2,8 @@ import { EventEmitter } from 'node:events';
 
 /**
  * Cards on the box's round screen: anything worth seeing rather than hearing (a timer that
- * went off, the music, your day, a list). While a card shows, Max's face shrinks to the top
- * of the screen. Any part of Max can show one with showCard(); FaceService puts it on screen
+ * went off, the music, your day, a list). While a card shows, Empathika's face shrinks to the top
+ * of the screen. Any part of Empathika can show one with showCard(); FaceService puts it on screen
  * and runs the matching handler when a button on the card is tapped.
  */
 

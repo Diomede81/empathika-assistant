@@ -1,5 +1,5 @@
 [Unit]
-Description=Max face screen (kiosk)
+Description=Empathika face screen (kiosk)
 After=systemd-user-sessions.service plymouth-quit-wait.service docker.service
 Conflicts=getty@tty1.service
 
@@ -17,7 +17,7 @@ StandardError=journal
 UtmpIdentifier=tty1
 UtmpMode=user
 Environment=XDG_SESSION_TYPE=wayland
-ExecStart=/usr/local/bin/max-face-kiosk
+ExecStart=/usr/local/bin/empathika-face-kiosk
 Restart=always
 RestartSec=3
 

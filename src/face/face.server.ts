@@ -9,11 +9,11 @@ import { renderFace } from './face.page';
 import { AmbientService } from './ambient.service';
 import { LockService } from '../lock/lock.service';
 
-/** Changes every time Max starts: an open face page from before an update reloads itself. */
+/** Changes every time Empathika starts: an open face page from before an update reloads itself. */
 const BOOT_ID = `${Date.now().toString(36)}-${process.pid}`;
 
 /**
- * Serves the face page for the box's screen and streams Max's state to it (Server-Sent
+ * Serves the face page for the box's screen and streams Empathika's state to it (Server-Sent
  * Events): `info` when anything changes, `level` (mouth shape) 20 times a second while he talks.
  * Listens on this machine only (FACE_HOST / FACE_PORT, default 127.0.0.1:8098).
  */
@@ -156,7 +156,7 @@ export class FaceServer implements OnModuleInit, OnModuleDestroy {
         return;
       }
       const ok = this.face.cancelWifiSetup();
-      res.writeHead(ok ? 202 : 503, { 'Content-Type': 'text/plain' }).end(ok ? 'cancelled' : 'Only available on the Max box');
+      res.writeHead(ok ? 202 : 503, { 'Content-Type': 'text/plain' }).end(ok ? 'cancelled' : 'Only available on the Empathika box');
       return;
     }
     if (req.method === 'POST' && url.pathname === '/power') {
@@ -168,7 +168,7 @@ export class FaceServer implements OnModuleInit, OnModuleDestroy {
         return;
       }
       const ok = this.face.requestPower(action);
-      res.writeHead(ok ? 202 : 503, { 'Content-Type': 'text/plain' }).end(ok ? 'requested' : 'Only available on the Max box');
+      res.writeHead(ok ? 202 : 503, { 'Content-Type': 'text/plain' }).end(ok ? 'requested' : 'Only available on the Empathika box');
       return;
     }
     if (req.method === 'POST' && url.pathname === '/wifi-setup') {
@@ -179,7 +179,7 @@ export class FaceServer implements OnModuleInit, OnModuleDestroy {
         return;
       }
       const ok = this.face.requestWifiSetup();
-      res.writeHead(ok ? 202 : 503, { 'Content-Type': 'text/plain' }).end(ok ? 'requested' : 'WiFi setup is only available on the Max box');
+      res.writeHead(ok ? 202 : 503, { 'Content-Type': 'text/plain' }).end(ok ? 'requested' : 'WiFi setup is only available on the Empathika box');
       return;
     }
     res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');

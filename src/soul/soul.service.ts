@@ -16,7 +16,7 @@ export interface JournalEntry {
   id: string;
   at: string;
   text: string;
-  /** conversation: Max noted it himself; panel: someone added it on the control panel. */
+  /** conversation: Empathika noted it himself; panel: someone added it on the control panel. */
   source: 'conversation' | 'panel';
   /** Which side of life it belongs to: shown only in that mode (personal or work). */
   mode?: 'personal' | 'work';
@@ -24,7 +24,7 @@ export interface JournalEntry {
 
 export const SOUL_MAX_CHARS = 8000;
 const DOC_LABEL: Record<SoulDoc, string> = {
-  soul: "Max's soul",
+  soul: "Empathika's soul",
   personal: 'personal mode behaviour',
   work: 'work mode behaviour',
   guest: 'guest mode behaviour',
@@ -33,16 +33,16 @@ const OVERRIDE =
   /\b(ignore|disregard|forget|override|bypass)\b.{0,40}\b(rules?|instructions?|guidelines|safety|restrictions|system prompt)\b|\b(pretend|claim)\b.{0,20}\b(human|a person)\b|\bno (rules|limits|restrictions)\b/i;
 const JOURNAL_MAX = 80;
 const JOURNAL_TEXT_MAX = 240;
-/** How much of the journal Max sees at the start of a conversation (newest first). */
+/** How much of the journal Empathika sees at the start of a conversation (newest first). */
 const JOURNAL_PROMPT_CHARS = 2000;
 
 /**
- * Who Max is. Three parts:
+ * Who Empathika is. Three parts:
  *  - the soul: a plain-text description of his identity, story and personality, written by
- *    the household (control panel → Max's soul). Starts as an easy-going template.
+ *    the household (control panel → Empathika's soul). Starts as an easy-going template.
  *  - how he behaves in each mode (personal, work, guest): one short document per mode, on
  *    top of the soul. Personal and work mode also see only their own memories (ModesService).
- *  - the journal: short notes Max adds himself after conversations about who he is in this
+ *  - the journal: short notes Empathika adds himself after conversations about who he is in this
  *    home (nicknames, running jokes, how people like him to behave, shared moments). Encrypted
  *    like his memory; reviewable and deletable on the control panel.
  * Both go in front of the operating rules (LLM_SYSTEM_PROMPT) at the start of every
@@ -78,7 +78,7 @@ export class SoulService implements OnModuleInit {
     try {
       this.journal = (this.store.load() ?? []).filter((e) => e && typeof e.text === 'string');
     } catch (err) {
-      this.log.error(`Could not read Max's journal (${(err as Error).message}); starting a new one`);
+      this.log.error(`Could not read Empathika's journal (${(err as Error).message}); starting a new one`);
     }
   }
 
@@ -121,7 +121,7 @@ export class SoulService implements OnModuleInit {
   addEntry(text: string, source: JournalEntry['source'], mode: JournalEntry['mode'] = 'personal'): JournalEntry | undefined {
     const t = text.replace(/\s+/g, ' ').trim().slice(0, JOURNAL_TEXT_MAX);
     if (!t || !this.store) return undefined;
-    // Journal entries shape who Max is: refuse obvious attempts to rewrite his rules through it.
+    // Journal entries shape who Empathika is: refuse obvious attempts to rewrite his rules through it.
     if (source === 'conversation' && OVERRIDE.test(t)) {
       this.log.warn(`Journal entry refused (looks like an instruction to override his rules): ${t}`);
       return undefined;
@@ -130,7 +130,7 @@ export class SoulService implements OnModuleInit {
     if (this.journal.some((e) => key(e.text) === key(t) && (e.mode ?? 'personal') === mode)) return undefined;
     const entry: JournalEntry = { id: randomUUID(), at: new Date().toISOString(), text: t, source, mode };
     this.journal.push(entry);
-    // Keep the newest; what the household added by hand is kept over Max's own notes.
+    // Keep the newest; what the household added by hand is kept over Empathika's own notes.
     while (this.journal.length > JOURNAL_MAX) {
       const own = this.journal.findIndex((e) => e.source === 'conversation');
       this.journal.splice(own >= 0 ? own : 0, 1);
@@ -166,7 +166,7 @@ export class SoulService implements OnModuleInit {
     return [
       soul
         ? `Who you are. This is your soul, written by the people you live with: it's you, so speak and behave as this character.\n${soul}`
-        : "You are Max, the household's AI assistant.",
+        : "You are Empathika, the household's AI assistant.",
       behaviour
         ? `${label(mode)} is on right now. How you behave in this mode (where it differs from your soul, this wins):\n${behaviour}`
         : '',
@@ -195,7 +195,7 @@ export class SoulService implements OnModuleInit {
   }
 
   private persist(): void {
-    this.store?.save(this.journal).catch((err) => this.log.error(`Could not save Max's journal: ${(err as Error).message}`));
+    this.store?.save(this.journal).catch((err) => this.log.error(`Could not save Empathika's journal: ${(err as Error).message}`));
   }
 }
 

@@ -1,8 +1,8 @@
 #!/bin/sh
-# Sets the screen's brightness when Max asks (screen menu, voice, control panel). Max runs in a
-# container, so he writes the level (5-100) to /run/max/brightness-request; max-brightness.path
-# notices and runs this. It tells Max whether the screen supports it in /run/max/backlight.json.
-RUN="${MAX_RUN_DIR:-/run/max}"
+# Sets the screen's brightness when Empathika asks (screen menu, voice, control panel). Empathika runs in a
+# container, so he writes the level (5-100) to /run/empathika/brightness-request; empathika-brightness.path
+# notices and runs this. It tells Empathika whether the screen supports it in /run/empathika/backlight.json.
+RUN="${EMPATHIKA_RUN_DIR:-/run/empathika}"
 REQ="$RUN/brightness-request"
 [ -f "$REQ" ] || exit 0
 PCT="$(head -c 4 "$REQ" | tr -cd '0-9')"
@@ -20,4 +20,4 @@ for B in "$BL"/*; do
 done
 printf '{"supported":%s,"level":%s}\n' "$FOUND" "$PCT" > "$RUN/backlight.json"
 chmod 644 "$RUN/backlight.json"
-[ "$FOUND" = true ] || logger -t max-brightness "No adjustable screen backlight found (/sys/class/backlight is empty)"
+[ "$FOUND" = true ] || logger -t empathika-brightness "No adjustable screen backlight found (/sys/class/backlight is empty)"

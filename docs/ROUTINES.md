@@ -1,7 +1,7 @@
 # Routines: the news briefing
 
-Routines are jobs Max does on a schedule, so the result is ready the moment you ask. The first one is
-the **news briefing**: you give Max a list of websites and what interests you; every morning (or
+Routines are jobs Empathika does on a schedule, so the result is ready the moment you ask. The first one is
+the **news briefing**: you give Empathika a list of websites and what interests you; every morning (or
 whenever you choose) he gathers the news, picks the 5 or 6 articles that suit you best, reads them and
 prepares a short spoken summary of each.
 
@@ -16,13 +16,13 @@ Control panel → **Routines** → *New news briefing*:
 | Leave out | Optional: `celebrity gossip, shopping guides` |
 | Time and days | When to gather it: a little before you usually ask (it takes a minute or two) |
 | Articles | How many to pick (3 to 10, default 6) |
-| Whose | Personal, Work or Household: a work briefing is only read out in work mode, like the rest of Max |
+| Whose | Personal, Work or Household: a work briefing is only read out in work mode, like the rest of Empathika |
 | Also search the news | Besides your websites, run a news search for each interest (needs Firecrawl; uses credits) |
 
 **Not sure which websites?** Fill in your interests and leave the websites empty (or press **Suggest
-websites** on an existing briefing). Max proposes sources for your interests, plus a web search for each
+websites** on an existing briefing). Empathika proposes sources for your interests, plus a web search for each
 one when Firecrawl is set up, and **checks every one**: does it load, does it have a news feed, are there
-fresh headlines. You see each site with the interest it covers, how Max can read it (*news feed* is the
+fresh headlines. You see each site with the interest it covers, how Empathika can read it (*news feed* is the
 most reliable, and those are ticked already) and its recent headlines that match your interests. Sites that
 aren't news sources (shops, coupon sites, companies, investors) or whose headlines don't match are left out. Tick the ones you want and press **Add selected**.
 For sites with a feed, the feed address itself is added. You can always add your own as well.
@@ -34,14 +34,14 @@ celebrity news", "Gather my news at 6:45", "What are my news settings?", "Sugges
 
 ## Using it
 
-- "Hey Max, **what's the news?**": he reads the prepared briefing, a sentence or two per article, and
+- "Hey Empathika, **what's the news?**": he reads the prepared briefing, a sentence or two per article, and
   asks if you want more on any. "Tell me more about the second one" reads you that article.
 - "**What's going on in my day?**" mentions that the briefing is ready and offers it at the end.
 - "**Get me fresh news**" gathers a new one now; he says when it's ready.
 - On the control panel you see the latest briefing with links to every article, and **Run now**.
 
-Max never gives you the same article twice, and if a run finds nothing new he keeps the previous
-briefing. If Max was switched off at the scheduled time, he gathers it as soon as he's back (same day).
+Empathika never gives you the same article twice, and if a run finds nothing new he keeps the previous
+briefing. If Empathika was switched off at the scheduled time, he gathers it as soon as he's back (same day).
 
 ## How it gathers the news
 
@@ -65,16 +65,16 @@ Then, like an editor would:
    dropped and the next best article takes their place; the rest get a two-sentence spoken summary.
 
 If the AI model can't answer (wrong model name, out of credit, a "thinking" model that ran out of room),
-Max matches the headlines on your interests' key words instead, never just "the first few", and the
+Empathika matches the headlines on your interests' key words instead, never just "the first few", and the
 briefing says so on the control panel.
 
-**👍 / 👎** on each article in the control panel teaches Max your taste: they're used every time he chooses.
+**👍 / 👎** on each article in the control panel teaches Empathika your taste: they're used every time he chooses.
 
 **Firecrawl credits:** with feeds, a daily briefing costs about 6 credits (reading the chosen articles),
 plus a few per day for each site without a feed and for the optional news search: roughly 200 a month
 for one daily briefing, within the free plan.
 
-Everything is stored encrypted next to Max's memory (`routines.vault`).
+Everything is stored encrypted next to Empathika's memory (`routines.vault`).
 
 ## Troubleshooting
 

@@ -1,0 +1,9 @@
+[Unit]
+Description=Empathika update requests (control panel, voice, nightly automatic update)
+
+[Path]
+PathExists=/run/empathika/update-request
+Unit=empathika-update.service
+
+[Install]
+WantedBy=multi-user.target
