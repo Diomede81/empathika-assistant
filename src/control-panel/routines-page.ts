@@ -75,7 +75,7 @@ function routineCard(x: PanelRoutine, firecrawl: boolean, esc: Esc): string {
   return `<section id="routine-${esc(x.id)}"><h2>${esc(x.name)} ${status}</h2>
 <p class="meta">${esc(x.daysText)} at ${esc(x.time)} · ${x.count} articles · ${esc(LIST[x.vault] ?? x.vault)} · ${x.sources.length} website${x.sources.length === 1 ? '' : 's'}: ${esc(x.sources.map(host).join(', ') || 'none')}${x.search ? ' · plus a news search' : ''}</p>
 ${x.lastError && !x.running ? `<p class="hint">Last run: ${esc(x.lastError)}</p>` : ''}
-<h3>Latest briefing</h3>${meta ? `<p class="meta">${meta}</p>` : ''}${note}${articles}${b?.articles.length ? '<p class="meta">👍 / 👎 teach Empathika what you like: he uses them when choosing the next articles.</p>' : ''}
+<h3>Latest briefing</h3>${meta ? `<p class="meta">${meta}</p>` : ''}${note}${articles}${b?.articles.length ? '<p class="meta">👍 / 👎 teach Empathika what you like: she uses them when choosing the next articles.</p>' : ''}
 <div class="acts" style="margin-top:12px">
 <form method="post" action="/routines/run"><input type="hidden" name="id" value="${esc(x.id)}"><button class="btn" type="submit" ${x.running ? 'disabled' : ''}>Run now</button></form>
 <form method="post" action="/routines/toggle"><input type="hidden" name="id" value="${esc(x.id)}"><button class="btn secondary" type="submit">${x.enabled ? 'Pause' : 'Resume'}</button></form>

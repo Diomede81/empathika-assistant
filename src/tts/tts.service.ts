@@ -78,7 +78,7 @@ export class TtsService {
       const body: Record<string, unknown> = {
         model: tts.model,
         input: text,
-        voice: tts.voice ?? 'bm_george',
+        voice: tts.voice ?? 'bf_emma',
         response_format: 'pcm',
       };
       if (tts.instructions) body.instructions = tts.instructions;

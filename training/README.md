@@ -74,9 +74,9 @@ Empathika will live in. Plan for roughly 20–30 GB of free disk space for the t
 Three layers stop false wake-ups (noise, music, TV), from cheapest to strongest:
 
 1. **The double-check (on by default).** When the wake word engine fires, Empathika runs the last 2.5 seconds
-   through his own on-device speech recogniser. If nothing in it sounds like the wake word, he stays
-   asleep: no chime, no face change. It's lenient with mishearings ("Marx", "Mats", "Mex" all count),
-   and **saying it again within 10 seconds always wakes him**. The log shows
+   through her own on-device speech recogniser. If nothing in it sounds like the wake word, she stays
+   asleep: no chime, no face change. It's lenient with mishearings ("Empathica", "Empatika", "Empathy" all count),
+   and **saying it again within 10 seconds always wakes her**. The log shows
    `Ignored a possible false wake-up: heard "…"`. It adds a fraction of a second before the chime.
    `WAKEWORD_VERIFY=off` disables it.
 2. **`WAKEWORD_TRIGGER_LEVEL=2`** in `.env`: the engine must hear the wake word for two moments in a row.
@@ -86,7 +86,7 @@ Three layers stop false wake-ups (noise, music, TV), from cheapest to strongest:
 Apply changes with `docker compose --profile empathika up -d`. The coach's background test shows which of
 these you need.
 
-**Now it's hard to wake him?** Undo the last two first: remove `WAKEWORD_TRIGGER_LEVEL` and set
+**Now it's hard to wake her?** Undo the last two first: remove `WAKEWORD_TRIGGER_LEVEL` and set
 `WAKEWORD_THRESHOLD` back to 0.5 (or lower; the double-check catches the extra false alarms). Then look
 at the log for `Ignored a possible false wake-up` lines while you say the wake word: if they show your
 real attempts, send them over (or set `WAKEWORD_VERIFY=off`).
@@ -178,7 +178,7 @@ above `WAKEWORD_THRESHOLD` (default 0.5). The coach tells you which of these app
 | Most scores just under the bar | The model knows your voice, the bar is too high | Set the `WAKEWORD_THRESHOLD` it suggests in `.env`, then `docker compose up -d openwakeword` |
 | Scores near 0 | The model doesn't recognise your voice: **no threshold will fix it** | Retrain with your own voice (below), or try a longer phrase |
 | "Your microphone is quiet" | The sound reaching Empathika is too faint | Raise the input volume, or sit closer |
-| A normal sentence or the background sound would have woken him | False wake-ups | It suggests `WAKEWORD_TRIGGER_LEVEL=2` and/or a higher `WAKEWORD_THRESHOLD`; keep `WAKEWORD_VERIFY` on |
+| A normal sentence or the background sound would have woken her | False wake-ups | It suggests `WAKEWORD_TRIGGER_LEVEL=2` and/or a higher `WAKEWORD_THRESHOLD`; keep `WAKEWORD_VERIFY` on |
 
 Your recordings are kept in `wake-coach/<date>/` (not uploaded anywhere) for retraining.
 
@@ -189,8 +189,8 @@ stopped talking). Pick a value roughly midway between the "quiet room" level and
 normal speaking level.
 
 **About the phrase:** "Hey Empathika" is distinctive, so accidental wake-ups should be rare;
-if they happen, tuning the threshold usually solves it. If it doesn't, "Hey Empathika, …" can be trained alongside a longer variant such as
-"Okay Empathika", and you can keep whichever performs better.
+if they happen, tuning the threshold usually solves it. If it doesn't, a variant such as
+"Okay Empathika" can be trained too, and you can keep whichever performs better.
 
 **Until the model is trained:** set `WAKEWORD_NAMES=hey_jarvis`. That phrase is built in,
 so you can use everything else straight away.

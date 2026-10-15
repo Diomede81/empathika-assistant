@@ -106,6 +106,6 @@ front panel take a few minutes each to compute because of the grille holes.
   fuller, tighter sound; a driver loose inside a case sounds thin and boxy.
 - **Microphones:** the mic board is foam-sealed to the perforated top and kept away from the speaker
   chamber, so the speaker's vibration and sound reach the mics as little as possible. The XVF3800's
-  echo cancellation handles the rest, so "Hey Empathika" works while he talks or plays music.
+  echo cancellation handles the rest, so "Hey Empathika" works while she talks or plays music.
 - **Cooling:** air comes in through the slots in the base (rear half) and leaves through the slots in
   the back, past the Pi's cooler.

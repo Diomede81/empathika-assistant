@@ -13,7 +13,7 @@ import { clean, WebService } from '../web/web.service';
 import { articleText, Candidate, headlinesFrom, host, linksFromMarkdown, normaliseUrl } from './sources';
 import { isJunk, keywordScore, looseJson, topicsOf } from './relevance';
 
-/** A scheduled job Empathika does on his own. For now one kind: a news briefing from chosen websites. */
+/** A scheduled job Empathika does on her own. For now one kind: a news briefing from chosen websites. */
 export interface Routine {
   id: string;
   name: string;
@@ -109,7 +109,7 @@ const ALL_DAYS = [1, 2, 3, 4, 5, 6, 7];
  * page itself, through Firecrawl when needed), optionally searches the news for your
  * interests, has the AI model pick the articles that match you best, reads them and writes
  * a short spoken summary of each. "What's the news?" then answers instantly.
- * Missed runs (Empathika was off) happen as soon as he's back, the same day. Encrypted on disk.
+ * Missed runs (Empathika was off) happen as soon as she's back, the same day. Encrypted on disk.
  * Emits 'ready' (routine, briefing, manual) when a briefing is done.
  */
 @Injectable()
@@ -564,7 +564,7 @@ export class RoutinesService extends EventEmitter implements OnModuleInit, OnMod
       run.error = run.items.length
         ? undefined
         : readable.length
-          ? "Empathika checked the websites he found, but none of their recent headlines matched your interests well. Try more specific interests, or add your own websites."
+          ? "Empathika checked the websites she found, but none of their recent headlines matched your interests well. Try more specific interests, or add your own websites."
           : unique.length
             ? 'None of the suggested websites could be read automatically. Try adding your own, or set up Firecrawl.'
             : `No suggestions came back${error ? ` (the AI model: ${error})` : ''}.`;

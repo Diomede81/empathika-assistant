@@ -15,7 +15,7 @@ Prices and voice lists change, so check the provider's current pages.
    TTS_PROVIDER=openai
    TTS_BASE_URL=http://kokoro:8880/v1
    TTS_MODEL=kokoro
-   TTS_VOICE=bm_george
+   TTS_VOICE=bf_emma
    ```
    (Use `http://127.0.0.1:8880/v1` if you run Empathika with `npm run dev` instead of Docker.)
 2. Start Kokoro alongside everything else:
@@ -30,14 +30,15 @@ Prices and voice lists change, so check the provider's current pages.
 
 | Voice | Style |
 |---|---|
-| `bm_george` | British male, warm (closest to a "Jarvis" feel) |
+| `bf_emma` | British female, warm (the default) |
+| `bf_isabella` | British female, brighter |
+| `bm_george` | British male, warm |
 | `bm_lewis` | British male, deeper |
 | `bm_daniel` | British male, lighter |
 | `bm_fable` | British male, storyteller |
-| `bf_emma`, `bf_isabella` | British female |
 | `am_michael`, `am_adam` | American male |
 
-Kokoro can also blend voices, e.g. `TTS_VOICE=bm_george+bm_lewis`. To hear them all, open
+Kokoro can also blend voices, e.g. `TTS_VOICE=bf_emma+bf_isabella`. To hear them all, open
 http://localhost:8880/web while Kokoro is running.
 
 Kokoro runs on the computer's processor. It's quick on a modern Mac or a recent Intel/AMD
@@ -51,12 +52,12 @@ machine. On a very old or low-power machine, replies may start a little later th
    TTS_BASE_URL=https://api.openai.com/v1
    TTS_API_KEY=sk-...your OpenAI key...
    TTS_MODEL=gpt-4o-mini-tts
-   TTS_VOICE=onyx
-   TTS_INSTRUCTIONS=Speak like a calm, witty British butler. Warm, concise, slightly dry humour.
+   TTS_VOICE=coral
+   TTS_INSTRUCTIONS=Speak like a calm, kind British carer. Warm, unhurried and clear.
    ```
 2. Restart Empathika: `docker compose --profile empathika up -d`
 
-Voices to try: `onyx` (deep male), `ash`, `echo`, `fable`, `sage`, `coral`, `nova`.
+Voices to try: `coral` (warm female, the default), `nova`, `sage`, `shimmer`, `onyx` (deep male), `ash`, `echo`.
 `TTS_INSTRUCTIONS` changes the delivery (accent, mood, pace) without changing the words. Keep
 it to one or two sentences.
 

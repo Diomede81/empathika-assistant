@@ -2,7 +2,7 @@
 
 Routines are jobs Empathika does on a schedule, so the result is ready the moment you ask. The first one is
 the **news briefing**: you give Empathika a list of websites and what interests you; every morning (or
-whenever you choose) he gathers the news, picks the 5 or 6 articles that suit you best, reads them and
+whenever you choose) she gathers the news, picks the 5 or 6 articles that suit you best, reads them and
 prepares a short spoken summary of each.
 
 ## Setting it up
@@ -34,14 +34,14 @@ celebrity news", "Gather my news at 6:45", "What are my news settings?", "Sugges
 
 ## Using it
 
-- "Hey Empathika, **what's the news?**": he reads the prepared briefing, a sentence or two per article, and
+- "Hey Empathika, **what's the news?**": she reads the prepared briefing, a sentence or two per article, and
   asks if you want more on any. "Tell me more about the second one" reads you that article.
 - "**What's going on in my day?**" mentions that the briefing is ready and offers it at the end.
-- "**Get me fresh news**" gathers a new one now; he says when it's ready.
+- "**Get me fresh news**" gathers a new one now; she says when it's ready.
 - On the control panel you see the latest briefing with links to every article, and **Run now**.
 
-Empathika never gives you the same article twice, and if a run finds nothing new he keeps the previous
-briefing. If Empathika was switched off at the scheduled time, he gathers it as soon as he's back (same day).
+Empathika never gives you the same article twice, and if a run finds nothing new she keeps the previous
+briefing. If Empathika was switched off at the scheduled time, she gathers it as soon as she's back (same day).
 
 ## How it gathers the news
 
@@ -68,7 +68,7 @@ If the AI model can't answer (wrong model name, out of credit, a "thinking" mode
 Empathika matches the headlines on your interests' key words instead, never just "the first few", and the
 briefing says so on the control panel.
 
-**👍 / 👎** on each article in the control panel teaches Empathika your taste: they're used every time he chooses.
+**👍 / 👎** on each article in the control panel teaches Empathika your taste: they're used every time she chooses.
 
 **Firecrawl credits:** with feeds, a daily briefing costs about 6 credits (reading the chosen articles),
 plus a few per day for each site without a feed and for the optional news search: roughly 200 a month

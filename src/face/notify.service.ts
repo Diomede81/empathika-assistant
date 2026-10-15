@@ -39,7 +39,7 @@ interface Seen {
  * Notifications on the round screen, shown when something needs you even though you didn't
  * ask: your news briefing is ready, an important email arrived, a to-do is overdue. They wait
  * politely: never while you're talking to Empathika, never over a card you're using (a recipe, a
- * timer), never during his sleep hours, and never in guest mode (visitors don't see your mail).
+ * timer), never during her sleep hours, and never in guest mode (visitors don't see your mail).
  * Each one can be switched off on the control panel (Settings → Screen).
  */
 @Injectable()

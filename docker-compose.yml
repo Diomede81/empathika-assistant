@@ -1,4 +1,4 @@
-# Local voice services (Home Assistant's own "Wyoming" stack), Empathika himself, optional local LLM.
+# Local voice services (Home Assistant's own "Wyoming" stack), Empathika herself, optional local LLM.
 #   docker compose up -d                       voice services only (run Empathika with npm on the host)
 #   docker compose --profile empathika up -d --build voice services + Empathika in a container
 #   docker compose run --rm empathika node dist/tools/chat.js     type to Empathika (no audio needed)
@@ -44,7 +44,7 @@ services:
     restart: unless-stopped
     # Custom models (e.g. hey_empathika.tflite) go in ./wakewords - see training/README.md.
     # Tuning (in .env): WAKEWORD_THRESHOLD (0-1, default 0.5): raise it if Empathika wakes up by
-    # mistake, lower it if he misses you; ./scripts/wake-coach.sh suggests a value.
+    # mistake, lower it if she misses you; ./scripts/wake-coach.sh suggests a value.
     # WAKEWORD_TRIGGER_LEVEL=2 needs two hits in a row: fewer false wakes, slightly slower.
     command: --custom-model-dir /custom --threshold ${WAKEWORD_THRESHOLD:-0.5} --trigger-level ${WAKEWORD_TRIGGER_LEVEL:-1}
     volumes: ["./wakewords:/custom"]
@@ -64,7 +64,7 @@ services:
     image: rhasspy/wyoming-piper:latest
     restart: unless-stopped
     # British male voice; browse others at https://rhasspy.github.io/piper-samples/
-    command: --voice en_GB-alan-medium
+    command: --voice en_GB-jenny_dioco-medium
     volumes: ["./data/piper:/data"]
     ports: ["10200:10200"]
 
@@ -105,7 +105,7 @@ services:
 
 volumes:
   empathika-data:
-    # A fixed name, so Empathika finds his memory whatever the folder is called (e.g. a fresh
+    # A fixed name, so Empathika finds her memory whatever the folder is called (e.g. a fresh
     # download unzips as "empathika-assistant-main"). Without it, Docker makes a new, empty store
     # per folder name. Lost memories from an old folder: ./scripts/find-memory.sh
     name: empathika-assistant_empathika-data

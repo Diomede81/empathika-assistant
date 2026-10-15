@@ -95,7 +95,7 @@ export class RealtimeConversationService {
     this.log.log(
       `Actions offered this session: ${options.tools.length}` +
         (rt.tools ? '' : ' (REALTIME_TOOLS=off)') +
-        (capabilities ? '' : ' - no email/web apps among them, so Empathika will say he has no access'),
+        (capabilities ? '' : ' - no email/web apps among them, so Empathika will say she has no access'),
     );
     const client: VoiceClient = rt.provider === 'gemini' ? new GeminiLiveClient(options) : new RealtimeClient(options);
     const resampler = new Resampler(micRate, client.inputRate);
@@ -112,7 +112,7 @@ export class RealtimeConversationService {
     const speaking = () => Date.now() < audioEndsAt;
     const deaf = () => Date.now() < audioEndsAt + echoTail;
     // The wake word detector keeps listening during the conversation, even while Empathika talks,
-    // so "Hey Jarvis" interrupts him. Empathika never says the wake word, so his voice can't trigger it.
+    // so "Hey Jarvis" interrupts her. Empathika never says the wake word, so her voice can't trigger it.
     const micFormat = { rate: micRate, width: 2, channels: 1 };
     let interrupt: () => void = () => undefined;
     let wakeArmed = false;
@@ -260,7 +260,7 @@ export class RealtimeConversationService {
       }
       player?.close();
       player = undefined;
-      // Discard anything the server buffered while Empathika was still audible (his own echo).
+      // Discard anything the server buffered while Empathika was still audible (her own echo).
       if (!rt.bargeIn) {
         clearTimeout(clearTimer);
         clearTimer = setTimeout(() => client.clearInput(), Math.max(0, audioEndsAt + echoTail - Date.now()));
@@ -270,7 +270,7 @@ export class RealtimeConversationService {
         const work = pendingTools;
         pendingTools = [];
         await Promise.all(work);
-        if (this.control?.consumeEnd()) return hush('Empathika ended it (told to stop, or the speech was not meant for him)');
+        if (this.control?.consumeEnd()) return hush('Empathika ended it (told to stop, or the speech was not meant for her)');
         client.requestResponse(); // let Empathika say what happened
         return;
       }
@@ -285,7 +285,7 @@ export class RealtimeConversationService {
       this.face?.heard(t);
       if (isStopRequest(t)) hush(`you said "${t}"`);
     });
-    // His expression follows his words as they're spoken, a sentence at a time.
+    // Her expression follows her words as they're spoken, a sentence at a time.
     const sentences = new SentenceSplitter();
     client.on('assistant-text', (t: string) => {
       for (const s of sentences.push(t)) this.face?.said(s);
@@ -315,7 +315,7 @@ export class RealtimeConversationService {
         let why: string | undefined;
         if (closed) why = 'connection closed';
         else if (stopReason) why = stopReason;
-        // Switched mode: end once he's confirmed it, so the next conversation starts in the new
+        // Switched mode: end once she's confirmed it, so the next conversation starts in the new
         // mode with only that mode's memories (nothing from this one carries over).
         else if (!busy && !speaking() && startMode && this.modes?.mode !== startMode) why = `switched to ${this.modes?.mode} mode`;
         else if (now - started > rt.maxSessionMs) why = `reached the ${rt.maxSessionMs / 1000}s session limit`;

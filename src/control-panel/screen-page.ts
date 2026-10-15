@@ -33,15 +33,15 @@ export function screenSection(s: PanelScreen, esc: Esc): string {
     )
     .join('');
   return `<section id="screen"><h2>Screen</h2>
-<p class="meta">What Empathika's round screen shows. Tap his face to see your day. In guest mode visitors only see the time and the weather.</p>
+<p class="meta">What Empathika's round screen shows. Tap her face to see your day. In guest mode visitors only see the time and the weather.</p>
 <form class="stack" method="post" action="/screen/save">
-<label class="meta tick"><input type="checkbox" name="captions" value="on" ${s.captions ? 'checked' : ''}> <b>Captions</b>: show the words on screen, what Empathika heard you say and what he's answering</label>
-<label class="meta tick"><input type="checkbox" name="glance" value="on" ${s.glance ? 'checked' : ''}> <b>Glance</b>: the weather${s.place ? ` in ${esc(s.place)}` : ' (set your home location above)'}, your next meeting and the to-dos that matter, around his face</label>
-<label class="meta tick"><input type="checkbox" name="frame" value="on" ${s.frame ? 'checked' : ''}> <b>Evening photo frame</b>: your pictures, one fading into the next, with the clock (after 2 minutes of quiet; "Hey Empathika" or a touch brings him back)</label>
+<label class="meta tick"><input type="checkbox" name="captions" value="on" ${s.captions ? 'checked' : ''}> <b>Captions</b>: show the words on screen, what Empathika heard you say and what she's answering</label>
+<label class="meta tick"><input type="checkbox" name="glance" value="on" ${s.glance ? 'checked' : ''}> <b>Glance</b>: the weather${s.place ? ` in ${esc(s.place)}` : ' (set your home location above)'}, your next meeting and the to-dos that matter, around her face</label>
+<label class="meta tick"><input type="checkbox" name="frame" value="on" ${s.frame ? 'checked' : ''}> <b>Evening photo frame</b>: your pictures, one fading into the next, with the clock (after 2 minutes of quiet; "Hey Empathika" or a touch brings her back)</label>
 <div class="addfact"><label class="meta" for="ff">From</label><input id="ff" type="time" name="frameFrom" value="${esc(s.frameFrom)}" required>
 <label class="meta" for="ft">to</label><input id="ft" type="time" name="frameTo" value="${esc(s.frameTo)}" required>
 <label class="meta" for="fe">next picture every</label><input id="fe" type="number" name="frameEverySec" min="5" max="600" value="${s.frameEverySec}" style="width:5em"><span class="meta">seconds</span></div>
-<p class="meta"><b>Notifications</b>: a card on the screen when something needs you (never while you're talking to Empathika, during his sleep hours, or in guest mode):</p>
+<p class="meta"><b>Notifications</b>: a card on the screen when something needs you (never while you're talking to Empathika, during her sleep hours, or in guest mode):</p>
 <label class="meta tick"><input type="checkbox" name="notifyBriefing" value="on" ${s.notifyBriefing ? 'checked' : ''}> Your news briefing is ready</label>
 <label class="meta tick"><input type="checkbox" name="notifyEmail" value="on" ${s.notifyEmail ? 'checked' : ''}> An important email arrives (marked important in Gmail, or high importance in Outlook; checked every 10 minutes, 07:00–22:00)</label>
 <label class="meta tick"><input type="checkbox" name="notifyTodos" value="on" ${s.notifyTodos ? 'checked' : ''}> A to-do is overdue (once a day each, with Done and Tomorrow buttons)</label>

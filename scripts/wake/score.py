@@ -127,7 +127,7 @@ def verdict(rows: list, threshold: float, phrase: str) -> None:
             "'wpctl set-volume @DEFAULT_SOURCE@ 1.0'), or sit closer."
         )
         if np.median(boosted) > threshold > np.median(scores):
-            tips.append("At a healthy level most attempts WOULD wake him, so fixing the volume is the main fix.")
+            tips.append("At a healthy level most attempts WOULD wake her, so fixing the volume is the main fix.")
     if hits >= 0.9 * len(scores) and worst_neg <= threshold:
         tips.append(f'"{phrase}" works well here. If it misses at home, test again from where you usually sit.')
     elif p20 > worst_neg + 0.05 and p20 > 0.1:
@@ -150,7 +150,7 @@ def verdict(rows: list, threshold: float, phrase: str) -> None:
         pos_runs = [r["run"] for r in pos if r["score"] > threshold]
         raise_to = round(min(0.95, worst_neg + 0.05), 2)
         keeps = sum(s > raise_to for s in scores)
-        tips.append("Something other than the wake word would have woken him (false wake-ups). Fixes, best first:")
+        tips.append("Something other than the wake word would have woken her (false wake-ups). Fixes, best first:")
         if false_runs and max(false_runs) <= 1 and pos_runs and np.median(pos_runs) >= 2:
             tips.append(
                 "   • Set WAKEWORD_TRIGGER_LEVEL=2 in .env: the false alarms were single blips, while your real "
@@ -161,8 +161,8 @@ def verdict(rows: list, threshold: float, phrase: str) -> None:
                 f"   • Raise WAKEWORD_THRESHOLD to {raise_to}: still wakes on {keeps} of your {len(scores)} attempts."
             )
         tips.append(
-            "   • Keep WAKEWORD_VERIFY on (the default): Empathika double-checks each wake-up with his speech recogniser "
-            "and ignores it if he didn't hear the wake word."
+            "   • Keep WAKEWORD_VERIFY on (the default): Empathika double-checks each wake-up with her speech recogniser "
+            "and ignores it if she didn't hear the wake word."
         )
         tips.append("   Then apply with 'docker compose --profile empathika up -d'.")
     for t in tips or ["Mixed results: run the coach again from where you usually sit, and send me the output."]:

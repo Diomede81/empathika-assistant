@@ -17,12 +17,12 @@ Mic → Wake word → End-of-speech → Speech-to-text → LLM ⇄ Home Assistan
 - **Fast-first-token LLMs** (Groq / Cerebras by default), with a **local fallback**
   (Ollama + Qwen3) if the internet or the provider is slow.
 - **Follow-up window:** after replying, Empathika listens for 5 seconds without needing the wake word.
-- **You can see what he's doing:** while he checks email, the calendar, the web or the house, his face
-  shows it ("📧 Checking your email..."); if it takes more than a second he says so; and if an action
+- **You can see what she's doing:** while she checks email, the calendar, the web or the house, her face
+  shows it ("📧 Checking your email..."); if it takes more than a second she says so; and if an action
   fails, the face shows "Couldn't finish" with what it was.
-- **Stopping him:** say **"stop"**, "that's all", "never mind" or "I'm not talking to you" and he goes quiet
-  and back to sleep at once. While he's talking, **"Hey Empathika"** cuts him off (then "stop", or a new
-  question). If he hears people talking to each other during a follow-up, he ends the conversation
+- **Stopping her:** say **"stop"**, "that's all", "never mind" or "I'm not talking to you" and she goes quiet
+  and back to sleep at once. While she's talking, **"Hey Empathika"** cuts her off (then "stop", or a new
+  question). If she hears people talking to each other during a follow-up, she ends the conversation
   quietly instead of answering.
 - **Every turn logs a latency breakdown**, so you can tune with numbers.
 
@@ -85,13 +85,13 @@ See [`deploy/empathika.service`](deploy/empathika.service).
   panel at http://localhost:8099. Sending, deleting and similar actions always need your spoken "yes".
   See **[docs/APPS.md](docs/APPS.md)**.
 
-- **His own identity**: a "soul" you write (his story, personality, how he talks; he starts as an
-  easy-going friend) plus a journal of what he learns about himself living with you. Edit both on the
+- **Her own identity**: a "soul" you write (her story, personality, how she talks; she starts as an
+  easy-going friend) plus a journal of what she learns about herself living with you. Edit both on the
   control panel. See **[docs/SOUL.md](docs/SOUL.md)**.
 
 - **Memory**: Empathika remembers people, preferences, routines, dates and work projects, filed in three
   encrypted vaults (Personal, Household, Work). Work memory is locked outside your work hours, guest mode
-  hides personal details, and he searches by meaning, so knowledge scales without slowing him down.
+  hides personal details, and she searches by meaning, so knowledge scales without slowing her down.
   "Remember that…", "What do you know about…", "Forget…", "Work mode". See **[docs/MEMORY.md](docs/MEMORY.md)**.
 
 - **Projects**: people, tasks with due dates and spoken reminders, and a dedicated memory per project.
@@ -105,9 +105,9 @@ See [`deploy/empathika.service`](deploy/empathika.service).
   calendar app is connected), reminders and to-dos, and calls out what's critical or overdue. Also on the
   control panel's My Day tab.
 
-- **Routines: your news briefing**: give Empathika a list of websites and your interests; every morning he
+- **Routines: your news briefing**: give Empathika a list of websites and your interests; every morning she
   gathers the news, picks the 5–6 articles that suit you and prepares a short summary of each, ready when
-  you ask "What's the news?". He can also suggest websites for your interests and find their news feeds.
+  you ask "What's the news?". She can also suggest websites for your interests and find their news feeds.
   See **[docs/ROUTINES.md](docs/ROUTINES.md)**.
 
 - **Bring your own AI model**: add keys for OpenAI, Anthropic, Gemini, OpenRouter, Groq, DeepSeek,

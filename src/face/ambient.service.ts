@@ -29,7 +29,7 @@ export interface AmbientSettings {
   frameFrom: string;
   frameTo: string;
   frameEverySec: number;
-  /** Live captions under the face: what Empathika heard and what he says. Off unless switched on. */
+  /** Live captions under the face: what Empathika heard and what she says. Off unless switched on. */
   captions: boolean;
   /** Notifications on the screen (NotifyService). */
   notifyBriefing: boolean;

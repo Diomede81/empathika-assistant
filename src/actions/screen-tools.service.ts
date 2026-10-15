@@ -217,13 +217,13 @@ export class ScreenToolsService {
   userSaid(text: string): void {
     if (!this.cfg.face.enabled) return;
     const now = Date.now();
-    // Live voice transcribes you a moment after Empathika starts answering: keep his words from just now
+    // Live voice transcribes you a moment after Empathika starts answering: keep her words from just now
     // (only those not already part of an earlier question's turn).
     const reply = (this.turn && !this.turn.request ? this.turn.reply : []).filter((r) => now - r.at < 8000);
     this.turn = { request: text, at: now, reply, shownAt: now - this.lastShownAt < 8000 ? this.lastShownAt : 0 };
   }
 
-  /** A sentence Empathika said. Once he has been quiet a moment, the turn is checked. */
+  /** A sentence Empathika said. Once she has been quiet a moment, the turn is checked. */
   maxSaid(text: string): void {
     if (!this.cfg.face.enabled) return;
     if (!this.turn) this.turn = { request: '', at: Date.now(), reply: [], shownAt: 0 };
@@ -232,7 +232,7 @@ export class ScreenToolsService {
     this.settle = setTimeout(() => this.checkTurn(), REPLY_SETTLE_MS);
   }
 
-  /** If a recipe / how-to was asked for and nothing went on screen, build the card from his words. */
+  /** If a recipe / how-to was asked for and nothing went on screen, build the card from her words. */
   checkTurn(): boolean {
     const t = this.turn;
     this.turn = undefined; // this turn is settled either way

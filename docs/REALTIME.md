@@ -1,13 +1,13 @@
 # Real-time voice (OpenAI Realtime or Gemini Live)
 
-In real-time mode, Empathika hears your voice directly and answers with his own voice, using one
+In real-time mode, Empathika hears your voice directly and answers with her own voice, using one
 speech-to-speech model instead of three separate steps (speech-to-text → AI → text-to-speech).
 Two providers are supported:
 
 | | OpenAI Realtime | **Gemini Live** |
 |---|---|---|
 | Setting | `REALTIME_PROVIDER=openai` (default) | `REALTIME_PROVIDER=gemini` |
-| Default model / voice | `gpt-realtime-2` / `cedar` | `gemini-3.8-live` / `Charon` |
+| Default model / voice | `gpt-realtime-2` / `marin` | `gemini-3.8-live` / `Kore` |
 | Approx. cost | ~$0.05–0.20 per minute of conversation | **~$0.01–0.02 per minute** |
 | Key from | platform.openai.com | aistudio.google.com |
 
@@ -28,7 +28,7 @@ protection, Home Assistant, timers, apps and the spoken "yes" before risky actio
    (OpenAI names like `cedar` don't exist on Gemini), or set Gemini ones.
 3. Restart: `docker compose --profile empathika up -d --build`
 4. Check: `docker compose logs empathika | grep "Voice mode"` shows
-   `Voice mode: Gemini Live (gemini-3.8-live, voice "Charon")`.
+   `Voice mode: Gemini Live (gemini-3.8-live, voice "Kore")`.
 
 **Gemini voices** (`REALTIME_VOICE`): `Charon` (male, informative), `Puck` (male, upbeat),
 `Fenrir`, `Orus`, `Kore` (female, firm), `Aoede`, `Leda`, `Zephyr` and more; try them in Google
@@ -60,7 +60,7 @@ and it copes well with "umm"s and rephrasing.
    VOICE_MODE=realtime
    REALTIME_PROVIDER=openai
    REALTIME_API_KEY=sk-...your key...
-   REALTIME_VOICE=cedar
+   REALTIME_VOICE=marin
    ```
 3. Restart Empathika:
    ```bash
@@ -69,7 +69,7 @@ and it copes well with "umm"s and rephrasing.
    ```bash
    docker compose logs -f empathika
    ```
-   The log should show `Voice mode: OpenAI Realtime (gpt-realtime-2, voice "cedar")`.
+   The log should show `Voice mode: OpenAI Realtime (gpt-realtime-2, voice "marin")`.
 4. Say "Hey Jarvis" and talk normally. After each answer the log shows
    `voice-to-voice NNN ms`, the time from the end of your sentence to Empathika starting to speak.
 
@@ -77,23 +77,23 @@ and it copes well with "umm"s and rephrasing.
 
 | Setting | What it does |
 |---|---|
-| `REALTIME_VOICE` | `cedar` (male) and `marin` (female) are OpenAI's most natural voices. Others: `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `alloy` |
+| `REALTIME_VOICE` | `cedar` (male) and `marin` (female, the default) are OpenAI's most natural voices. Others: `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `alloy` |
 | `REALTIME_STYLE` | Personality and delivery, e.g. `Speak with a warm, calm British accent, like a witty butler.` |
 | `REALTIME_SILENCE_MS` | How long a pause means "I'm done" (default 500). Lower = snappier, but may cut you off |
 | `REALTIME_FOLLOW_UP_MS` | How long Empathika keeps listening for a follow-up before hanging up (default 8000) |
-| `REALTIME_WAKE_INTERRUPT` | `on` (default): say the wake word while Empathika is talking to cut him off and ask something else. Works on normal speakers |
-| `REALTIME_BARGE_IN=on` | Lets you interrupt Empathika mid-sentence. **Use only with headphones** (or a speakerphone with echo cancellation): otherwise Empathika hears his own voice and interrupts himself |
+| `REALTIME_WAKE_INTERRUPT` | `on` (default): say the wake word while Empathika is talking to cut her off and ask something else. Works on normal speakers |
+| `REALTIME_BARGE_IN=on` | Lets you interrupt Empathika mid-sentence. **Use only with headphones** (or a speakerphone with echo cancellation): otherwise Empathika hears her own voice and interrupts herself |
 | `REALTIME_TRANSCRIBE_MODEL` | Set to e.g. `gpt-4o-mini-transcribe` to also log what you said (small extra cost) |
 
 Switch back any time with `VOICE_MODE=pipeline`.
 
 ## Interrupting Empathika
 
-- **On speakers (default):** say **"Hey Jarvis"** while Empathika is talking. He stops at once, the rest of
-  his answer is cancelled, and he listens to what you say next ("Hey Jarvis… actually, just turn off
-  the lights"). Empathika never says the wake word himself, so his own voice can't trigger this.
-- **With headphones:** set `REALTIME_BARGE_IN=on` and simply start talking over him, like a phone call.
-  Don't use this on speakers: Empathika would hear his own voice and keep cutting himself off.
+- **On speakers (default):** say **"Hey Jarvis"** while Empathika is talking. She stops at once, the rest of
+  her answer is cancelled, and she listens to what you say next ("Hey Jarvis… actually, just turn off
+  the lights"). Empathika never says the wake word herself, so her own voice can't trigger this.
+- **With headphones:** set `REALTIME_BARGE_IN=on` and simply start talking over her, like a phone call.
+  Don't use this on speakers: Empathika would hear her own voice and keep cutting herself off.
 
 ## Cost
 
@@ -114,4 +114,4 @@ Set a monthly spending limit in your OpenAI account settings before a demo.
 | `refused the connection (403/404)` / model errors | Your account may not have access to `REALTIME_MODEL`; try another realtime model from your OpenAI dashboard |
 | `Conversation ended (no request heard…)` | Speak within ~7 s of the wake word; check the mic with `mic-check` |
 | Gemini: `closed the connection: Request contains an invalid argument` right after you speak | Google rejected part of the set-up. Run `docker compose run --rm empathika node dist/tools/gemini-check.js`: it tests each part (voice options, each action) against Gemini and names what's rejected. Leave a rejected action out with `REALTIME_EXCLUDE_TOOLS=<name>` in `.env` |
-| Empathika cuts himself off / answers himself | Turn `REALTIME_BARGE_IN` off, or use headphones |
+| Empathika cuts herself off / answers herself | Turn `REALTIME_BARGE_IN` off, or use headphones |

@@ -18,7 +18,7 @@ export interface PanelData {
     auto: { auto: boolean; time: string };
   };
   models?: PanelModels;
-  /** The start-up code (6 digits typed on Empathika's screen each time he starts). */
+  /** The start-up code (6 digits typed on Empathika's screen each time she starts). */
   lock?: { enabled: boolean; locked: boolean; canReset: boolean };
   /** The round screen's glance and photo frame (when the face is on). */
   screen?: PanelScreen;
@@ -100,10 +100,10 @@ export interface PanelProject {
 }
 
 const SOUL_TABS: [string, string, string][] = [
-  ['soul', 'Who Empathika is', 'His identity, story and personality, in every mode. Write it as Empathika ("I\'m Empathika…").'],
-  ['personal', 'Personal mode', 'How he behaves when work mode is off. In personal mode he only sees personal and household memories.'],
-  ['work', 'Work mode', 'How he behaves in work hours (WORK_HOURS) or after "work mode". In work mode he only sees work and household memories.'],
-  ['guest', 'Guest mode', 'How he behaves when visitors are around ("guest mode"). He only sees household memories.'],
+  ['soul', 'Who Empathika is', 'Her identity, story and personality, in every mode. Write it as Empathika ("I\'m Empathika…").'],
+  ['personal', 'Personal mode', 'How she behaves when work mode is off. In personal mode she only sees personal and household memories.'],
+  ['work', 'Work mode', 'How she behaves in work hours (WORK_HOURS) or after "work mode". In work mode she only sees work and household memories.'],
+  ['guest', 'Guest mode', 'How she behaves when visitors are around ("guest mode"). She only sees household memories.'],
 ];
 
 function soulSection(s: NonNullable<PanelData['soul']>): string {
@@ -115,16 +115,16 @@ function soulSection(s: NonNullable<PanelData['soul']>): string {
       ? s.journal
           .map((e) => `<li class="row"><div><div>${esc(e.text)} ${modeBadge(e.mode)}</div><div class="meta">${esc(day(e.at))} · ${e.source === 'panel' ? 'added here' : 'Empathika noted this'}</div></div>${post('/soul/journal-delete', { id: e.id }, 'Forget')}</li>`)
           .join('')
-      : '<li class="empty">Nothing yet. After conversations, Empathika notes things that shape who he is here: nicknames, running jokes, how you like him to talk.</li>'
+      : '<li class="empty">Nothing yet. After conversations, Empathika notes things that shape who she is here: nicknames, running jokes, how you like her to talk.</li>'
     : '';
   return `<section id="soul"><h2>Empathika's soul</h2>
 <div class="tabs">${tabs}</div>
-<p class="meta">${esc(help)} Notes between <code>&lt;!--</code> and <code>--&gt;</code> are for you and hidden from him.</p>
+<p class="meta">${esc(help)} Notes between <code>&lt;!--</code> and <code>--&gt;</code> are for you and hidden from her.</p>
 <form method="post" action="/soul/save">${hidden('doc', doc)}<textarea name="text" rows="${doc === 'soul' ? 22 : 10}" maxlength="${s.maxChars}" spellcheck="true" aria-label="${esc(doc)}">${esc(s.docs[doc] ?? '')}</textarea>
 <div class="acts" style="margin-top:8px"><button class="btn" type="submit">Save</button></div></form>
 <form class="addfact danger" method="post" action="/soul/reset">${hidden('doc', doc)}<label class="meta"><input type="checkbox" name="confirm" value="yes"> Go back to the starter version of this page (your text is replaced)</label><button class="btn secondary" type="submit">Reset</button></form>
-${s.journal ? `<h3>Empathika's journal</h3><p class="meta">What Empathika has learnt about himself living with you, kept separately for personal and work mode (each mode only sees its own). Encrypted like his memory.</p><ul>${journal}</ul>
-<form class="addfact" method="post" action="/soul/journal-add"><input name="text" maxlength="240" required placeholder="e.g. We call the hoover Dave, and Empathika is jealous of him"><select name="mode" aria-label="Mode"><option value="personal">Personal</option><option value="work">Work</option></select><button class="btn secondary" type="submit">Add</button></form>` : ''}
+${s.journal ? `<h3>Empathika's journal</h3><p class="meta">What Empathika has learnt about herself living with you, kept separately for personal and work mode (each mode only sees its own). Encrypted like her memory.</p><ul>${journal}</ul>
+<form class="addfact" method="post" action="/soul/journal-add"><input name="text" maxlength="240" required placeholder="e.g. We call the hoover Dave, and Empathika is jealous of her"><select name="mode" aria-label="Mode"><option value="personal">Personal</option><option value="work">Work</option></select><button class="btn secondary" type="submit">Add</button></form>` : ''}
 </section>`;
 }
 
@@ -134,8 +134,8 @@ function lockRow(l: NonNullable<PanelData['lock']>): string {
   const status = l.enabled ? (l.locked ? ' <span class="badge warn">Locked now</span>' : '') : '';
   return `<li class="row"><div style="width:100%"><div class="name">Start-up code ${badge(l.enabled, 'On', 'Off')}${status}</div>
 <div class="meta">${l.enabled
-    ? 'Every time Empathika starts, he stays locked until this 6-digit code is typed on his screen: he won\'t answer, act or show anything personal. You can also lock him from his screen menu (hold a finger on the screen for 2 seconds).'
-    : 'Set a 6-digit code and Empathika will ask for it on his screen every time he starts. Until it is entered he won\'t answer, act or show anything personal.'}</div>
+    ? 'Every time Empathika starts, she stays locked until this 6-digit code is typed on her screen: she won\'t answer, act or show anything personal. You can also lock her from her screen menu (hold a finger on the screen for 2 seconds).'
+    : 'Set a 6-digit code and Empathika will ask for it on her screen every time she starts. Until it is entered she won\'t answer, act or show anything personal.'}</div>
 ${l.enabled
     ? `<form class="addfact" method="post" action="/lock/set">${code('current', 'Current code')}${code('code', 'New code')}${code('repeat', 'Repeat new code')}<button class="btn" type="submit">Change</button></form>
 <form class="addfact" method="post" action="/lock/off">${code('current', 'Current code')}<button class="btn secondary" type="submit">Turn off</button></form>
@@ -456,7 +456,7 @@ function overview(d: PanelData): string {
     d.routines ? newsTile(d.routines, tile) : '',
     m ? tile('#tab-memory', 'Memory', `${facts} thing${facts === 1 ? '' : 's'} Empathika knows`, 'In the vaults open in this mode') : '',
     m ? tile('#tab-projects', 'Projects', `${m.projects.length} project${m.projects.length === 1 ? '' : 's'}`, `${tasks} open task${tasks === 1 ? '' : 's'}`) : '',
-    d.soul ? tile('#tab-empathika', 'Personality', "Empathika's soul", 'Who he is and how he behaves in each mode') : '',
+    d.soul ? tile('#tab-empathika', 'Personality', "Empathika's soul", 'Who she is and how she behaves in each mode') : '',
     d.location ? tile('#location', 'Home location', d.location.place ? esc(d.location.place) : badge(false, '', 'Not set'), 'For local answers and search results') : '',
   ].join('');
   return `${m ? `<section id="mode"><h2>Mode</h2><div class="name">${esc(m.modeText)}</div>
@@ -578,7 +578,7 @@ ${d.notice ? `<div class="notice ${d.notice.kind}">${esc(d.notice.text)}</div>` 
 <section id="apps"><h2>Apps</h2><ul>${apps}${hints}</ul>
 <p class="meta add">To add another app (e.g. linkedin, instagram, slack, notion), add its name to <code>COMPOSIO_TOOLKITS</code> (personal) or <code>COMPOSIO_WORK_TOOLKITS</code> (work) in <code>.env</code> and restart Empathika; it then appears here with a Connect button.</p></section>
 <section id="web"><h2>Web search</h2><ul><li class="row"><div><div class="name">Firecrawl ${d.web?.configured ? badge(d.web.connected) : '<span class="badge off">Not set up</span>'}</div>
-<div class="meta">${!d.web?.configured ? 'Add <code>FIRECRAWL_API_KEY</code> to <code>.env</code> (free key at <a href="https://firecrawl.dev" target="_blank" rel="noopener">firecrawl.dev</a>) and restart Empathika: he can then search the web and read pages.' : d.web.connected ? `Empathika can search the web and read pages${d.web.remainingCredits !== undefined ? ` · ${d.web.remainingCredits.toLocaleString('en-GB')} credits left` : ''}` : esc(d.web.error ?? 'Not reachable')}</div></div></li></ul></section>
+<div class="meta">${!d.web?.configured ? 'Add <code>FIRECRAWL_API_KEY</code> to <code>.env</code> (free key at <a href="https://firecrawl.dev" target="_blank" rel="noopener">firecrawl.dev</a>) and restart Empathika: she can then search the web and read pages.' : d.web.connected ? `Empathika can search the web and read pages${d.web.remainingCredits !== undefined ? ` · ${d.web.remainingCredits.toLocaleString('en-GB')} credits left` : ''}` : esc(d.web.error ?? 'Not reachable')}</div></div></li></ul></section>
 <section id="home-assistant"><h2>Home Assistant</h2><ul><li class="row"><div><div class="name">Home Assistant ${badge(d.homeAssistant.connected)}</div>
 <div class="meta">${d.homeAssistant.connected ? `${d.homeAssistant.tools} actions available to Empathika` : esc(d.homeAssistant.error ?? 'Not connected')}</div></div></li></ul></section>
 ${musicSection(d.music)}
@@ -620,7 +620,7 @@ ${d.lock ? lockRow(d.lock) : ''}
   }
   window.addEventListener('hashchange', route);
   route();
-  // An update is running: Empathika restarts during it. Look every 10 s; reload when he's back.
+  // An update is running: Empathika restarts during it. Look every 10 s; reload when she's back.
   if (document.querySelector('[data-updating]')) {
     var down = false;
     setInterval(function () {

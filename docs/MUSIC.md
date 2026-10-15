@@ -1,6 +1,6 @@
 # Music: the Empathika box as a Spotify speaker
 
-Empathika can play music and podcasts through his own speakers. A small, free Spotify Connect receiver
+Empathika can play music and podcasts through her own speakers. A small, free Spotify Connect receiver
 ([go-librespot](https://github.com/devgianlu/go-librespot)) runs next to Empathika, so the Empathika box
 becomes a Spotify speaker called **Empathika**, just like a Sonos or an Echo:
 
@@ -8,7 +8,7 @@ becomes a Spotify speaker called **Empathika**, just like a Sonos or an Echo:
   "play my liked songs, shuffled", "play The Rest Is History podcast".
 - "Pause", "skip", "go back", "louder", "volume 30", "what's playing?"
 - Or open Spotify on any phone or computer and pick **Empathika** as the speaker.
-- While Empathika is talking, the music turns down, then comes back up when he's finished.
+- While Empathika is talking, the music turns down, then comes back up when she's finished.
 
 **Needs Spotify Premium** (Spotify only allows Connect speakers for Premium accounts).
 

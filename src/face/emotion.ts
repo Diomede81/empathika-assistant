@@ -1,7 +1,7 @@
 /**
- * Empathika's facial expression, worked out from what he says. Simple word cues are enough for a
+ * Empathika's facial expression, worked out from what she says. Simple word cues are enough for a
  * face (and cost nothing): an apology looks concerned, good news looks happy, a question
- * looks curious. Works the same for every voice option because it reads his words.
+ * looks curious. Works the same for every voice option because it reads her words.
  */
 export type Emotion = 'neutral' | 'happy' | 'curious' | 'concerned' | 'surprised' | 'sleepy' | 'focused';
 

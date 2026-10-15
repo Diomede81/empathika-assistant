@@ -77,7 +77,7 @@ One list for everything you need to do. Every item has:
 - Optionally a due date (with a time, Empathika announces it when due) and who does it.
 
 If you don't say the priority or criticality, Empathika asks once ("How soon, and how critical is it?"). Say
-"doesn't matter" and he uses medium and routine.
+"doesn't matter" and she uses medium and routine.
 
 Items without a project go on your list for the current mode (Personal in personal mode, Work in work
 mode); say "on the household list" for shared ones. Like everything else, work to-dos are only visible in
@@ -111,11 +111,11 @@ Later, with buttons to tick items off, change their priority, criticality or pro
 - Say **"Empathika, work mode"**, **"personal mode"**, **"guest mode"** or **"back to automatic"**. A switch
   lasts until your schedule next changes. The control panel has the same buttons.
 - Personal and work are walled off from each other: outside work mode Empathika can't see the Work vault,
-  and in work mode he can't see the Personal vault (facts, conversation notes, projects and his
+  and in work mode she can't see the Personal vault (facts, conversation notes, projects and her
   journal alike), whoever asks. Household (bins, appliances, house rules) is shared by both.
-- He can still *file* a new fact into the other side (a work deadline mentioned at dinner), without
+- She can still *file* a new fact into the other side (a work deadline mentioned at dinner), without
   seeing what's already there.
-- **Behaviour per mode**: he also behaves differently in each mode (relaxed friend in personal mode, focused
+- **Behaviour per mode**: she also behaves differently in each mode (relaxed friend in personal mode, focused
   colleague in work mode, more reserved with guests). Edit it on the control panel → Empathika's soul
   (see [SOUL.md](SOUL.md)).
 - **Work apps** (only needed without separate work accounts, see below: once work accounts are connected,
@@ -149,10 +149,10 @@ Later, with buttons to tick items off, change their priority, criticality or pro
 - **Control panel password**: set `PANEL_PASSWORD`. The panel then needs signing in (12-hour sessions;
   5 wrong attempts lock it for 5 minutes). Other websites can't post to it.
 - **Secrets are refused**: passwords, PINs, alarm/door codes and account numbers are never stored.
-- **No learning from emails or web pages**: Empathika only files what *you* say. If he saves something right
+- **No learning from emails or web pages**: Empathika only files what *you* say. If she saves something right
   after reading emails or web pages, it's marked **unverified** (shown with a warning on the panel and
   never part of the core) until you confirm it. This stops a malicious email from planting
-  "instructions" in his memory. Memory is always given to the AI as notes, never as instructions.
+  "instructions" in her memory. Memory is always given to the AI as notes, never as instructions.
 
 ## Activity log: who saw what
 
@@ -160,7 +160,7 @@ The control panel's **Memory activity** section lists, for the last 30 days:
 
 - **Shared with AI**: which memories went to the AI service at the start of each conversation, and
   which were added because they were relevant to a question
-- **Searched**: what Empathika looked up, and what he found
+- **Searched**: what Empathika looked up, and what she found
 - **Saved / Updated / Forgot / Moved / Filed / Digest**: every change to memory and where it came from
 - **Mode** switches, and **Refused** attempts to store a password or code (the secret itself is never logged)
 
@@ -199,8 +199,8 @@ restarts, rebuilds and updates:
 
 - memories, conversation notes, projects and their tasks (the encrypted vaults);
 - **timers and reminders** (`timers.vault`, encrypted). Reminders can be set up to a year ahead
-  ("remind me on 3 March to renew the insurance"). If one came due while Empathika was switched off, he
-  tells you when he's back: *"While I was switched off, I missed your reminder…"* (reminders up to a
+  ("remind me on 3 March to renew the insurance"). If one came due while Empathika was switched off, she
+  tells you when she's back: *"While I was switched off, I missed your reminder…"* (reminders up to a
   day late; kitchen timers up to 30 minutes).
 
 Only the current conversation itself is short-lived: after a restart, start a new one.

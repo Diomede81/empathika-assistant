@@ -130,7 +130,7 @@ export interface AppConfig {
     style: string;
     silenceMs: number;
     bargeIn: boolean;
-    /** Say the wake word while Empathika is talking to interrupt him (works on speakers, no echo issues). */
+    /** Say the wake word while Empathika is talking to interrupt her (works on speakers, no echo issues). */
     wakeInterrupt: boolean;
     transcribeModel?: string;
     /** Offer Empathika's actions in realtime mode (off = conversation only; useful to isolate problems). */
@@ -208,7 +208,7 @@ export function loadConfig(): AppConfig {
       reasoningEffort: env.LLM_REASONING_EFFORT || undefined,
       fallbackReasoningEffort: env.LLM_FALLBACK_REASONING_EFFORT || undefined,
       timeoutMs: num(env.LLM_TIMEOUT_MS, 4000),
-      // The operating rules. Who Empathika is (personality, story) lives in his soul instead.
+      // The operating rules. Who Empathika is (personality, story) lives in her soul instead.
       systemPrompt:
         env.LLM_SYSTEM_PROMPT ??
         'You talk out loud through a speaker in the home. Answer in one or two short spoken sentences unless ' +
@@ -297,7 +297,7 @@ export function loadConfig(): AppConfig {
           : env.REALTIME_API_KEY || env.OPENAI_API_KEY || '',
       language: env.REALTIME_LANGUAGE || undefined,
       model: env.REALTIME_MODEL ?? (realtimeProvider === 'gemini' ? 'gemini-3.8-live' : 'gpt-realtime-2'),
-      voice: env.REALTIME_VOICE ?? (realtimeProvider === 'gemini' ? 'Charon' : 'cedar'),
+      voice: env.REALTIME_VOICE ?? (realtimeProvider === 'gemini' ? 'Kore' : 'marin'),
       style:
         env.REALTIME_STYLE ??
         'Speak with a warm, calm British accent, like a witty butler. Keep replies short and natural; ' +

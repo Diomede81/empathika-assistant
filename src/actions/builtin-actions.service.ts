@@ -22,7 +22,7 @@ type Handler = (args: Record<string, unknown>) => string | Promise<string>;
 export const EXTERNAL_FLAG = '__afterExternalContent';
 
 /**
- * Actions Empathika can do on his own, without Home Assistant: tell the date/time, manage
+ * Actions Empathika can do on her own, without Home Assistant: tell the date/time, manage
  * timers and reminders, and remember things between conversations. Offered to the AI model next to the Home Assistant tools.
  */
 @Injectable()

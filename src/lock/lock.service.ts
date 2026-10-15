@@ -25,8 +25,8 @@ export const isCode = (v: unknown): v is string => typeof v === 'string' && /^\d
 /**
  * The start-up code: once a 6-digit code is set on the control panel, Empathika is locked every time
  * the box starts (and when someone taps Lock). On the Empathika box, Empathika restarting on its own (an update)
- * doesn't lock him again: a note in /run/empathika (which the box empties when it powers off) remembers
- * that the code was entered since it started. Until the code is typed on his screen he
+ * doesn't lock her again: a note in /run/empathika (which the box empties when it powers off) remembers
+ * that the code was entered since it started. Until the code is typed on her screen she
  * doesn't answer, run actions or show anything personal. After 5 wrong tries the keypad pauses,
  * longer each time (30 s, 1 min, 2 min... up to 15 min), and that survives restarts.
  */
@@ -147,7 +147,7 @@ export class LockService extends EventEmitter implements OnModuleInit {
     this.save();
     if (!this.isLocked) this.markUnlocked(true); // set while unlocked: no need to type it until the box restarts
     this.log.log('Start-up code set');
-    return { ok: true, message: 'Saved. Empathika will ask for this code every time he starts.' };
+    return { ok: true, message: 'Saved. Empathika will ask for this code every time she starts.' };
   }
 
   /** /run/empathika is emptied when the box powers off: the note only lasts until then. */

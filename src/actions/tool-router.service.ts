@@ -116,7 +116,7 @@ export class ToolRouterService {
 
   async call(name: string, args: Record<string, unknown>): Promise<string> {
     // Belt and braces: nothing runs while the start-up code hasn't been entered.
-    if (this.lock?.locked) return 'Not done: Empathika is locked. The start-up code has to be entered on his screen first.';
+    if (this.lock?.locked) return 'Not done: Empathika is locked. The start-up code has to be entered on her screen first.';
     const what = describeActivity(name);
     if (!what) return this.run(name, args);
     const ev: ActivityEvent = { id: ++this.activityId, name, ...what };

@@ -16,7 +16,7 @@ export interface JournalEntry {
   id: string;
   at: string;
   text: string;
-  /** conversation: Empathika noted it himself; panel: someone added it on the control panel. */
+  /** conversation: Empathika noted it herself; panel: someone added it on the control panel. */
   source: 'conversation' | 'panel';
   /** Which side of life it belongs to: shown only in that mode (personal or work). */
   mode?: 'personal' | 'work';
@@ -38,13 +38,13 @@ const JOURNAL_PROMPT_CHARS = 2000;
 
 /**
  * Who Empathika is. Three parts:
- *  - the soul: a plain-text description of his identity, story and personality, written by
+ *  - the soul: a plain-text description of her identity, story and personality, written by
  *    the household (control panel → Empathika's soul). Starts as an easy-going template.
- *  - how he behaves in each mode (personal, work, guest): one short document per mode, on
+ *  - how she behaves in each mode (personal, work, guest): one short document per mode, on
  *    top of the soul. Personal and work mode also see only their own memories (ModesService).
- *  - the journal: short notes Empathika adds himself after conversations about who he is in this
- *    home (nicknames, running jokes, how people like him to behave, shared moments). Encrypted
- *    like his memory; reviewable and deletable on the control panel.
+ *  - the journal: short notes Empathika adds herself after conversations about who she is in this
+ *    home (nicknames, running jokes, how people like her to behave, shared moments). Encrypted
+ *    like her memory; reviewable and deletable on the control panel.
  * Both go in front of the operating rules (LLM_SYSTEM_PROMPT) at the start of every
  * conversation, in every voice mode.
  */
@@ -121,9 +121,9 @@ export class SoulService implements OnModuleInit {
   addEntry(text: string, source: JournalEntry['source'], mode: JournalEntry['mode'] = 'personal'): JournalEntry | undefined {
     const t = text.replace(/\s+/g, ' ').trim().slice(0, JOURNAL_TEXT_MAX);
     if (!t || !this.store) return undefined;
-    // Journal entries shape who Empathika is: refuse obvious attempts to rewrite his rules through it.
+    // Journal entries shape who Empathika is: refuse obvious attempts to rewrite her rules through it.
     if (source === 'conversation' && OVERRIDE.test(t)) {
-      this.log.warn(`Journal entry refused (looks like an instruction to override his rules): ${t}`);
+      this.log.warn(`Journal entry refused (looks like an instruction to override her rules): ${t}`);
       return undefined;
     }
     const key = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();

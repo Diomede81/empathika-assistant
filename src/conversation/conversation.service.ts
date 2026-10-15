@@ -30,9 +30,9 @@ const STT_TIMEOUT_MS = 20_000;
 /** Wake-up double-check: how much sound before the detection, and how long to wait for the words. */
 const VERIFY_SECONDS = 2.5;
 const VERIFY_TIMEOUT_MS = 2500;
-/** After being interrupted, start listening again this soon (his voice has been cut). */
+/** After being interrupted, start listening again this soon (her voice has been cut). */
 const INTERRUPT_REOPEN_MS = 300;
-/** Say what he's doing when an action is still running after this long and he hasn't spoken yet. */
+/** Say what she's doing when an action is still running after this long and she hasn't spoken yet. */
 const SPOKEN_CUE_MS = 1000;
 /** A second wake word this soon after an ignored one always wakes Empathika up. */
 const REPEAT_WAKE_MS = 10_000;
@@ -97,7 +97,7 @@ export class ConversationService implements OnApplicationBootstrap {
       this.pendingAnnouncements.push({ text: announcement(t), timer: !t.say });
       if (this.state === 'wake') void this.flushAnnouncements();
     });
-    // Reminders that came due while he was locked are said once he's unlocked.
+    // Reminders that came due while she was locked are said once she's unlocked.
     this.lock?.on('change', (locked: boolean) => {
       if (!locked && this.state === 'wake') void this.flushAnnouncements();
     });
@@ -251,11 +251,11 @@ export class ConversationService implements OnApplicationBootstrap {
         }
         const outcome = await this.respond(text.value, text.endOfSpeech);
         if (outcome === 'ended') {
-          this.log.log('Conversation ended by Empathika (told to stop, or the speech was not meant for him)');
+          this.log.log('Conversation ended by Empathika (told to stop, or the speech was not meant for her)');
           return;
         }
         if (outcome === 'interrupted') {
-          // "Hey Empathika" over his voice: he's stopped talking; listen for what comes next ("stop", or a new question).
+          // "Hey Empathika" over her voice: she's stopped talking; listen for what comes next ("stop", or a new question).
           noSpeechMs = FOLLOW_UP_WINDOW_MS;
           await new Promise((r) => setTimeout(r, INTERRUPT_REOPEN_MS));
           continue;
@@ -266,8 +266,8 @@ export class ConversationService implements OnApplicationBootstrap {
         return;
       }
       noSpeechMs = FOLLOW_UP_WINDOW_MS;
-      // Let Empathika's voice finish coming out of the speakers before listening again, so he
-      // doesn't transcribe (and answer) the end of his own sentence.
+      // Let Empathika's voice finish coming out of the speakers before listening again, so she
+      // doesn't transcribe (and answer) the end of her own sentence.
       await new Promise((r) => setTimeout(r, this.cfg.audio.echoTailMs));
     }
   }
@@ -357,9 +357,9 @@ export class ConversationService implements OnApplicationBootstrap {
     const splitter = new SentenceSplitter();
     let firstSpoken = 0;
     let reply = '';
-    // While he answers, the wake word still works: "Hey Empathika" cuts him off.
+    // While she answers, the wake word still works: "Hey Empathika" cuts her off.
     let interrupted = false;
-    // A slow action (email, web...) before he's said anything: tell the user what he's doing.
+    // A slow action (email, web...) before she's said anything: tell the user what she's doing.
     let cued = false;
     const onActivity = (e: ActivityEvent) => {
       setTimeout(() => {

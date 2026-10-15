@@ -44,7 +44,7 @@ const TICK_MS = 60_000;
 /**
  * Updates from GitHub, without the Mac: Empathika checks GitHub for changes the box doesn't have
  * yet (the control panel lists them), and "Update now", "Empathika, update yourself" or the nightly
- * automatic update ask the box to install them. Empathika runs in a container, so he leaves a note
+ * automatic update ask the box to install them. Empathika runs in a container, so she leaves a note
  * (/run/empathika/update-request); the box's empathika-update service downloads, sets up and restarts.
  */
 @Injectable()
@@ -132,7 +132,7 @@ export class UpdatesService implements OnModuleInit, OnModuleDestroy {
     }
     this.cached = undefined;
     this.log.log(`Update requested (${why})`);
-    return 'Updating: Empathika downloads the new version and restarts on his own, in 5 to 15 minutes.';
+    return 'Updating: Empathika downloads the new version and restarts on her own, in 5 to 15 minutes.';
   }
 
   setAuto(auto: boolean, time?: string): string {

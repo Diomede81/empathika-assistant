@@ -29,7 +29,7 @@ const STARTUP_ANNOUNCE_MS = 8000;
 /**
  * Timers and reminders. Saved (encrypted, next to the memory vaults) on every change, so
  * they survive restarts and updates; reminders that came due while Empathika was off are
- * announced when he's back. Emits 'fired' with the Timer when one goes off; Empathika announces
+ * announced when she's back. Emits 'fired' with the Timer when one goes off; Empathika announces
  * it out loud.
  */
 @Injectable()

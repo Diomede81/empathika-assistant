@@ -1,7 +1,7 @@
 /**
  * The face page shown full-screen on the box's round 720x720 display (kiosk browser).
  * Self-contained (no external fonts or scripts: it must work offline, e.g. during WiFi
- * setup). Live state arrives over /events: the state, his expression (emotion) and, while he
+ * setup). Live state arrives over /events: the state, her expression (emotion) and, while she
  * talks, the mouth shape 20 times a second. Open /?demo to preview every expression, or
  * /?demo=happy (any scene name, see SCENES) to hold one; add &mouth=a (e, i, o, u, s, m) to hold a
  * mouth shape.
@@ -372,7 +372,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     captionEl.innerHTML = (c.who === 'you' ? '<b>You: </b>' : '') + escC(c.text);
   }
 
-  // ---------- evening photo frame (while Empathika is idle; "Hey Empathika" or a touch brings him back) ----------
+  // ---------- evening photo frame (while Empathika is idle; "Hey Empathika" or a touch brings her back) ----------
   const FRAME_IDLE_MS = 2 * 60000;
   const frameEl = document.getElementById('frame');
   const frameImgs = [document.getElementById('fa'), document.getElementById('fb')];
@@ -570,7 +570,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
         uBack: closeMenu,
         uGo: () => fetch('/update', { method: 'POST' }).then((r) => r.json()).then((x) => {
           menu(x.ok
-            ? '<h1>Updating…</h1><p>Empathika downloads the new version and restarts by himself. Back in 5 to 15 minutes.</p>' + BACK
+            ? '<h1>Updating…</h1><p>Empathika downloads the new version and restarts by herself. Back in 5 to 15 minutes.</p>' + BACK
             : '<h1>Updates</h1><p>' + escH(x.message) + '</p>' + BACK, { uBack: closeMenu });
         }).catch(() => menu('<h1>Updates</h1><p>Could not start the update.</p>' + BACK, { uBack: closeMenu })),
       });
@@ -666,7 +666,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     if (doubleBlink && bt > 300 && bt < 600) bt -= 300;
     const blink = bt < 120 ? bt / 120 : bt < 300 ? 1 - (bt - 120) / 180 : 0;
 
-    // Where he looks: quick darting glances (saccades) that depend on what he's doing.
+    // Where she looks: quick darting glances (saccades) that depend on what she's doing.
     if (now > nextLook) {
       const r = Math.random;
       if (state === 'listening') { look = [(r() - 0.5) * 0.16, (r() - 0.5) * 0.12]; nextLook = now + 400 + r() * 900; }
@@ -676,7 +676,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       else { look = r() < 0.45 ? [(r() - 0.5) * 0.08, 0] : [(r() - 0.5) * 1.2, (r() - 0.5) * 0.7]; nextLook = now + 900 + r() * 2600; }
     }
 
-    // Targets: the expression, adjusted for what he's doing.
+    // Targets: the expression, adjusted for what she's doing.
     const e = Object.assign({}, EMO[emotion] || EMO.neutral);
     if (state === 'listening') { e.lidT = Math.min(e.lidT, 0.03); e.eye *= 1.06; e.pupil += 0.15; e.browY += 7; e.tilt += 6; }
     if (state === 'sleeping') Object.assign(e, { lidT: 1, lidA: -0.05, lidB: 0.12, browY: -6, browA: -0.05, browL: 0, smile: 0.3, open: 0, round: 0, cheek: 0.2, tilt: 5 });
@@ -712,7 +712,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     drawBackground(P, rgb, s);
     if (state === 'setup') { drawChrome(now, s, rgb, state); requestAnimationFrame(frame); return; }
 
-    // Head: gentle breathing, a nod with emphasis, tilt, and a slight turn towards where he looks.
+    // Head: gentle breathing, a nod with emphasis, tilt, and a slight turn towards where she looks.
     const breathe = Math.sin(now / 1300);
     g.save();
     g.translate(cx + P.lx * 7 * s * fk, fy + (breathe * 3 - P.mo * 4 + P.ly * 5) * s * fk);

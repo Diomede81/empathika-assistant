@@ -14,7 +14,7 @@ const BOOT_ID = `${Date.now().toString(36)}-${process.pid}`;
 
 /**
  * Serves the face page for the box's screen and streams Empathika's state to it (Server-Sent
- * Events): `info` when anything changes, `level` (mouth shape) 20 times a second while he talks.
+ * Events): `info` when anything changes, `level` (mouth shape) 20 times a second while she talks.
  * Listens on this machine only (FACE_HOST / FACE_PORT, default 127.0.0.1:8098).
  */
 @Injectable()

@@ -227,7 +227,7 @@ small{{color:var(--muted)}}
 <label for="pw">Password</label>
 <input type="password" id="pw" name="password" autocomplete="off">
 <button type="submit">Connect</button>
-<small>Empathika will say when he's connected. This page will stop working then, which is normal.</small>
+<small>Empathika will say when she's connected. This page will stop working then, which is normal.</small>
 </form></main></body></html>"""
 
 DONE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -235,8 +235,8 @@ DONE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <style>body{{margin:0;font:17px/1.5 system-ui,-apple-system,sans-serif;background:#f4f6f5;color:#14201d}}
 @media (prefers-color-scheme:dark){{body{{background:#0d1312;color:#e6f2ee}}}}main{{max-width:440px;margin:0 auto;padding:40px 16px}}</style>
 </head><body><main><h1>Connecting to {ssid}…</h1>
-<p>Empathika will tell you when he's online, and his face will come back. If the password was wrong, the setup
-network appears again in a minute: just scan the code on his screen again.</p></main></body></html>"""
+<p>Empathika will tell you when she's online, and her face will come back. If the password was wrong, the setup
+network appears again in a minute: just scan the code on her screen again.</p></main></body></html>"""
 
 # What phones and laptops ask to detect a captive portal: all get sent to the setup page.
 PROBES = {'/hotspot-detect.html', '/library/test/success.html', '/generate_204', '/gen_204',

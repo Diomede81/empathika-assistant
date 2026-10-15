@@ -2,9 +2,9 @@
 
 Empathika uses an AI model in two kinds of places:
 
-- **The conversation**: what he says back to you. This uses the `LLM_*` settings in `.env`. Speed matters
+- **The conversation**: what she says back to you. This uses the `LLM_*` settings in `.env`. Speed matters
   most here, so it stays on one fast model you choose there.
-- **Background jobs**: work he does on his own. Each job can use a different model from a different
+- **Background jobs**: work she does on her own. Each job can use a different model from a different
   provider, chosen on the control panel (**Settings → AI models**):
 
 | Job | What it does | What it needs |

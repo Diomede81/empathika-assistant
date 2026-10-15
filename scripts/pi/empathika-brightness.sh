@@ -1,6 +1,6 @@
 #!/bin/sh
 # Sets the screen's brightness when Empathika asks (screen menu, voice, control panel). Empathika runs in a
-# container, so he writes the level (5-100) to /run/empathika/brightness-request; empathika-brightness.path
+# container, so she writes the level (5-100) to /run/empathika/brightness-request; empathika-brightness.path
 # notices and runs this. It tells Empathika whether the screen supports it in /run/empathika/backlight.json.
 RUN="${EMPATHIKA_RUN_DIR:-/run/empathika}"
 REQ="$RUN/brightness-request"

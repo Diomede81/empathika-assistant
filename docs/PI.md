@@ -7,7 +7,7 @@ From a blank SD card to Empathika's face on the screen: about 45 minutes, most o
 1. Install **Raspberry Pi Imager** from <https://www.raspberrypi.com/software/> and insert the SD card.
 2. Choose:
    - **Device:** Raspberry Pi 5
-   - **Operating system:** Raspberry Pi OS (other) → **Raspberry Pi OS Lite (64-bit)**. Empathika draws his own
+   - **Operating system:** Raspberry Pi OS (other) → **Raspberry Pi OS Lite (64-bit)**. Empathika draws her own
      screen, so the desktop version isn't needed.
    - **Storage:** your SD card
 3. When asked to **apply OS customisation settings**, choose **Edit settings** and fill in:
@@ -63,7 +63,7 @@ starts Empathika. The first build takes 10–15 minutes on a Pi 5. When it finis
 sudo reboot
 ```
 
-After the restart, Empathika's face appears on the screen and he's listening for "Hey Empathika".
+After the restart, Empathika's face appears on the screen and she's listening for "Hey Empathika".
 
 ## Using the box
 
@@ -88,7 +88,7 @@ After the restart, Empathika's face appears on the screen and he's listening for
     an address), Empathika puts it on screen as well as saying it. Ask for a **recipe** or other instructions
     ("how do I make...", "how to...", "step by step", "show me...") and they always go on screen: the
     ingredients first, then one step at a time. Tap **Start** / **Next** / **Back**, or say "next step",
-    "go back" or "step 4". If the AI ever only talks, Empathika builds the steps from what he said and shows them
+    "go back" or "step 4". If the AI ever only talks, Empathika builds the steps from what she said and shows them
     anyway.
   - **News:** while Empathika reads your briefing, the headlines and their sources are on screen.
   - **Email:** when Empathika reads your email, it's on screen: one email shows who it's from, when, the subject and
@@ -102,12 +102,12 @@ After the restart, Empathika's face appears on the screen and he's listening for
     list with **Done** on each).
 
   They wait for a good moment: never while you're talking to Empathika, never over a card you're using (a recipe, a
-  timer), never during his sleep hours, and never in guest mode. Each can be switched off in
+  timer), never during her sleep hours, and never in guest mode. Each can be switched off in
   **Settings → Screen** on the control panel.
   - **"What's going on in my day?"**: your reminders and to-dos (overdue and critical ones marked), with your
     calendar's events added as soon as Empathika reads the calendar. Asking about the calendar shows its events too.
   - **Captions** (off unless you switch them on in **Settings → Screen** on the control panel): what Empathika
-    heard you say and what he's saying, under the face.
+    heard you say and what she's saying, under the face.
 - **Glance (while Empathika is idle):** the weather at the top (for the home location set on the control panel,
   from Open-Meteo: free, no key), and under the clock your next meeting and a line like "2 critical ·
   1 overdue". **Tap the face** for "Your day" (meetings, reminders, to-dos and the weather); each to-do
@@ -117,16 +117,16 @@ After the restart, Empathika's face appears on the screen and he's listening for
 - **Evening photo frame:** upload pictures on the control panel (**Settings → Screen**; JPEG, PNG or WebP,
   kept on the box only) and switch it on. During the hours you choose (19:00–23:00 by default), after two
   quiet minutes, your pictures fade one into the next with the clock on top. "Hey Empathika" or a touch brings
-  his face back. The glance can be switched off there too.
+  her face back. The glance can be switched off there too.
 - **Volume and brightness:** hold a finger on the screen for 2 seconds: the menu has **Volume** and
   **Brightness** with − and + buttons. Or say "Empathika, louder", "volume to 30%", "dim the screen", or use
   **Settings → Device** on the control panel. Brightness is remembered when Empathika restarts.
 - **Start-up code:** in **Settings → Security** on the control panel, set a 6-digit code. From then on, every
-  time the box starts, Empathika shows a keypad and stays locked until the code is typed: he won't answer
-  ("I'm locked, please enter my code on the screen"), won't run any action, and his screen shows nothing
+  time the box starts, Empathika shows a keypad and stays locked until the code is typed: she won't answer
+  ("I'm locked, please enter my code on the screen"), won't run any action, and her screen shows nothing
   personal (no meetings, to-dos, emails, notifications or reminders; reminders that come due are said once
-  he's unlocked). Empathika restarting on his own (an update) doesn't lock him again; turning the box off and on
-  does. To lock him yourself, hold a finger on the screen for 2 seconds and tap **Lock**.
+  she's unlocked). Empathika restarting on her own (an update) doesn't lock her again; turning the box off and on
+  does. To lock her yourself, hold a finger on the screen for 2 seconds and tap **Lock**.
   - After 5 wrong tries the keypad pauses for 30 seconds, then 1, 2, 4... up to 15 minutes. Turning the box
     off and on doesn't reset this, and the control panel's "current code" boxes count towards the same tries.
   - Changing or turning off the code needs the current code. **Forgot it?** If the control panel has a
@@ -137,14 +137,14 @@ After the restart, Empathika's face appears on the screen and he's listening for
   - **Hold a finger on the screen for 2 seconds** for the menu: **Turn off**, **Restart**, **WiFi setup**
     (and volume and brightness).
     After choosing, you have 5 seconds to cancel. When the screen goes dark it's safe to unplug.
-  - Or say **"Empathika, turn off"** / **"Empathika, restart"** (he asks you to confirm), or use **Settings → Device**
+  - Or say **"Empathika, turn off"** / **"Empathika, restart"** (she asks you to confirm), or use **Settings → Device**
     on the control panel.
   - Or press the **power button on the Raspberry Pi** once.
   - **To turn it on again:** press the Pi's power button (or unplug and plug the power back in).
 - **Changing WiFi:** if the box can't reach a known WiFi network for a minute, or you choose **WiFi
   setup** in the screen's menu, Empathika says so and shows a QR code. Scan it with your phone: it joins Empathika's temporary
   "Empathika-Setup" network and opens a page where you choose your WiFi and type its password. Empathika tells you
-  when he's connected. If nobody uses the setup network for 10 minutes, it switches itself off and the
+  when she's connected. If nobody uses the setup network for 10 minutes, it switches itself off and the
   box tries your known networks again.
   To leave setup mode (e.g. you opened it by mistake), tap **Back to Empathika** under the QR code: the box goes
   back to your usual WiFi straight away. Every screen in the menu has a **Back to Empathika** button.
@@ -152,13 +152,13 @@ After the restart, Empathika's face appears on the screen and he's listening for
 
   ![Empathika's face: idle with a timer, listening, thinking (work mode), speaking happily, curious, speaking with concern, asleep, WiFi setup](img/face-states.jpg)
 
-  - **Lip-sync:** his voice is analysed 20 times a second for its sound shape, so the mouth makes
+  - **Lip-sync:** her voice is analysed 20 times a second for its sound shape, so the mouth makes
     an open "a", a wide "ee", a round "oo", shows teeth on "s" and closes on "m".
-  - **Expressions follow what he says:** apologies and problems look concerned, good news looks
+  - **Expressions follow what she says:** apologies and problems look concerned, good news looks
     happy, questions look curious, "let me check" looks focused, timers and reminders look
-    surprised. The expression relaxes back to neutral a few seconds after he finishes.
-  - **Natural movement:** blinking, quick glances, breathing, a head tilt when he listens, and eyes
-    that look up and away while he thinks.
+    surprised. The expression relaxes back to neutral a few seconds after she finishes.
+  - **Natural movement:** blinking, quick glances, breathing, a head tilt when she listens, and eyes
+    that look up and away while she thinks.
   - It's asleep at night (23:00–07:00, `FACE_SLEEP` in `.env`), shows the time, timers counting
     down around the edge, what's playing, and a WORK or GUEST badge in those modes.
 - **Preview on your Mac:** with Empathika running in Docker on the Mac, open <http://localhost:8098/?demo> to
@@ -170,8 +170,8 @@ After the restart, Empathika's face appears on the screen and he's listening for
 With Empathika running in Docker on your Mac (`docker compose --profile empathika up -d --build`):
 
 1. Open <http://localhost:8098> in a browser and make the window square-ish.
-2. Say "Hey Empathika" and ask something. The face listens, thinks, and its mouth moves with his voice.
-   Try "what's the weather?" then something he can't do: his expression changes with the answer.
+2. Say "Hey Empathika" and ask something. The face listens, thinks, and its mouth moves with her voice.
+   Try "what's the weather?" then something she can't do: her expression changes with the answer.
 3. Or test without the microphone: type to Empathika with voice output, keeping the face in the browser:
    ```bash
    docker compose stop empathika
@@ -189,7 +189,7 @@ Once the setup has run on the box, updates come **straight from GitHub**: no Mac
   **Update now**.
 - **Control panel → Settings → Updates** shows the installed version and, when there's a newer one, the list
   of what's new (the titles of the changes merged on GitHub). Press **Update now**.
-- Or say **"Empathika, are there any updates?"** and **"Empathika, update yourself"** (he asks you to confirm).
+- Or say **"Empathika, are there any updates?"** and **"Empathika, update yourself"** (she asks you to confirm).
 - Or tick **Install updates automatically** (default 03:30): if there's something new, the box updates itself
   at night.
 
@@ -215,8 +215,8 @@ The very first time (to install this updater) it's the old way: copy the new ver
 | A mouse pointer shows on the face | Run the setup again: it installs an invisible pointer for the face screen. If a mouse is plugged in, moving it over the face also hides the pointer. |
 | Face shows "Reconnecting…" | Empathika isn't running: `cd ~/empathika-assistant && docker compose logs --tail 50 empathika` |
 | No sound, or Empathika can't hear | `pactl list short sinks` and `pactl list short sources` should list the mic board (XVF3800). If not, check its USB cable, then run `systemctl --user restart empathika-audio-defaults`. |
-| Empathika wakes up by himself (TV, music, noise) | Set `WAKEWORD_TRIGGER_LEVEL=2` in `.env` and run `docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d`. The log line `Ignored a false wake-up` shows the double-check catching others. More: `training/README.md`, "Waking up by itself". |
-| Empathika doesn't wake reliably | Run `./scripts/wake-coach.sh` from where you usually sit: it measures how well he recognises you and tells you what to change. |
+| Empathika wakes up by herself (TV, music, noise) | Set `WAKEWORD_TRIGGER_LEVEL=2` in `.env` and run `docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d`. The log line `Ignored a false wake-up` shows the double-check catching others. More: `training/README.md`, "Waking up by itself". |
+| Empathika doesn't wake reliably | Run `./scripts/wake-coach.sh` from where you usually sit: it measures how well she recognises you and tells you what to change. |
 | Face service | `journalctl -u empathika-face -n 50` |
 | WiFi setup service | `journalctl -u empathika-wifi -n 50` |
 | Start WiFi setup without the screen | `echo 1 \| sudo tee /run/empathika/wifi-request` |

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 /**
  * Lets the AI model end the current conversation (the end_conversation action): when the user
- * says they're done, or when what Empathika heard clearly wasn't said to him. The voice loops check it
+ * says they're done, or when what Empathika heard clearly wasn't said to her. The voice loops check it
  * after each reply and go quiet.
  */
 @Injectable()

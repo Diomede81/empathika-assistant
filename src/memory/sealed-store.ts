@@ -5,7 +5,7 @@ import type { AppConfig } from '../config';
 import { masterKey, open, seal, SealedFile, vaultKey } from './crypto';
 
 /**
- * A small file of Empathika's own state (timers and reminders, his journal...) kept next to the
+ * A small file of Empathika's own state (timers and reminders, her journal...) kept next to the
  * memory vaults so it survives restarts and updates. Encrypted with its own key derived
  * from the memory key, like the vaults; plain JSON only when memory is switched off.
  * Writes are queued and atomic (temp file + rename), so a crash never leaves half a file.

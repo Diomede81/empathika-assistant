@@ -97,10 +97,10 @@ Empathika searches the web and reads pages with **Firecrawl** directly, without 
 3. The control panel's **Web search** row shows *Connected* and your remaining credits.
 
 Then try: *"What's the latest news on the Arsenal match?"*, *"What time does Joe's Barbers in
-Clapham open?"*, *"Read me the summary on bbc.co.uk/news."* While he works the face shows
+Clapham open?"*, *"Read me the summary on bbc.co.uk/news."* While she works the face shows
 "🌐 Searching the web…".
 
-- A plain search costs about 1 credit per result; when he also reads the top results ("read_top")
+- A plain search costs about 1 credit per result; when she also reads the top results ("read_top")
   it's about one more credit per page. Pages read in the last hour come from Firecrawl's cache.
 - Results are local to your **home location** (control panel → *Home location*: town or area, optional
   postcode, country). Empathika also uses it for "weather", "near me", opening hours and local events.
@@ -122,7 +122,7 @@ Composio supports hundreds of apps (Slack, Notion, Todoist…).
 A new app gets all its actions automatically. To narrow it down, add patterns for it to
 `COMPOSIO_ALLOWED_TOOLS` (e.g. `FIRECRAWL_SCRAPE*,FIRECRAWL_SEARCH*`).
 
-**Connected an app in Composio's own dashboard?** Empathika only uses connections made for his
+**Connected an app in Composio's own dashboard?** Empathika only uses connections made for her
 users (`COMPOSIO_USER_ID`, default `empathika-home`, and `COMPOSIO_WORK_USER_ID`, default `empathika-home-work`). The control panel warns when an app is connected
 under a different user or isn't in `COMPOSIO_TOOLKITS`. Connecting from Empathika's control panel
 always uses the right user.

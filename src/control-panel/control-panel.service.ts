@@ -144,7 +144,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
         `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Empathika</title><body style="font:16px system-ui;margin:40px;max-width:520px">` +
           (action === 'reboot'
             ? '<h1>Restarting…</h1><p>Empathika will be back in about a minute. <a href="/">Open the control panel again</a>.</p>'
-            : "<h1>Turning off</h1><p>When Empathika's screen goes dark it's safe to unplug. To turn him on again, press the power button on the Raspberry Pi.</p>"),
+            : "<h1>Turning off</h1><p>When Empathika's screen goes dark it's safe to unplug. To turn her on again, press the power button on the Raspberry Pi.</p>"),
       );
       return;
     }

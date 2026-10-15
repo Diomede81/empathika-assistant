@@ -21,7 +21,7 @@ threshold=$(setting WAKEWORD_THRESHOLD 0.5)
 session="$(date +%Y-%m-%d_%H%M)"
 mkdir -p wake-coach
 
-# Empathika would hear the attempts too (and answer): pause him while recording.
+# Empathika would hear the attempts too (and answer): pause her while recording.
 was_running=$("${compose[@]}" --profile empathika ps --status running -q empathika 2>/dev/null || true)
 if [[ -n "$was_running" ]]; then
   echo "Pausing Empathika while you record..."

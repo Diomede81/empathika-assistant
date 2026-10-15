@@ -1,7 +1,7 @@
 # Running Empathika with Docker (no Ubuntu machine needed)
 
 Everything runs in containers: the wake word, speech-to-text and voice services, and Empathika
-himself. Containers have no sound card of their own, so how you test depends on what you
+herself. Containers have no sound card of their own, so how you test depends on what you
 want to check:
 
 | Goal | What you need | Setup time |

@@ -149,7 +149,7 @@ def update():
         write_version()
         return 0
     count = git('rev-list', '--count', f'{old}..{new}')
-    status('updating', f'Installing the new version ({count} change{"" if count == "1" else "s"}). Empathika restarts on his own; this takes 5 to 15 minutes.',
+    status('updating', f'Installing the new version ({count} change{"" if count == "1" else "s"}). Empathika restarts on her own; this takes 5 to 15 minutes.',
            old=old, new=new)
     if git('status', '--porcelain', '--untracked-files=no'):
         git('stash', 'push', '--quiet', '-m', f'Local changes put aside by the update on {time.strftime("%Y-%m-%d %H:%M")}')
@@ -163,7 +163,7 @@ def update():
     if r.returncode != 0:
         git('checkout', '--quiet', '-B', BRANCH, old)
         write_version()
-        status('failed', 'The update did not finish, so Empathika stays on the version he had. Details: /var/log/empathika-update.log',
+        status('failed', 'The update did not finish, so Empathika stays on the version she had. Details: /var/log/empathika-update.log',
                old=old, new=new)
         return 1
     write_version()

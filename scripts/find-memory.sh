@@ -4,7 +4,7 @@
 #   ./scripts/find-memory.sh restore NAME    copy store NAME into the one Empathika uses now
 # Why: before the store had a fixed name, Docker made a separate, empty one for each folder
 # name (e.g. "empathika-assistant" vs a fresh download "empathika-assistant-main"), so Empathika looked like
-# he had forgotten everything. Nothing is deleted by this script.
+# she had forgotten everything. Nothing is deleted by this script.
 set -euo pipefail
 CURRENT=empathika-assistant_empathika-data
 peek() { docker run --rm -v "$1":/d:ro busybox sh -c 'cd /d && for f in *.vault *.json memory.key; do [ -f "$f" ] && echo "    $(date -r "$f" "+%Y-%m-%d %H:%M")  $(wc -c < "$f" | tr -d " ") bytes  $f"; done; true'; }

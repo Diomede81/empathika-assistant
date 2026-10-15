@@ -25,7 +25,7 @@ export interface DeviceStatus {
  * The box's speaker volume and screen brightness, from the screen's menu, by voice or from the
  * control panel. Volume is the sound system's own (it covers Empathika's voice and the music) and
  * the sound system remembers it. Brightness is the screen's backlight: Empathika runs in a container,
- * so he asks the box through the folder they share (/run/empathika/brightness-request; the box's
+ * so she asks the box through the folder they share (/run/empathika/brightness-request; the box's
  * empathika-brightness service applies it) and keeps the level so it is set again after a restart.
  */
 @Injectable()

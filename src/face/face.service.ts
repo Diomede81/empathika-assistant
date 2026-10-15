@@ -44,7 +44,7 @@ export interface FaceInfo {
   wifi?: WifiStatus & { qrSvg?: string };
   offline: boolean;
   emotion: Emotion;
-  /** What he's busy with right now ("Checking your email"), while an action runs. */
+  /** What she's busy with right now ("Checking your email"), while an action runs. */
   activity?: { icon: string; label: string };
   /** A short-lived note when something didn't work ("Couldn't finish: Checking your email"). */
   notice?: string;
@@ -52,7 +52,7 @@ export interface FaceInfo {
   updating?: boolean;
   /** The card on screen (Empathika's face shrinks to the top while it shows). */
   card?: Card & { until: number };
-  /** Live captions: what Empathika heard, or what he's saying. */
+  /** Live captions: what Empathika heard, or what she's saying. */
   caption?: { who: 'you' | 'empathika'; text: string };
   /** Around the face when idle: weather, next meeting, to-dos; and the evening photo frame. */
   glance?: Glance;
@@ -127,7 +127,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
       this.calendarCard(r.name, r.out);
       this.emailCard(r.name, r.out);
     });
-    // Show what he's doing while actions run (email, calendar, web, the house...).
+    // Show what she's doing while actions run (email, calendar, web, the house...).
     this.toolRouter?.activity.on('start', (e: ActivityEvent) => {
       this.activities.set(e.id, { icon: e.icon, label: e.label });
       this.activityStarted.set(e.id, Date.now());
@@ -143,7 +143,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
       this.activityStarted.delete(e.id);
       setTimeout(() => {
         this.activities.delete(e.id);
-        // Back to idle if it was only the action that made him look busy.
+        // Back to idle if it was only the action that made her look busy.
         if (!this.activities.size && this.thinkingForActivity && this.base === 'thinking') this.base = 'idle';
         if (!this.activities.size) this.thinkingForActivity = false;
         void this.tickInfo();
@@ -206,14 +206,14 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
   }
 
   /**
-   * What Empathika is saying (a sentence, a reply, or a chunk of live transcript). His expression
+   * What Empathika is saying (a sentence, a reply, or a chunk of live transcript). Her expression
    * follows it: happy for good news, concerned for problems, curious for questions.
    */
   said(text: string): void {
     const t = text.replace(/\s+/g, ' ').trim();
     if (t) {
       this.screenTools?.maxSaid(t); // a recipe only spoken still ends up on screen
-      // Captions: his sentences follow one another; keep the latest (a sentence or two).
+      // Captions: her sentences follow one another; keep the latest (a sentence or two).
       const cont = this.caption?.who === 'empathika' && Date.now() < this.caption.until && this.caption.text.length + t.length < 160;
       this.caption = { who: 'empathika', text: cont ? `${this.caption!.text} ${t}` : t.slice(-220), until: Date.now() + CAPTION_MS };
       void this.tickInfo();
@@ -319,7 +319,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     this.wasSpeaking = this.speaking;
     if (this.speaking && !this.announcedSpeaking) void this.tickInfo();
     this.announcedSpeaking = this.speaking;
-    // Expressions fade back to neutral once the moment has passed (and he's finished talking).
+    // Expressions fade back to neutral once the moment has passed (and she's finished talking).
     if (this.emotion !== 'neutral' && now > this.emotionUntil && !this.speaking) {
       this.emotion = 'neutral';
       void this.tickInfo();
