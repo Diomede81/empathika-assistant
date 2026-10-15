@@ -54,7 +54,9 @@ or not running):
 
 1. Copy Max's `.env` into the `empathika-assistant` folder: the AI model, voice, audio, wake word and
    keys all work unchanged. Settings only Max used (Home Assistant, Composio, Spotify, work hours) are
-   ignored. Add the care app settings (`EMPATHIKA_APP_MCP_URL`, `EMPATHIKA_APP_TOKEN`, `RESIDENT_ID`).
+   ignored. Then paste **`.env.trial`** at the end of it and fill in the lines marked `<-- FILL IN`: it
+   has every setting the trial needs (Gemini real-time voice with a female voice, the greeting, the care
+   app, the network name) and cancels Max's own voice, style and rules.
 2. Run `sudo ./scripts/pi/setup.sh` as below. It answers the same questions (screen, connector) and
    changes `COMPOSE_PROFILES=max` to `empathika` by itself. Set `EMPATHIKA_HOSTNAME=max` before it if
    the box should keep its old network name (`max.local`).

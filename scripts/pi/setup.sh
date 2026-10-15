@@ -63,7 +63,9 @@ fi
 usermod -aG docker,audio,video,render,input "$USER_NAME" || true
 
 # ---------------------------------------------------------------- 2. name on the network
-NAME="${EMPATHIKA_HOSTNAME:-$(saved EMPATHIKA_HOSTNAME)}"; NAME="${NAME:-empathika}"
+# The network name: given on the command line, or EMPATHIKA_HOSTNAME in .env, or the one chosen before.
+ENV_NAME="$( [ -f "$REPO/.env" ] && sed -n 's/^EMPATHIKA_HOSTNAME=//p' "$REPO/.env" | tail -1 | tr -d ' "' || true)"
+NAME="${EMPATHIKA_HOSTNAME:-${ENV_NAME:-$(saved EMPATHIKA_HOSTNAME)}}"; NAME="${NAME:-empathika}"
 if [ "$(hostname)" != "$NAME" ]; then
   say "Naming the box \"$NAME\" (reachable as $NAME.local)"
   hostnamectl set-hostname "$NAME"
@@ -196,8 +198,15 @@ set_env EMPATHIKA_GID "$USER_GID"
 grep -q '^CONTROL_PANEL_URL=' .env || set_env CONTROL_PANEL_URL "http://$NAME.local:8099"
 # A .env copied from Max may replace Empathika's care rules with Max's: say so.
 for K in LLM_SYSTEM_PROMPT REALTIME_STYLE TTS_INSTRUCTIONS; do
-  grep -q "^$K=.\+" .env && warn "$K is set in .env (from Max?): it replaces Empathika's own care-home wording. Remove it unless you wrote it for Empathika."
+  # The last line counts (the trial block at the end of .env empties them).
+  [ -n "$(sed -n "s/^$K=//p" .env | tail -1)" ] && warn "$K is set in .env (from Max?): it replaces Empathika's own care-home wording. Remove it unless you wrote it for Empathika."
 done
+# The settings the trial needs (.env.trial), by their last line in .env.
+last() { sed -n "s/^$1=//p" .env | tail -1; }
+if [ "$(last VOICE_MODE)" = realtime ] && [ "$(last REALTIME_PROVIDER)" = gemini ] && [ -z "$(last GEMINI_API_KEY)$(last GOOGLE_API_KEY)$(last REALTIME_API_KEY)" ]; then
+  warn "Real-time voice with Gemini is on, but there is no GEMINI_API_KEY in .env: she won't be able to talk."
+fi
+[ -n "$(last EMPATHIKA_APP_MCP_URL)" ] || warn "EMPATHIKA_APP_MCP_URL is empty in .env: no care record, family messages or memory backup until it is set."
 grep -q '^PANEL_PASSWORD=.\+' .env || warn "PANEL_PASSWORD is not set in .env. On the box the control panel is reachable from your home network, so set one."
 # A .env copied from Max starts the "max" profile: here it is "empathika" (and there is no Spotify "music" profile).
 PROFILES="$(sed -n 's/^COMPOSE_PROFILES=//p' .env | tail -1 | tr ',' '\n' | sed 's/^max$/empathika/' | grep -v '^music$' | grep -v '^$' | sort -u | paste -sd, - || true)"

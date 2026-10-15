@@ -150,7 +150,7 @@ export function loadConfig(): AppConfig {
       inputDevice: env.AUDIO_INPUT_DEVICE ?? 'default',
       outputDevice: env.AUDIO_OUTPUT_DEVICE ?? 'default',
       wakeChime: (env.WAKE_CHIME ?? 'on') !== 'off',
-      wakeGreeting: env.WAKE_GREETING === 'off' ? '' : (env.WAKE_GREETING ?? 'Hi, how can I help?').trim(),
+      wakeGreeting: env.WAKE_GREETING === 'off' ? '' : (env.WAKE_GREETING || 'Hi, how can I help?').trim(),
       echoTailMs: num(env.AUDIO_ECHO_TAIL_MS, 1000),
     },
     wakeWord: {
@@ -196,7 +196,8 @@ export function loadConfig(): AppConfig {
       timeoutMs: num(env.LLM_TIMEOUT_MS, 4000),
       // The operating rules. Who Empathika is (personality, story) lives in her soul instead.
       systemPrompt:
-        env.LLM_SYSTEM_PROMPT ??
+        // An empty setting means "use the default" (so a later empty line in .env cancels an earlier one).
+        env.LLM_SYSTEM_PROMPT ||
         'You talk out loud through a speaker in a care-home resident\'s room. The person in front of you is usually the ' +
           'resident, who may be elderly, hard of hearing or living with dementia; sometimes a visitor, or a member of staff. ' +
           'Speak slowly and simply: one or two short sentences, one question at a time, no lists, no markdown, no emojis. ' +
@@ -270,10 +271,10 @@ export function loadConfig(): AppConfig {
           ? env.GEMINI_API_KEY || env.GOOGLE_API_KEY || env.REALTIME_API_KEY || ''
           : env.REALTIME_API_KEY || env.OPENAI_API_KEY || '',
       language: env.REALTIME_LANGUAGE || undefined,
-      model: env.REALTIME_MODEL ?? (realtimeProvider === 'gemini' ? 'gemini-3.8-live' : 'gpt-realtime-2'),
-      voice: env.REALTIME_VOICE ?? (realtimeProvider === 'gemini' ? 'Kore' : 'marin'),
+      model: env.REALTIME_MODEL || (realtimeProvider === 'gemini' ? 'gemini-3.8-live' : 'gpt-realtime-2'),
+      voice: env.REALTIME_VOICE || (realtimeProvider === 'gemini' ? 'Kore' : 'marin'),
       style:
-        env.REALTIME_STYLE ??
+        env.REALTIME_STYLE ||
         'Speak with a warm, calm, gentle British voice, a little slower than usual and very clearly. Keep replies short ' +
           'and natural; never read out lists or long numbers unless asked.',
       silenceMs: num(env.REALTIME_SILENCE_MS, 500),
