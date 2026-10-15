@@ -155,7 +155,7 @@ After the restart, Empathika's face appears on the screen and she's listening fo
   back to your usual WiFi straight away. Every screen in the menu has a **Back to Empathika** button.
 - **The face:**
 
-  ![Empathika's face: idle with a timer, listening, thinking (work mode), speaking happily, curious, speaking with concern, asleep, WiFi setup](img/face-states.jpg)
+  ![Empathika's face: resting with a timer, happy, warm, thinking, thoughtful, concerned, curious, speaking happily, listening, sleepy](img/face-states.jpg)
 
   - **Lip-sync:** her voice is analysed 20 times a second for its sound shape, so the mouth makes
     an open "a", a wide "ee", a round "oo", shows teeth on "s" and closes on "m".

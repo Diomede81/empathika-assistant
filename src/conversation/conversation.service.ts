@@ -25,6 +25,8 @@ const HISTORY_LIMIT = 16;
 const HISTORY_RESET_MS = 2 * 60 * 1000;
 const FOLLOW_UP_WINDOW_MS = 5000;
 const CHIME_GRACE_MS = 400;
+/** Only the wake word and then a pause this long: Empathika greets ("Hi, how can I help?"). */
+const GREET_AFTER_MS = 800;
 const STT_TIMEOUT_MS = 20_000;
 /** Wake-up double-check: how much sound before the detection, and how long to wait for the words. */
 const VERIFY_SECONDS = 2.5;
@@ -227,9 +229,22 @@ export class ConversationService implements OnApplicationBootstrap {
 
   private async conversationTurns(): Promise<void> {
     let noSpeechMs = 5000;
+    let first = true;
     for (;;) {
       try {
-        const text = await this.listen(noSpeechMs, noSpeechMs === FOLLOW_UP_WINDOW_MS);
+        let text: Awaited<ReturnType<ConversationService['listen']>>;
+        if (first && this.cfg.audio.wakeGreeting) {
+          // "Hey Empathika" and then a pause: she says hello and waits. If they carried straight on
+          // ("Hey Empathika, what time is it?"), that question is heard as usual, without a greeting.
+          text = await this.listen(GREET_AFTER_MS, false, true);
+          if (!text) {
+            await this.greet();
+            text = await this.listen(noSpeechMs);
+          }
+        } else {
+          text = await this.listen(noSpeechMs, noSpeechMs === FOLLOW_UP_WINDOW_MS);
+        }
+        first = false;
         if (!text) return;
         // "Stop", "that's all", "not talking to you": go quiet straight away, no AI involved.
         if (isStopRequest(text.value)) {
@@ -267,6 +282,8 @@ export class ConversationService implements OnApplicationBootstrap {
   private async listen(
     noSpeechMs: number,
     isFollowUp = false,
+    /** Just checking whether they keep talking after the wake word: no log when they don't. */
+    quiet = false,
   ): Promise<{ value: string; endOfSpeech: number } | undefined> {
     this.state = 'listen';
     this.face?.setState('listening');
@@ -294,6 +311,7 @@ export class ConversationService implements OnApplicationBootstrap {
 
     if (outcome === 'timeout') {
       session.abort();
+      if (quiet) return undefined;
       if (isFollowUp) {
         this.log.log('No follow-up question; going back to waiting for the wake word');
         return undefined;
@@ -321,6 +339,17 @@ export class ConversationService implements OnApplicationBootstrap {
     }
     this.log.log(`You: "${text}"  (stt ${Date.now() - tEnd} ms)`);
     return { value: text, endOfSpeech: tEnd };
+  }
+
+  /** "Hi, how can I help?" after a lone "Hey Empathika", then a moment for her voice to clear the speaker. */
+  private async greet(): Promise<void> {
+    const greeting = this.cfg.audio.wakeGreeting;
+    this.log.log(`Only the wake word: "${greeting}"`);
+    this.face?.said(greeting);
+    const speech = this.tts.session();
+    speech.say(greeting);
+    await speech.done().catch(() => undefined);
+    await new Promise((r) => setTimeout(r, this.cfg.audio.echoTailMs));
   }
 
   private async respond(text: string, tEndOfSpeech: number): Promise<'done' | 'ended' | 'interrupted'> {

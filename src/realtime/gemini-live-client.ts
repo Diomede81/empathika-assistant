@@ -101,6 +101,10 @@ export class GeminiLiveClient extends EventEmitter implements VoiceClient {
     /* Gemini continues on its own after tool results */
   }
 
+  sendText(text: string): void {
+    this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true } });
+  }
+
   cancelResponse(): void {
     /* not supported by Gemini Live; the conversation discards the rest of the reply */
   }

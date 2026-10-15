@@ -24,6 +24,8 @@ import { ConversationControl } from '../actions/conversation-control';
 const PCM24 = { rate: 24000, width: 2, channels: 1 };
 /** Skip the first moments after the wake word: that's Empathika's own chime. */
 const CHIME_SKIP_MS = 400;
+/** Only the wake word and then a pause this long: Empathika greets ("Hi, how can I help?"). */
+const GREET_AFTER_MS = 800;
 const FIRST_TURN_WAIT_MS = 7000;
 /** If a provider never answers after the user spoke, stop waiting (keeps sessions from hanging open). */
 const NO_ANSWER_MS = 15000;
@@ -198,7 +200,23 @@ export class RealtimeConversationService {
       this.log.log('Interrupted - Empathika stopped talking, listening to you');
     };
 
+    // "Hey Empathika" and then a pause: she says hello and waits. If they carried straight on
+    // ("Hey Empathika, what time is it?") the question is answered without a greeting.
+    const greeting = this.cfg.audio.wakeGreeting;
+    let greetTimer: NodeJS.Timeout | undefined;
+    if (greeting) {
+      greetTimer = setTimeout(() => {
+        if (ended || closed || userSpeaking || busy || turns > 0 || speaking()) return;
+        this.log.log('Only the wake word: greeting');
+        client.sendText(
+          `(Not said by the user: they just called your name to get your attention and haven't said anything else yet. ` +
+            `Greet them in a few warm words, like "${greeting}", and then wait for them.)`,
+        );
+      }, Math.max(0, started + CHIME_SKIP_MS + GREET_AFTER_MS - Date.now()));
+    }
+
     client.on('speech-started', () => {
+      clearTimeout(greetTimer);
       this.face?.setState('listening');
       userSpeaking = true;
       lastActivity = Date.now();

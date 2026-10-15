@@ -33,6 +33,8 @@ export interface VoiceClient extends EventEmitter {
   sendAudio(pcm: Buffer): void;
   sendToolResult(callId: string, output: string): void;
   requestResponse(): void;
+  /** A typed message to the model (e.g. "greet them"); it answers out loud. */
+  sendText(text: string): void;
   cancelResponse(): void;
   clearInput(): void;
   close(): void;

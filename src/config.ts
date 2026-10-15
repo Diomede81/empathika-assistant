@@ -7,6 +7,8 @@ export interface AppConfig {
     inputDevice: string;
     outputDevice: string;
     wakeChime: boolean;
+    /** Said when someone says only the wake word and then pauses ("Hey Empathika" ... "Hi, how can I help?"). Empty = off. */
+    wakeGreeting: string;
     /** Keep the mic muted this long after Empathika's voice should have finished (speaker/bridge latency). */
     echoTailMs: number;
   };
@@ -148,6 +150,7 @@ export function loadConfig(): AppConfig {
       inputDevice: env.AUDIO_INPUT_DEVICE ?? 'default',
       outputDevice: env.AUDIO_OUTPUT_DEVICE ?? 'default',
       wakeChime: (env.WAKE_CHIME ?? 'on') !== 'off',
+      wakeGreeting: env.WAKE_GREETING === 'off' ? '' : (env.WAKE_GREETING ?? 'Hi, how can I help?').trim(),
       echoTailMs: num(env.AUDIO_ECHO_TAIL_MS, 1000),
     },
     wakeWord: {

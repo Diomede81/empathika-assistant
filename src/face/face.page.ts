@@ -185,7 +185,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     ['thinking', 'neutral', 'Checking the care record'], ['idle', 'concerned', 'Could not finish'],
     ['speaking', 'neutral', 'Speaking'], ['speaking', 'happy', 'Speaking happy'], ['speaking', 'concerned', 'Speaking concerned'],
     ['idle', 'happy', 'Happy'], ['idle', 'curious', 'Curious'], ['idle', 'surprised', 'Surprised'], ['idle', 'concerned', 'Concerned'],
-    ['idle', 'focused', 'Focused'], ['idle', 'sleepy', 'Sleepy'], ['sleeping', 'neutral', 'Asleep'], ['setup', 'neutral', 'WiFi setup'],
+    ['idle', 'warm', 'Warm'], ['idle', 'thoughtful', 'Thoughtful'], ['idle', 'sleepy', 'Sleepy'], ['sleeping', 'neutral', 'Asleep'], ['setup', 'neutral', 'WiFi setup'],
     ['idle', 'surprised', 'Card timer'], ['speaking', 'neutral', 'Card today'], ['listening', 'neutral', 'Captions'],
     ['idle', 'neutral', 'Glance'], ['idle', 'neutral', 'Photo frame'],
   ];
@@ -206,6 +206,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     { time: 'Sun', text: '🌧️ 14° / 8°', sub: 'Rain from midday, 80%' },
     { time: 'Mon', text: '⛅ 15° / 7°', sub: 'Cloudy spells' }] };
   SCENES.push(['speaking', 'neutral', 'Card answer']);
+  SCENES.push(['idle', 'neutral', 'Logo']);
   const slug = (t) => t.toLowerCase().replace(/[^a-z]+/g, '-');
   let demoLabel = '';
   if (demo) {
@@ -646,18 +647,25 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   // lidB: lower lid raised (happy "smiling eyes"); brow*: height, slant, left-brow lift;
   // eye: eye size; pupil: pupil size; smile: -1 frown .. 1 big smile; open/round: idle mouth;
   // cheek: blush glow; tilt: head tilt in degrees.
+  // Gentle and feminine: softly raised brows, smiling lower lids, a light blush. No expression
+  // lowers the brows towards the nose (that reads as anger), not even while she thinks.
   const EMO = {
-    neutral:   { lidT: 0.1,  lidA: 0,     lidB: 0.06, browY: 0,  browA: 0,     browL: 0,  eye: 1,    pupil: 0.55, smile: 0.35, open: 0,    round: 0,   cheek: 0,   tilt: 0 },
-    happy:     { lidT: 0.03, lidA: -0.05, lidB: 0.46, browY: 10, browA: -0.1,  browL: 0,  eye: 1.03, pupil: 0.66, smile: 1,    open: 0.1,  round: 0,   cheek: 1,   tilt: -4 },
-    curious:   { lidT: 0.03, lidA: 0,     lidB: 0.04, browY: 6,  browA: 0.04,  browL: 18, eye: 1.07, pupil: 0.7,  smile: 0.2,  open: 0,    round: 0,   cheek: 0,   tilt: 9 },
-    concerned: { lidT: 0.22, lidA: -0.4,  lidB: 0.1,  browY: 8,  browA: -0.34, browL: 0,  eye: 0.95, pupil: 0.5,  smile: -0.55, open: 0,   round: 0,   cheek: 0,   tilt: -5 },
-    surprised: { lidT: 0,    lidA: 0,     lidB: 0,    browY: 26, browA: -0.04, browL: 0,  eye: 1.16, pupil: 0.3,  smile: 0,    open: 0.32, round: 0.8, cheek: 0,   tilt: 0 },
-    sleepy:    { lidT: 0.55, lidA: -0.06, lidB: 0.12, browY: -5, browA: -0.06, browL: 0,  eye: 0.97, pupil: 0.5,  smile: 0.2,  open: 0,    round: 0,   cheek: 0.3, tilt: 6 },
-    focused:   { lidT: 0.33, lidA: 0.18,  lidB: 0.18, browY: -8, browA: 0.2,   browL: 0,  eye: 0.98, pupil: 0.36, smile: 0.05, open: 0,    round: 0,   cheek: 0,   tilt: 0 },
+    neutral:    { lidT: 0.02, lidA: -0.04, lidB: 0.12, browY: 4,  browA: -0.06, browL: 0,  eye: 1.04, pupil: 0.62, smile: 0.45, open: 0,    round: 0,   cheek: 0.35, tilt: 3 },
+    happy:      { lidT: 0.03, lidA: -0.06, lidB: 0.5,  browY: 12, browA: -0.1,  browL: 0,  eye: 1.04, pupil: 0.7,  smile: 1,    open: 0.12, round: 0,   cheek: 1,    tilt: -5 },
+    warm:       { lidT: 0.14, lidA: -0.12, lidB: 0.44, browY: 10, browA: -0.16, browL: 0,  eye: 1,    pupil: 0.74, smile: 0.75, open: 0,    round: 0,   cheek: 0.95, tilt: 8 },
+    curious:    { lidT: 0.03, lidA: 0,     lidB: 0.08, browY: 8,  browA: -0.02, browL: 16, eye: 1.08, pupil: 0.72, smile: 0.3,  open: 0,    round: 0,   cheek: 0.3,  tilt: 9 },
+    concerned:  { lidT: 0.14, lidA: -0.28, lidB: 0.14, browY: 12, browA: -0.28, browL: 0,  eye: 1,    pupil: 0.62, smile: -0.15, open: 0,   round: 0,   cheek: 0.2,  tilt: -6 },
+    surprised:  { lidT: 0,    lidA: 0,     lidB: 0,    browY: 26, browA: -0.06, browL: 0,  eye: 1.16, pupil: 0.4,  smile: 0.1,  open: 0.3,  round: 0.8, cheek: 0.3,  tilt: 0 },
+    sleepy:     { lidT: 0.55, lidA: -0.08, lidB: 0.14, browY: 0,  browA: -0.08, browL: 0,  eye: 0.97, pupil: 0.55, smile: 0.3,  open: 0,    round: 0,   cheek: 0.4,  tilt: 6 },
+    // Thinking: eyes up to one side, one brow softly raised, a small smile: pondering, never frowning.
+    thoughtful: { lidT: 0.03, lidA: -0.04, lidB: 0.12, browY: 12, browA: -0.08, browL: 14, eye: 1.02, pupil: 0.62, smile: 0.3,  open: 0,    round: 0.12, cheek: 0.3, tilt: 7 },
   };
-  const COLORS = { idle: [110, 225, 255], listening: [120, 205, 255], thinking: [255, 190, 110], speaking: [110, 225, 255],
-                   sleeping: [150, 140, 230], setup: [110, 225, 255], offline: [255, 145, 125] };
-  const TINT = { happy: [120, 240, 205], concerned: [150, 175, 255] };
+  // Soft lilac by default; rose when happy or tender; a calm periwinkle when concerned.
+  const COLORS = { idle: [200, 165, 255], listening: [180, 178, 255], thinking: [222, 172, 252], speaking: [200, 165, 255],
+                   sleeping: [160, 142, 236], setup: [200, 165, 255], offline: [255, 155, 160] };
+  const TINT = { happy: [255, 172, 214], warm: [255, 160, 200], concerned: [170, 182, 255] };
+  // Lips and blush are always rose, whatever colour the rest of the face is.
+  const LIP = [255, 138, 182];
 
   // Every animated number is a spring: it moves towards its target with a little overshoot,
   // which is what makes the face feel alive rather than mechanical.
@@ -673,7 +681,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     return sp.x;
   }
 
-  let col = [110, 225, 255];
+  let col = [200, 165, 255];
   let last = performance.now();
   let nextBlink = last + 2500, blinkAt = -1e9, doubleBlink = false;
   let nextLook = 0, look = [0, 0], lastEmotion = 'neutral', lastState = 'idle';
@@ -684,7 +692,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     const offline = !connected && !demo && Date.now() - lastMsg > 4000;
     const state = offline ? 'offline' : info.state === 'setup' && Date.now() < wifiBackUntil ? 'idle' : info.state;
     let emotion = offline ? 'concerned' : (info.emotion || 'neutral');
-    if (state === 'thinking' && emotion === 'neutral') emotion = 'focused';
+    if (state === 'thinking' && emotion === 'neutral') emotion = 'thoughtful';
 
     // Mouth shape: live from the audio (or the demo), closed otherwise.
     let m = { o: 0, w: 0, r: 0, s: 0 };
@@ -776,7 +784,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       }
       g.globalAlpha = 1;
     }
-    drawChrome(now, s, rgb, state, cmp);
+    if (demoLabel !== 'Logo') drawChrome(now, s, rgb, state, cmp); // ?demo=logo: the face alone (the boot-screen picture)
     requestAnimationFrame(frame);
   }
 
@@ -817,7 +825,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
   }
 
-  const EYE = { gap: 110, y: -32, w: 132, h: 156 };
+  const EYE = { gap: 112, y: -32, w: 138, h: 150 };
   // Upper and lower lid edges at u (-1 outer .. 1 inner side of the eye), in eye-relative units.
   function lidTop(u, P, hh) { return -hh + P.lidT * hh * 2.04 + P.lidA * u * hh * 0.7 - (1 - u * u) * hh * 0.1 * P.lidT; }
   function lidBot(u, P, hh) { return hh - P.lidB * hh * 2 * (0.55 + 0.45 * (1 - u * u)); }
@@ -848,7 +856,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
 
     if (openFrac > 0.02) {
       g.save();
-      roundRect(ex - hw, ey - hh, hw * 2, hh * 2, hw * 0.96); g.clip();
+      g.beginPath(); g.ellipse(ex, ey, hw, hh, 0, 0, Math.PI * 2); g.clip(); // soft oval eyes
       pathLid(lidTop, hh * 3); g.clip();
       pathLid(lidBot, -hh * 3); g.clip();
       // the lens: bright centre, deeper colour at the rim
@@ -856,7 +864,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       base.addColorStop(0, rgb(1, 0.35)); base.addColorStop(0.55, rgb(1)); base.addColorStop(1, rgb(0.55));
       g.fillStyle = base; g.fillRect(ex - hw - 5, ey - hh - 5, hw * 2 + 10, hh * 2 + 10);
       // iris and pupil, following the gaze
-      const ir = Math.min(hw, hh) * 0.62;
+      const ir = Math.min(hw, hh) * 0.66;
       const px = ex + P.lx * (hw - ir * 0.7) * 0.8, py = ey + P.ly * (hh - ir * 0.7) * 0.8;
       const iris = g.createRadialGradient(px, py, ir * 0.3, px, py, ir);
       iris.addColorStop(0, rgb(1, 0.15)); iris.addColorStop(0.8, rgb(1, 0.5)); iris.addColorStop(1, rgb(0.9, 0.7));
@@ -878,12 +886,39 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       g.fillStyle = shade; g.fillRect(ex - hw - 5, ey + lt - 2, hw * 2 + 10, 30);
       g.restore();
     }
-    // a closed (or nearly closed) eye is a soft curved line
+    // Upper lash line with a little flick at the outer corner, and three lashes. They follow what
+    // shows of the eye: the upper lid, or the oval's own edge where the lid is higher.
+    const top = (f) => Math.max(lidTop(-f, P, hh), -hh * Math.sqrt(Math.max(0, 1 - f * f))) - 2;
+    if (openFrac > 0.12) {
+      g.save();
+      g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = rgb(0.95, 0.15);
+      g.lineWidth = 5; g.beginPath();
+      for (let i = 0; i <= 12; i++) {
+        const f = -0.96 + (1.84 * i) / 12; // across the eye: f > 0 is the outer side
+        const x = ex - inner * f * hw, y = ey + top(f);
+        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.stroke();
+      const ox = ex - inner * 0.88 * hw, oy = ey + top(0.88);
+      g.lineWidth = 6; g.beginPath(); g.moveTo(ox, oy); g.quadraticCurveTo(ox + side * 14, oy - 4, ox + side * 24, oy - 16); g.stroke();
+      g.lineWidth = 4.5;
+      for (const [f, len] of [[0.7, 22], [0.48, 19], [0.26, 15]]) {
+        const bx = ex - inner * f * hw, by = ey + top(f);
+        g.beginPath(); g.moveTo(bx, by); g.quadraticCurveTo(bx + side * len * 0.2, by - len * 0.7, bx + side * len * 0.7, by - len); g.stroke();
+      }
+      g.restore();
+    }
+    // a closed (or nearly closed) eye is a soft curved line, with its lashes
     if (openFrac < 0.12) {
       const a = 1 - openFrac / 0.12;
       const y = ey + (lidTop(0, P, hh) + lidBot(0, P, hh)) / 2;
-      g.lineWidth = 11; g.lineCap = 'round'; g.strokeStyle = rgb(a);
+      g.lineWidth = 9; g.lineCap = 'round'; g.strokeStyle = rgb(a);
       g.beginPath(); g.moveTo(ex - hw * 0.75, y - 6); g.quadraticCurveTo(ex, y + 16, ex + hw * 0.75, y - 6); g.stroke();
+      g.lineWidth = 4;
+      for (const f of [0.55, 0.78]) {
+        const bx = ex + side * hw * 0.75 * f, by = y - 6 + 22 * (1 - f * f) * 0.5;
+        g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + side * 8, by + 13); g.stroke();
+      }
     }
   }
 
@@ -894,15 +929,19 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     g.save();
     g.translate(x, y);
     g.rotate(-side * P.browA);
-    g.lineWidth = 13; g.lineCap = 'round'; g.strokeStyle = rgb(0.85);
-    g.beginPath(); g.moveTo(-40, 5); g.quadraticCurveTo(0, -7, 40, 5); g.stroke();
+    // A fine arch, highest towards the outer end, tapering at both ends.
+    const o = side; // +x is the outer side of this eye
+    g.lineCap = 'round'; g.strokeStyle = rgb(0.85);
+    const arch = () => { g.beginPath(); g.moveTo(-o * 40, 8); g.bezierCurveTo(-o * 18, -6, o * 14, -14, o * 44, 2); };
+    g.lineWidth = 9; arch(); g.stroke();
+    g.lineWidth = 4; g.strokeStyle = rgb(0.35); arch(); g.stroke();
     g.restore();
   }
 
   function drawMouth(P, rgb) {
     const y0 = 128 + P.ly * 4, x0 = P.lx * 6;
     const smile = P.smile * (1 - Math.min(1, P.mo * 1.4) * 0.5);
-    const hw = 52 * (1 + 0.55 * P.mw - 0.5 * P.mr) + P.mo * 6 + Math.max(0, smile) * 8;
+    const hw = 46 * (1 + 0.55 * P.mw - 0.5 * P.mr) + P.mo * 6 + Math.max(0, smile) * 8;
     const oh = P.mo * 80 + P.mr * 18 + P.ms * 10;
     const lift = smile * 17;
     const k = 0.5 + P.mr * 0.45;
@@ -938,10 +977,11 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       for (let i = -2; i <= 2; i++) g.fillRect(x0 + i * hw * 0.3 - 1, topMid - 20, 2, 20 + teeth);
       g.restore();
     }
-    // lips: a glowing outline
+    // lips: a soft rose outline with a gentle glow
+    const lip = (a) => 'rgba(' + LIP.join(',') + ',' + a + ')';
     path();
-    g.lineWidth = 9; g.lineJoin = 'round'; g.strokeStyle = rgb(1);
-    g.shadowColor = rgb(0.6); g.shadowBlur = 16;
+    g.lineWidth = 10; g.lineJoin = 'round'; g.strokeStyle = lip(1);
+    g.shadowColor = lip(0.6); g.shadowBlur = 16;
     g.stroke();
     g.shadowBlur = 0;
   }

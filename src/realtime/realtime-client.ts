@@ -90,6 +90,11 @@ export class RealtimeClient extends EventEmitter implements VoiceClient {
     this.send({ type: 'response.cancel' });
   }
 
+  sendText(text: string): void {
+    this.send({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] } });
+    this.send({ type: 'response.create' });
+  }
+
   /** Ask the model to continue (e.g. after tool results) or to speak first. */
   requestResponse(): void {
     this.send({ type: 'response.create' });
