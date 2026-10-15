@@ -15,8 +15,8 @@
 # Options (environment variables):
 #   EMPATHIKA_SCREEN=dsi|hdmi|none   which round screen is fitted (asked if not set)
 #   EMPATHIKA_DSI_PORT=0|1           Pi 5: which display connector the screen's ribbon is in (asked if not set)
-#   EMPATHIKA_HOSTNAME=empathika           network name of the box
-#   MAX_SKIP_START=1           install everything but don't build/start Empathika yet
+#   EMPATHIKA_HOSTNAME=empathika     network name of the box
+#   EMPATHIKA_SKIP_START=1           install everything but don't build/start Empathika yet
 #
 # Your answers (screen, connector, user, name) are remembered in /etc/empathika/box.conf, so running it
 # again, and the automatic updates (scripts/pi/empathika-update.py), never need to ask.
@@ -188,19 +188,26 @@ if [ ! -f .env ]; then
   cp .env.example .env
   chown "$USER_NAME:$USER_NAME" .env
   warn "Created .env from the example. Copy your real .env from your Mac (see docs/PI.md), then run this script again."
-  MAX_SKIP_START=1
+  EMPATHIKA_SKIP_START=1
 fi
 set_env() { grep -q "^$1=" .env && sed -i "s|^$1=.*|$1=$2|" .env || echo "$1=$2" >> .env; }
 set_env EMPATHIKA_UID "$USER_ID"
 set_env EMPATHIKA_GID "$USER_GID"
 grep -q '^CONTROL_PANEL_URL=' .env || set_env CONTROL_PANEL_URL "http://$NAME.local:8099"
+# A .env copied from Max may replace Empathika's care rules with Max's: say so.
+for K in LLM_SYSTEM_PROMPT REALTIME_STYLE TTS_INSTRUCTIONS; do
+  grep -q "^$K=.\+" .env && warn "$K is set in .env (from Max?): it replaces Empathika's own care-home wording. Remove it unless you wrote it for Empathika."
+done
 grep -q '^PANEL_PASSWORD=.\+' .env || warn "PANEL_PASSWORD is not set in .env. On the box the control panel is reachable from your home network, so set one."
-grep -q '^COMPOSE_PROFILES=' .env || set_env COMPOSE_PROFILES empathika
+# A .env copied from Max starts the "max" profile: here it is "empathika" (and there is no Spotify "music" profile).
+PROFILES="$(sed -n 's/^COMPOSE_PROFILES=//p' .env | tail -1 | tr ',' '\n' | sed 's/^max$/empathika/' | grep -v '^music$' | grep -v '^$' | sort -u | paste -sd, - || true)"
+case ",$PROFILES," in *,empathika,*) ;; *) PROFILES="empathika${PROFILES:+,$PROFILES}" ;; esac
+set_env COMPOSE_PROFILES "$PROFILES"
 # Every "docker compose" command on the box includes the Pi settings (sound, control panel on the
 # home network), so a plain "docker compose up -d" can't lock the control panel to the box itself.
 set_env COMPOSE_FILE docker-compose.yml:docker-compose.pi.yml
 
-if [ "${MAX_SKIP_START:-}" != 1 ]; then
+if [ "${EMPATHIKA_SKIP_START:-}" != 1 ]; then
   say "Building and starting Empathika (the first build takes 10-15 minutes on a Pi 5)"
   docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d --build
 fi

@@ -15,6 +15,8 @@ const FILLER = new Set(['hey', 'hi', 'ok', 'okay', 'oi', 'yo', 'hello']);
 /** Ways speech recognisers commonly write the key word (they hear names imperfectly). */
 const SOUND_ALIKES: Record<string, string[]> = {
   empathika: ['empathica', 'empatika', 'empatica', 'empathiker', 'empathic', 'empathy', 'empathik', 'empatheka'],
+  // Max's wake word, so a box set up with WAKEWORD_NAMES=hey_max keeps working until "Hey Empathika" is trained.
+  max: ['mac', 'macs', 'mack', 'macks', 'maks', 'maxi', 'maxie', 'maxy', 'marks', 'mags', 'maxx'],
   jarvis: ['jervis', 'javis', 'jarvas', 'jarvi', 'service'],
   nabu: ['nabou', 'naboo', 'nabo'],
   mycroft: ['microsoft', 'micro'],

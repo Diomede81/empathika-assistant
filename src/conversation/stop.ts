@@ -14,8 +14,8 @@ const PHRASES = [
   'talking to someone else', "i'm talking to someone else",
 ];
 const STOP = new Set(PHRASES.map((p) => p.replace(/'/g, '')));
-const WAKE_WORDS = /^(hey |hi |ok |okay )?(empathika|empathica|empatika|jarvis)\b ?/;
-const POLITE = /\b(please|thanks|thank you|empathika|now)$/;
+const WAKE_WORDS = /^(hey |hi |ok |okay )?(empathika|empathica|empatika|max|jarvis)\b ?/;
+const POLITE = /\b(please|thanks|thank you|empathika|max|now)$/;
 
 export function isStopRequest(text: string): boolean {
   let t = text

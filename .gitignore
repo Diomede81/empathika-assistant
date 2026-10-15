@@ -4,6 +4,7 @@ dist/
 *.log
 wakewords/*.tflite
 !wakewords/hey_empathika.tflite
+!wakewords/hey_max.tflite
 data/
 config/mcp-servers.json
 __pycache__/

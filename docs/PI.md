@@ -47,6 +47,25 @@ This includes your `.env` (keys and settings). Then, on the **box** (over SSH), 
 | `COMPOSE_PROFILES=empathika` | Starts Empathika with the voice services |
 | `MEMORY_KEY` | Keep the same value as on your Mac |
 
+## Installing on Max's box
+
+Empathika runs on exactly the same box and set-up as Max. To try her on Max's box (with Max removed
+or not running):
+
+1. Copy Max's `.env` into the `empathika-assistant` folder: the AI model, voice, audio, wake word and
+   keys all work unchanged. Settings only Max used (Home Assistant, Composio, Spotify, work hours) are
+   ignored. Add the care app settings (`EMPATHIKA_APP_MCP_URL`, `EMPATHIKA_APP_TOKEN`, `RESIDENT_ID`).
+2. Run `sudo ./scripts/pi/setup.sh` as below. It answers the same questions (screen, connector) and
+   changes `COMPOSE_PROFILES=max` to `empathika` by itself. Set `EMPATHIKA_HOSTNAME=max` before it if
+   the box should keep its old network name (`max.local`).
+3. The wake word: `hey_max.tflite` is included, so `WAKEWORD_NAMES=hey_max` keeps working until
+   "Hey Empathika" is trained.
+4. Check these in the copied `.env`, which are Max's choices: `TTS_VOICE` / `REALTIME_VOICE` (Max's male
+   voice; remove them for Empathika's female defaults), and `LLM_SYSTEM_PROMPT` / `REALTIME_STYLE` (if set,
+   they replace Empathika's care-home rules; the setup warns about them).
+
+Max's memory is not carried over: Empathika starts with an empty resident memory (her own storage).
+
 ## 4. Run the setup
 
 On the box:
