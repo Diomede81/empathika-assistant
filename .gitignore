@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+*.log
+wakewords/*.tflite
+!wakewords/hey_max.tflite
+data/
+config/mcp-servers.json
+spotify/state.json
+spotify/lockfile
+spotify/*.tmp
+__pycache__/
+wake-coach/
