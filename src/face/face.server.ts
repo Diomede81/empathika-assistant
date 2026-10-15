@@ -8,6 +8,8 @@ import type { Mouth } from './visemes';
 import { renderFace } from './face.page';
 import { AmbientService } from './ambient.service';
 import { LockService } from '../lock/lock.service';
+import { StaffService } from '../staff/staff.service';
+import { ModesService } from '../memory/modes.service';
 
 /** Changes every time Empathika starts: an open face page from before an update reloads itself. */
 const BOOT_ID = `${Date.now().toString(36)}-${process.pid}`;
@@ -31,6 +33,8 @@ export class FaceServer implements OnModuleInit, OnModuleDestroy {
     @Optional() private readonly updates?: UpdatesService,
     @Optional() private readonly ambient?: AmbientService,
     @Optional() private readonly lock?: LockService,
+    @Optional() private readonly staff?: StaffService,
+    @Optional() private readonly modes?: ModesService,
   ) {}
 
   onModuleInit(): void {
@@ -75,6 +79,39 @@ export class FaceServer implements OnModuleInit, OnModuleDestroy {
     }
     if (req.method === 'GET' && url.pathname === '/health') {
       res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok');
+      return;
+    }
+    if (req.method === 'POST' && ['/staff', '/staff-pad', '/staff-end', '/badge'].includes(url.pathname) && this.staff) {
+      // The staff keypad, ending a session, and (for an NFC reader on the box) a badge tap.
+      const origin = req.headers.origin;
+      if (origin && new URL(origin).host !== req.headers.host) {
+        res.writeHead(403).end();
+        return;
+      }
+      const staff = this.staff;
+      void (async () => {
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 200) break;
+        }
+        const form = new URLSearchParams(body);
+        let out: { ok: boolean; message: string };
+        if (url.pathname === '/staff') out = staff.unlockWithPin(form.get('code') ?? '');
+        else if (url.pathname === '/badge') out = this.lock?.locked ? { ok: false, message: 'Locked.' } : staff.unlockWithBadge(form.get('uid') ?? '');
+        else if (url.pathname === '/staff-end') out = { ok: Boolean(this.modes?.endStaff()), message: '' };
+        else {
+          this.face.openStaffPad(url.searchParams.get('open') !== '0');
+          out = { ok: true, message: '' };
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(out));
+        this.broadcast('info', this.face.info());
+      })();
+      return;
+    }
+    if (req.method === 'POST' && ['/update', '/power', '/wifi-setup', '/wifi-cancel', '/lock'].includes(url.pathname) && !this.face.staffAllowed) {
+      // Once staff are set up, only a staff session can turn the box off, restart it, change its WiFi or update it.
+      res.writeHead(403, { 'Content-Type': 'text/plain' }).end('Staff only');
       return;
     }
     if (url.pathname === '/update' && this.updates) {

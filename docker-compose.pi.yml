@@ -2,8 +2,8 @@
 #   docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d --build
 # - Sound goes straight to the Pi's PipeWire (the mic board), no sound bridge needed.
 # - Empathika shares /run/empathika with the box's WiFi setup service (QR code on the face).
-# - The control panel is reachable from your home network at http://empathika.local:8099,
-#   so set PANEL_PASSWORD in .env.
+# - The control panel is reachable from the care home's network at http://empathika.local:8099,
+#   so PANEL_PASSWORD in .env is a must.
 services:
   empathika:
     environment:
@@ -16,8 +16,3 @@ services:
     ports: !override
       - "8099:8099"
       - "127.0.0.1:8098:8098"
-  spotify:
-    environment:
-      PULSE_SERVER: unix:/run/user/${EMPATHIKA_UID:-1000}/pulse/native
-    volumes:
-      - /run/user/${EMPATHIKA_UID:-1000}/pulse:/run/user/${EMPATHIKA_UID:-1000}/pulse

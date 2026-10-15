@@ -102,6 +102,13 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
 #lock .pad button.blank { visibility: hidden; }
 #lock .pad button.del { border-color: transparent; background: transparent; font-size: 4.6vmin; }
 #lock.paused .pad button { opacity: .35; }
+#lock .lcancel { font: inherit; font-size: 3.4vmin; font-weight: 700; color: var(--dim); background: transparent; border: 0; padding: 1vmin 4vmin; }
+#lock .lcancel[hidden] { display: none; }
+/* Staff session in progress: who, until when, and End. */
+#staffBar { position: fixed; left: 50%; bottom: 3.5vh; transform: translateX(-50%); display: flex; gap: 2vmin; align-items: center; padding: 1.2vmin 1.2vmin 1.2vmin 3vmin;
+  border-radius: 99vmin; background: #10233f; border: .4vmin solid #3d6fb6; color: #dce9ff; font-size: 2.8vmin; font-weight: 700; white-space: nowrap; }
+#staffBar[hidden] { display: none; }
+#staffBar button { font: inherit; font-size: 2.6vmin; border-radius: 99vmin; border: 0; background: #3d6fb6; color: #fff; padding: .9vmin 2.6vmin; }
 #menu { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(4, 7, 10, .96); text-align: center; color: #e9fff8; }
 #menu[hidden] { display: none; }
 #menu .list { width: 58vmin; display: grid; gap: 2.4vmin; }
@@ -130,7 +137,8 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
 <div id="setup" hidden><div class="card" id="card"></div></div>
 <div id="cardEl" hidden></div>
 <div id="caption" hidden></div>
-<div id="lock" hidden><div class="lk"><div class="lt">🔒 Enter your code</div><div class="dots" id="lkDots"></div><div class="lmsg" id="lkMsg"></div><div class="pad" id="lkPad"></div></div></div>
+<div id="lock" hidden><div class="lk"><div class="lt" id="lkTitle">🔒 Enter your code</div><div class="dots" id="lkDots"></div><div class="lmsg" id="lkMsg"></div><div class="pad" id="lkPad"></div><button class="lcancel" id="lkCancel" hidden>Cancel</button></div></div>
+<div id="staffBar" hidden><span id="staffText"></span><button id="staffEnd">End</button></div>
 <div id="frame" hidden><img id="fa" alt=""><img id="fb" alt=""><div class="fshade"></div><div class="fclock" id="fclock"></div></div>
 <div id="menu" hidden><div class="list" id="menuList"></div></div>
 <script>
@@ -174,53 +182,30 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   // ---------- demo: every state and expression ----------
   const SCENES = [
     ['idle', 'neutral', 'Idle'], ['listening', 'neutral', 'Listening'], ['thinking', 'neutral', 'Thinking'],
-    ['thinking', 'neutral', 'Checking email'], ['idle', 'concerned', 'Could not finish'],
+    ['thinking', 'neutral', 'Checking the care record'], ['idle', 'concerned', 'Could not finish'],
     ['speaking', 'neutral', 'Speaking'], ['speaking', 'happy', 'Speaking happy'], ['speaking', 'concerned', 'Speaking concerned'],
     ['idle', 'happy', 'Happy'], ['idle', 'curious', 'Curious'], ['idle', 'surprised', 'Surprised'], ['idle', 'concerned', 'Concerned'],
     ['idle', 'focused', 'Focused'], ['idle', 'sleepy', 'Sleepy'], ['sleeping', 'neutral', 'Asleep'], ['setup', 'neutral', 'WiFi setup'],
-    ['idle', 'surprised', 'Card timer'], ['speaking', 'happy', 'Card music'], ['speaking', 'neutral', 'Card day'], ['listening', 'neutral', 'Captions'],
+    ['idle', 'surprised', 'Card timer'], ['speaking', 'neutral', 'Card today'], ['listening', 'neutral', 'Captions'],
     ['idle', 'neutral', 'Glance'], ['idle', 'neutral', 'Photo frame'],
   ];
   const FOREVER = Date.now() + 1e10;
   const DEMO_CARDS = {
-    'Card timer': { id: 'd1', kind: 'alert', icon: '⏲', title: 'Timer', big: 'Pasta timer done', actions: [{ id: 'ok', label: 'OK', style: 'primary' }, { id: 'again', label: 'Again' }], until: FOREVER },
-    'Card music': { id: 'd2', kind: 'music', icon: '♪', title: 'Yellow', subtitle: 'Coldplay', progress: { position: 95000, duration: 266000, at: Date.now() }, actions: [{ id: 'p', label: '⏮', style: 'icon' }, { id: 'x', label: '⏸', style: 'icon' }, { id: 'n', label: '⏭', style: 'icon' }], until: FOREVER },
-    'Card day': { id: 'd3', kind: 'list', icon: '☀', title: 'Your day', subtitle: 'Wednesday 14 October', until: FOREVER, lines: [
-      { time: '08:30', text: 'Daily stand-up', sub: 'until 08:45 · Teams', tag: 'done' },
-      { time: '10:00', text: 'Q4 planning', sub: 'until 11:00 · Room 2', tag: 'event' },
-      { time: '12:30', text: 'Lunch with Marco', tag: 'event' },
-      { time: '15:00', text: 'Call Mum', tag: 'reminder' },
-      { time: 'late', text: 'Renew the car insurance', sub: 'was due Mon 12 Oct · Home admin', tag: 'overdue', action: { id: 'done-1', label: 'Done' } },
-      { time: 'todo', text: 'Send the Q3 report', tag: 'critical', action: { id: 'done-2', label: 'Done' } },
-      { time: '✓', text: 'Book the dentist', sub: 'Done', tag: 'done', action: { id: 'undo-3', label: 'Undo' } }] },
+    'Card timer': { id: 'd1', kind: 'alert', icon: '🔔', title: 'Reminder', big: 'Bingo in the lounge at 2pm', actions: [{ id: 'done', label: 'Done', style: 'primary' }, { id: 'snooze', label: 'Snooze 10 min' }], until: FOREVER },
+    'Card today': { id: 'd3', kind: 'list', icon: '☀', title: 'Wednesday 14 October', subtitle: '⛅ 14° · Partly cloudy · 9°–16°', until: FOREVER, lines: [
+      { time: '14:00', text: 'Bingo in the lounge', tag: 'reminder' },
+      { time: '16:00', text: 'Sarah is visiting', tag: 'reminder' }] },
   };
-  SCENES.push(['speaking', 'happy', 'Card steps'], ['speaking', 'neutral', 'Card answer'], ['speaking', 'neutral', 'Card news']);
-  SCENES.push(['idle', 'neutral', 'Notify email'], ['idle', 'concerned', 'Notify todo']);
-  DEMO_CARDS['Notify email'] = { id: 'd7', kind: 'notice', icon: '✉️', title: 'Important email', subtitle: 'From Anna Rossi', big: 'Contract signed: next steps for the Milan launch', until: FOREVER,
-    actions: [{ id: 'read', label: 'Read it', style: 'primary' }, { id: 'ok', label: 'OK' }] };
-  DEMO_CARDS['Notify todo'] = { id: 'd8', kind: 'alert', icon: '⏰', title: 'Overdue', big: 'Renew the car insurance', subtitle: 'Home admin · critical', until: FOREVER,
-    actions: [{ id: 'done', label: 'Done', style: 'primary' }, { id: 'tomorrow', label: 'Tomorrow' }] };
-  SCENES.push(['speaking', 'happy', 'Card ingredients']);
-  DEMO_CARDS['Card ingredients'] = { id: 'd9', kind: 'list', icon: '🧀', title: 'Macaroni cheese', subtitle: 'Ingredients · then 6 steps', until: FOREVER,
-    lines: [{ text: '300 g macaroni' }, { text: '50 g butter' }, { text: '50 g plain flour' }, { text: '600 ml milk' }, { text: '250 g mature cheddar' }],
-    actions: [{ id: 'next', label: 'Start', style: 'primary' }] };
-  SCENES.push(['speaking', 'neutral', 'Card email'], ['idle', 'neutral', 'Locked']);
-  DEMO_CARDS['Card email'] = { id: 'd10', kind: 'list', icon: '✉️', title: 'Email', subtitle: 'From Anna Rossi · 09:42', big: 'Milan launch: venue confirmed', until: FOREVER,
-    body: 'Anna confirms the venue for the Milan launch on 12 November and has signed the contract. She needs your final guest list by Friday, and asks whether you want the evening or the afternoon slot.' };
-  DEMO_CARDS['Card steps'] = { id: 'd4', kind: 'notice', icon: '🍝', title: 'Carbonara', subtitle: 'Step 3 of 7', until: FOREVER,
-    big: 'Fry the guanciale in a dry pan until golden, about 5 minutes',
-    lines: [{ time: 'next', text: 'Whisk 3 egg yolks and 1 whole egg with 50 g pecorino', tag: 'done' }],
-    actions: [{ id: 'previous', label: 'Back' }, { id: 'next', label: 'Next', style: 'primary' }] };
-  DEMO_CARDS['Card answer'] = { id: 'd5', kind: 'list', icon: '🌦️', title: 'Weekend weather', subtitle: 'Clapham', until: FOREVER, lines: [
+  SCENES.push(['idle', 'happy', 'Family message'], ['speaking', 'happy', 'Card family'], ['idle', 'neutral', 'Staff PIN'], ['idle', 'neutral', 'Staff session'], ['idle', 'neutral', 'Locked']);
+  DEMO_CARDS['Family message'] = { id: 'd7', kind: 'notice', icon: '💌', title: 'A message from family', subtitle: 'Sarah (daughter) · this morning', big: 'Sarah sent you a message', until: FOREVER,
+    actions: [{ id: 'read', label: 'Read it to me', style: 'primary' }, { id: 'later', label: 'Later' }] };
+  DEMO_CARDS['Card family'] = { id: 'd8', kind: 'list', icon: '💌', title: 'Sarah (daughter)', subtitle: 'this morning', until: FOREVER,
+    body: 'Hi Mum! Lily won her swimming race on Saturday, she was so proud. We will come and see you on Sunday afternoon with some photos. Love you lots x' };
+  DEMO_CARDS['Card answer'] = { id: 'd5', kind: 'list', icon: '🌦️', title: 'Weekend weather', subtitle: 'Brighton', until: FOREVER, lines: [
     { time: 'Sat', text: '☀️ 18° / 9°', sub: 'Sunny, light breeze' },
     { time: 'Sun', text: '🌧️ 14° / 8°', sub: 'Rain from midday, 80%' },
     { time: 'Mon', text: '⛅ 15° / 7°', sub: 'Cloudy spells' }] };
-  DEMO_CARDS['Card news'] = { id: 'd6', kind: 'list', icon: '📰', title: 'Morning news', subtitle: '5 articles · today at 07:00', until: FOREVER, lines: [
-    { time: '1', text: 'Bank of England holds rates as inflation eases', sub: 'BBC News' },
-    { time: '2', text: 'New Raspberry Pi AI board doubles performance', sub: 'The Verge' },
-    { time: '3', text: 'Serie A: Inter top the table after derby win', sub: 'Gazzetta' },
-    { time: '4', text: 'London Underground strike called off', sub: 'Evening Standard' },
-    { time: '5', text: 'Why sleep matters more than you think', sub: 'The Guardian' }] };
+  SCENES.push(['speaking', 'neutral', 'Card answer']);
   const slug = (t) => t.toLowerCase().replace(/[^a-z]+/g, '-');
   let demoLabel = '';
   if (demo) {
@@ -231,19 +216,18 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       const [state, emotion, label] = sc;
       demoLabel = label;
       info = {
-        state, emotion, mode: state === 'thinking' ? 'work' : 'personal', offline: false,
+        state, emotion, mode: label === 'Staff session' || state === 'thinking' ? 'staff' : 'resident', offline: false, staffRequired: true,
         timers: label === 'Idle' ? [{ label: '"pasta" timer', endsAt: Date.now() + 252000, total: 600000 }] : [],
-        reminder: label === 'Happy' ? { text: 'call Mum', at: Date.now() + 2 * 3600000 } : undefined,
-        activity: label === 'Checking email' ? { icon: '📧', label: 'Checking your email' } : undefined,
-        notice: label === 'Could not finish' ? "Couldn't finish: checking your email" : undefined,
-        music: label === 'Speaking' ? { title: 'Yellow', artist: 'Coldplay' } : undefined,
+        reminder: label === 'Happy' ? { text: 'bingo in the lounge', at: Date.now() + 2 * 3600000 } : undefined,
+        activity: label === 'Checking the care record' ? { icon: '🩺', label: 'Checking the care record' } : undefined,
+        notice: label === 'Could not finish' ? "Couldn't finish: checking the care record" : undefined,
+        staff: label === 'Staff session' || label === 'Checking the care record' ? { name: 'Nurse Jane', until: Date.now() + 4 * 60000 } : undefined,
+        staffPad: label === 'Staff PIN' ? { triesLeft: 5 } : undefined,
         wifi: state === 'setup' ? { state: 'setup', ssid: 'Empathika-Setup', password: '48213097', qrSvg: demoQr() } : undefined,
         card: DEMO_CARDS[label],
-        caption: label === 'Captions' ? { who: 'you', text: "What's the weather like this afternoon?" } : undefined,
+        caption: label === 'Captions' ? { who: 'you', text: 'Has Sarah sent any news?' } : undefined,
         glance: label === 'Glance' || label === 'Photo frame' ? {
           weather: { icon: '⛅', temp: 14, text: 'Partly cloudy', hi: 16, lo: 9, rain: 30 },
-          next: { time: '10:00', title: 'Q4 planning', now: false },
-          todos: { critical: 2, overdue: 1, today: 3 },
           frame: label === 'Photo frame' ? { photos: ['demo-1.jpg', 'demo-2.jpg', 'demo-3.jpg'], everySec: 6 } : undefined,
         } : undefined,
       };
@@ -412,9 +396,24 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   }
   setInterval(renderFrame, 1000);
 
-  // ---------- start-up code keypad (until the code is entered, Empathika shows nothing personal) ----------
+  // ---------- keypads: the start-up code (6 digits; until it is entered, Empathika shows nothing personal)
+  // and the staff PIN (4 digits; opens a staff session) ----------
   const lockEl = document.getElementById('lock');
   const lkDots = document.getElementById('lkDots'), lkMsg = document.getElementById('lkMsg'), lkPad = document.getElementById('lkPad');
+  const lkTitle = document.getElementById('lkTitle'), lkCancel = document.getElementById('lkCancel');
+  /** Which keypad is showing, if any. */
+  function pad() {
+    if (info.state === 'setup') return null;
+    if (info.locked) return { kind: 'lock', len: 6, url: '/unlock', title: '🔒 Enter your code', pausedUntil: info.locked.pausedUntil, triesLeft: info.locked.triesLeft };
+    if (info.staffPad) return { kind: 'staff', len: 4, url: '/staff', title: 'Staff PIN', pausedUntil: info.staffPad.pausedUntil, triesLeft: info.staffPad.triesLeft };
+    return null;
+  }
+  lkCancel.onpointerdown = (e) => e.stopPropagation();
+  lkCancel.onclick = (e) => {
+    e.stopPropagation();
+    if (demo) { info.staffPad = undefined; renderLock(); return; }
+    fetch('/staff-pad?open=0', { method: 'POST' }).catch(() => undefined);
+  };
   let lkCode = '', lkNote = '', lkBusy = false;
   lkPad.innerHTML = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((k) =>
     '<button data-k="' + k + '" class="' + (k === '' ? 'blank' : k === 'del' ? 'del' : '') + '" aria-label="' + (k === 'del' ? 'Delete' : k) + '">' + (k === 'del' ? '⌫' : k) + '</button>').join('');
@@ -422,14 +421,15 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     b.onpointerdown = (e) => e.stopPropagation();
     b.onclick = (e) => { e.stopPropagation(); lkKey(b.getAttribute('data-k')); };
   }
-  function lkPaused() { return info.locked && info.locked.pausedUntil && info.locked.pausedUntil > Date.now(); }
+  function lkPaused() { const p = pad(); return p && p.pausedUntil && p.pausedUntil > Date.now(); }
   function lkKey(k) {
-    if (lkBusy || lkPaused() || !k) return;
+    const p = pad();
+    if (!p || lkBusy || lkPaused() || !k) return;
     if (k === 'del') lkCode = lkCode.slice(0, -1);
-    else if (lkCode.length < 6) lkCode += k;
+    else if (lkCode.length < p.len) lkCode += k;
     lkNote = '';
     renderLock();
-    if (lkCode.length === 6) lkSubmit();
+    if (lkCode.length === p.len) lkSubmit();
   }
   function lkWrong(message) {
     lkCode = ''; lkNote = message || 'Wrong code.';
@@ -439,27 +439,52 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   function lkSubmit() {
     lkBusy = true;
     const code = lkCode;
+    const p = pad();
     if (demo) {
       lkBusy = false;
-      if (code === '246810') { info.locked = undefined; lkCode = ''; renderLock(); } else lkWrong('Wrong code.');
+      if (code === '246810' && p.kind === 'lock') { info.locked = undefined; lkCode = ''; renderLock(); }
+      else if (code === '2468' && p.kind === 'staff') { info.staffPad = undefined; info.staff = { name: 'Nurse Jane', until: Date.now() + 300000 }; lkCode = ''; renderLock(); }
+      else lkWrong(p.kind === 'staff' ? 'Wrong PIN.' : 'Wrong code.');
       return;
     }
-    fetch('/unlock', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'code=' + encodeURIComponent(code) })
+    fetch(p.url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'code=' + encodeURIComponent(code) })
       .then((r) => r.json())
       .then((j) => { lkBusy = false; if (j.ok) { lkCode = ''; lkNote = ''; } else lkWrong(j.message); })
       .catch(() => { lkBusy = false; lkWrong('Could not check the code. Try again.'); });
   }
+  let lkKind = '';
   function renderLock() {
-    const show = Boolean(info.locked) && info.state !== 'setup';
-    lockEl.hidden = !show;
-    if (!show) { lkCode = ''; lkNote = ''; return; }
-    lkDots.innerHTML = [0, 1, 2, 3, 4, 5].map((i) => '<i class="' + (i < lkCode.length ? 'on' : '') + '"></i>').join('');
+    const p = pad();
+    lockEl.hidden = !p;
+    renderStaffBar();
+    if (!p) { lkCode = ''; lkNote = ''; lkKind = ''; return; }
+    if (p.kind !== lkKind) { lkCode = ''; lkNote = ''; lkKind = p.kind; }
+    lkTitle.textContent = p.title;
+    lkCancel.hidden = p.kind !== 'staff';
+    lkDots.innerHTML = Array.from({ length: p.len }, (_, i) => '<i class="' + (i < lkCode.length ? 'on' : '') + '"></i>').join('');
     const paused = lkPaused();
     lockEl.classList.toggle('paused', Boolean(paused));
-    lkMsg.textContent = paused ? 'Too many tries. Wait ' + Math.ceil((info.locked.pausedUntil - Date.now()) / 1000) + ' s.'
-      : lkNote || (info.locked.triesLeft < 5 ? info.locked.triesLeft + ' tries left' : '');
+    lkMsg.textContent = paused ? 'Too many tries. Wait ' + Math.ceil((p.pausedUntil - Date.now()) / 1000) + ' s.'
+      : lkNote || (p.triesLeft < 5 ? p.triesLeft + ' tries left' : '');
   }
-  setInterval(() => { if (!lockEl.hidden) renderLock(); }, 1000); // the pause countdown
+  setInterval(() => { if (!lockEl.hidden) renderLock(); else renderStaffBar(); }, 1000); // the pause countdown, the session's minutes
+
+  // ---------- staff session: who and until when, with End ----------
+  const staffBar = document.getElementById('staffBar'), staffText = document.getElementById('staffText');
+  document.getElementById('staffEnd').onpointerdown = (e) => e.stopPropagation();
+  document.getElementById('staffEnd').onclick = (e) => {
+    e.stopPropagation();
+    if (demo) { info.staff = undefined; renderStaffBar(); return; }
+    fetch('/staff-end', { method: 'POST' }).catch(() => undefined);
+  };
+  function renderStaffBar() {
+    const s = info.staff;
+    const show = Boolean(s) && !info.locked && !info.staffPad && info.state !== 'setup';
+    staffBar.hidden = !show;
+    if (!show) return;
+    const min = Math.max(0, Math.ceil((s.until - Date.now()) / 60000));
+    staffText.textContent = 'Staff: ' + s.name + ' · ' + min + ' min';
+  }
 
   // ---------- hold for 2 s: the options menu (turn off, restart, WiFi setup) ----------
   const HOLD_MS = 2000;
@@ -472,7 +497,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     if (!menuEl.hidden) return;
     pressAt = performance.now(); pressFired = false;
   });
-  // A short tap on the face (not a hold): Empathika shows what's useful (e.g. the music card).
+  // A short tap on the face (not a hold): Empathika shows today at a glance.
   addEventListener('pointerup', () => {
     if (frameTouch) { frameTouch = false; pressAt = 0; return; }
     const quick = pressAt && performance.now() - pressAt < 350 && !pressFired && menuEl.hidden && !cardShown();
@@ -535,9 +560,19 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       return;
     }
     fetch('/device').then((r) => r.json()).then((d) => { device = d; refreshRows(); }).catch(() => undefined);
+    // Residents get volume and brightness, and the way in for staff; the rest needs a staff session.
+    if (info.staffRequired && !info.staff) {
+      menu('<div class="rows">' + deviceRows() + '</div><button id="mStaff">Staff</button><button class="quiet" id="mCancel">Back to Empathika</button>', {
+        mStaff: () => { closeMenu(); if (demo) { info.staffPad = { triesLeft: 5 }; renderLock(); } else fetch('/staff-pad?open=1', { method: 'POST' }).catch(() => undefined); },
+        mCancel: closeMenu,
+      });
+      return;
+    }
     menu('<div class="rows">' + deviceRows() + '</div><button class="off" id="mOff">Turn off</button><button id="mRestart">Restart</button>' +
       '<div class="pair"><button id="mWifi">WiFi setup</button><button id="mUpdate">Update</button></div>' +
-      (info.canLock ? '<button id="mLock">🔒 Lock</button>' : '') + '<button class="quiet" id="mCancel">Back to Empathika</button>', {
+      (info.canLock ? '<button id="mLock">🔒 Lock</button>' : '') + (info.staff ? '<button id="mStaffEnd">End staff session</button>' : '') +
+      '<button class="quiet" id="mCancel">Back to Empathika</button>', {
+      mStaffEnd: () => { closeMenu(); if (demo) { info.staff = undefined; renderStaffBar(); } else fetch('/staff-end', { method: 'POST' }).catch(() => undefined); },
       mUpdate: showUpdate,
       mLock: () => { closeMenu(); fetch('/lock', { method: 'POST' }).catch(() => undefined); if (demo) { info.locked = { triesLeft: 5 }; renderLock(); } },
       mOff: () => confirmPower('poweroff'),
@@ -913,28 +948,28 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
 
   function drawChrome(now, s, rgb, state, cmp = 0) {
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    // mode badge
-    if (info.mode && info.mode !== 'personal' && state !== 'setup' && cmp < 0.3) {
-      const label = info.mode.toUpperCase();
+    // staff session badge (resident mode is the normal state: no badge)
+    if (info.mode === 'staff' && state !== 'setup' && cmp < 0.3) {
+      const label = 'STAFF';
       g.font = '700 ' + Math.round(22 * s) + 'px system-ui, sans-serif';
       const w = g.measureText(label).width + 36 * s;
       roundRect(cx - w / 2, cy - 290 * s, w, 40 * s, 20 * s);
-      g.fillStyle = info.mode === 'work' ? 'rgba(255,196,120,0.18)' : 'rgba(150,140,220,0.2)'; g.fill();
-      g.fillStyle = info.mode === 'work' ? '#ffc478' : '#b8b0f0'; g.fillText(label, cx, cy - 269 * s);
+      g.fillStyle = 'rgba(61,111,182,0.3)'; g.fill();
+      g.fillStyle = '#9cc0ff'; g.fillText(label, cx, cy - 269 * s);
     }
     // weather at the top while idle
     const gl = info.glance || {};
     if (gl.weather && state === 'idle' && cmp < 0.3) {
       const w = gl.weather;
       g.font = '600 ' + Math.round(30 * s) + 'px system-ui, sans-serif'; g.fillStyle = rgb(0.8);
-      const top = info.mode && info.mode !== 'personal' ? cy - 218 * s : cy - 262 * s;
+      const top = info.mode === 'staff' ? cy - 218 * s : cy - 262 * s;
       g.fillText(fit(w.icon + '  ' + w.temp + '°  ·  ' + w.text, 330 * s), cx, top);
       if (w.hi !== undefined) {
         g.font = '500 ' + Math.round(20 * s) + 'px system-ui, sans-serif'; g.fillStyle = rgb(0.45);
         g.fillText(w.lo + '° – ' + w.hi + '°' + (w.rain ? '  ·  ' + w.rain + '% rain' : ''), cx, top + 32 * s);
       }
     }
-    // bottom line: timer, music, or the clock
+    // bottom line: timer, or the clock
     let text = '', sub = '', sub2 = '', sub2Warn = false;
     const timer = (info.timers || []).slice().sort((a, b) => a.endsAt - b.endsAt)[0];
     let noteColor = '';
@@ -957,25 +992,17 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
         const frac = timer.total ? Math.max(0, Math.min(1, (timer.endsAt - Date.now()) / timer.total)) : 0;
         g.lineWidth = 8 * s; g.lineCap = 'round'; g.strokeStyle = rgb(0.85);
         g.beginPath(); g.arc(cx, cy, R - 12 * s, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2); g.stroke();
-      } else if (info.music) {
-        text = '♪  ' + info.music.title; sub = info.music.artist;
       } else if (state === 'idle' || state === 'sleeping' || state === 'offline') {
         text = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
         if (state === 'offline') sub = info.updating ? 'Updating… back in a few minutes' : 'Reconnecting…';
         else if (info.updating) sub = 'Updating…';
         else if (state === 'idle' || state === 'sleeping') {
-          // Under the clock: the next reminder, the next meeting and the to-dos that matter (two lines at most).
+          // Under the clock: the next reminder.
           const lines = [];
           if (info.reminder) {
             // Reminders aren't countdowns: just the next one, with a bell.
             const at = new Date(info.reminder.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
             lines.push(['🔔 ' + at + ' · ' + info.reminder.text.charAt(0).toUpperCase() + info.reminder.text.slice(1), false]);
-          }
-          if (gl.next && state === 'idle') lines.push(['📅 ' + (gl.next.now ? 'Now' : gl.next.time) + ' · ' + gl.next.title, false]);
-          const t = gl.todos;
-          if (t && state === 'idle') {
-            const parts = [t.critical ? t.critical + ' critical' : '', t.overdue ? t.overdue + ' overdue' : '', t.today && !t.critical && !t.overdue ? t.today + ' due today' : ''].filter(Boolean);
-            if (parts.length) lines.push(['✓ ' + parts.join(' · '), Boolean(t.critical || t.overdue)]);
           }
           if (lines[0]) sub = lines[0][0];
           if (lines[1]) { sub2 = lines[1][0]; sub2Warn = lines[1][1]; }

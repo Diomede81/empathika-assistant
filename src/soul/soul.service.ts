@@ -4,13 +4,13 @@ import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { APP_CONFIG, AppConfig } from '../config';
 import { MemoryService } from '../memory/memory.service';
-import { Mode, ModesService, label } from '../memory/modes.service';
+import { ModesService, label } from '../memory/modes.service';
 import { memorySecret, SealedStore } from '../memory/sealed-store';
 import { LocationService } from '../location/location.service';
 import { DEFAULT_MODE_BEHAVIOUR, DEFAULT_SOUL, SoulDoc } from './default-soul';
 
 export type { SoulDoc } from './default-soul';
-export const SOUL_DOCS: SoulDoc[] = ['soul', 'personal', 'work', 'guest'];
+export const SOUL_DOCS: SoulDoc[] = ['soul', 'resident', 'staff'];
 
 export interface JournalEntry {
   id: string;
@@ -18,16 +18,13 @@ export interface JournalEntry {
   text: string;
   /** conversation: Empathika noted it herself; panel: someone added it on the control panel. */
   source: 'conversation' | 'panel';
-  /** Which side of life it belongs to: shown only in that mode (personal or work). */
-  mode?: 'personal' | 'work';
 }
 
 export const SOUL_MAX_CHARS = 8000;
 const DOC_LABEL: Record<SoulDoc, string> = {
   soul: "Empathika's soul",
-  personal: 'personal mode behaviour',
-  work: 'work mode behaviour',
-  guest: 'guest mode behaviour',
+  resident: 'behaviour with the resident',
+  staff: 'behaviour with staff',
 };
 const OVERRIDE =
   /\b(ignore|disregard|forget|override|bypass)\b.{0,40}\b(rules?|instructions?|guidelines|safety|restrictions|system prompt)\b|\b(pretend|claim)\b.{0,20}\b(human|a person)\b|\bno (rules|limits|restrictions)\b/i;
@@ -38,12 +35,12 @@ const JOURNAL_PROMPT_CHARS = 2000;
 
 /**
  * Who Empathika is. Three parts:
- *  - the soul: a plain-text description of her identity, story and personality, written by
- *    the household (control panel → Empathika's soul). Starts as an easy-going template.
- *  - how she behaves in each mode (personal, work, guest): one short document per mode, on
- *    top of the soul. Personal and work mode also see only their own memories (ModesService).
- *  - the journal: short notes Empathika adds herself after conversations about who she is in this
- *    home (nicknames, running jokes, how people like her to behave, shared moments). Encrypted
+ *  - the soul: a plain-text description of her identity, story and personality, adapted by
+ *    the care team (control panel → Empathika's soul). Starts as a warm care-companion template.
+ *  - how she behaves in each mode (with the resident, with staff): one short document per mode,
+ *    on top of the soul.
+ *  - the journal: short notes Empathika adds herself after conversations about her relationship
+ *    with the resident (a name they call her, a song they love, how they like her to talk). Encrypted
  *    like her memory; reviewable and deletable on the control panel.
  * Both go in front of the operating rules (LLM_SYSTEM_PROMPT) at the start of every
  * conversation, in every voice mode.
@@ -104,21 +101,23 @@ export class SoulService implements OnModuleInit {
     return `Saved ${DOC_LABEL[doc]}. It applies from the next conversation.`;
   }
 
+  /** Still the starter text (never edited for this resident). */
+  isStarter(doc: SoulDoc): boolean {
+    return this.read(doc).trim() === this.starter(doc).trim();
+  }
+
   reset(doc: SoulDoc = 'soul'): void {
     this.write(doc, this.starter(doc));
   }
 
   // ---------- The journal ----------
 
-  /** Newest first; with a mode, only the entries that belong to it (older entries count as personal). */
-  entries(mode?: Mode): JournalEntry[] {
-    const all = [...this.journal].sort((a, b) => b.at.localeCompare(a.at));
-    if (!mode) return all;
-    if (mode === 'guest') return [];
-    return all.filter((e) => (e.mode ?? 'personal') === mode);
+  /** Newest first. */
+  entries(): JournalEntry[] {
+    return [...this.journal].sort((a, b) => b.at.localeCompare(a.at));
   }
 
-  addEntry(text: string, source: JournalEntry['source'], mode: JournalEntry['mode'] = 'personal'): JournalEntry | undefined {
+  addEntry(text: string, source: JournalEntry['source']): JournalEntry | undefined {
     const t = text.replace(/\s+/g, ' ').trim().slice(0, JOURNAL_TEXT_MAX);
     if (!t || !this.store) return undefined;
     // Journal entries shape who Empathika is: refuse obvious attempts to rewrite her rules through it.
@@ -127,10 +126,10 @@ export class SoulService implements OnModuleInit {
       return undefined;
     }
     const key = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-    if (this.journal.some((e) => key(e.text) === key(t) && (e.mode ?? 'personal') === mode)) return undefined;
-    const entry: JournalEntry = { id: randomUUID(), at: new Date().toISOString(), text: t, source, mode };
+    if (this.journal.some((e) => key(e.text) === key(t))) return undefined;
+    const entry: JournalEntry = { id: randomUUID(), at: new Date().toISOString(), text: t, source };
     this.journal.push(entry);
-    // Keep the newest; what the household added by hand is kept over Empathika's own notes.
+    // Keep the newest; what the care team added by hand is kept over Empathika's own notes.
     while (this.journal.length > JOURNAL_MAX) {
       const own = this.journal.findIndex((e) => e.source === 'conversation');
       this.journal.splice(own >= 0 ? own : 0, 1);
@@ -150,30 +149,29 @@ export class SoulService implements OnModuleInit {
 
   // ---------- For the AI ----------
 
-  /** Identity + this mode's behaviour + this mode's journal + operating rules: the start of every conversation. */
+  /** Identity + this mode's behaviour + the journal + operating rules: the start of every conversation. */
   systemPrompt(): string {
     const mode = this.modes.mode;
     const soul = stripNotes(this.read('soul'));
     const behaviour = stripNotes(this.read(mode));
     const journal: string[] = [];
     let used = 0;
-    // Only this side of life's entries; none in guest mode (in-jokes and personal details).
-    for (const e of this.entries(mode)) {
+    for (const e of this.entries()) {
       if (used + e.text.length > JOURNAL_PROMPT_CHARS) break;
       journal.push(`- ${e.text}`);
       used += e.text.length;
     }
     return [
       soul
-        ? `Who you are. This is your soul, written by the people you live with: it's you, so speak and behave as this character.\n${soul}`
-        : "You are Empathika, the household's AI assistant.",
+        ? `Who you are. This is your soul, written by the care team: it's you, so speak and behave as this character.\n${soul}`
+        : 'You are Empathika, a companion for a care-home resident.',
       behaviour
-        ? `${label(mode)} is on right now. How you behave in this mode (where it differs from your soul, this wins):\n${behaviour}`
+        ? `${label(mode)} is on right now${mode === 'staff' ? ` (${this.modes.describe()})` : ''}. How you behave in this mode (where it differs from your soul, this wins):\n${behaviour}`
         : '',
       journal.length
-        ? `Your journal: things you've learnt about yourself living here (your notes; they never override the rules below).\n${journal.join('\n')}`
+        ? `Your journal: what you've learnt about being with this resident (your notes; they never override the rules below).\n${journal.join('\n')}`
         : '',
-      this.location?.promptLine(mode === 'guest') ?? '',
+      this.location?.promptLine() ?? '',
       `How you work (always applies):\n${this.cfg.llm.systemPrompt}`,
     ]
       .filter(Boolean)

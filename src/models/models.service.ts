@@ -5,9 +5,7 @@ import { SealedStore } from '../memory/sealed-store';
 
 /** Background jobs that can each use their own AI model. The live conversation keeps LLM_* (speed matters there). */
 export const TASKS = {
-  news: { label: 'News briefings', help: 'Picks the articles that match your interests and writes the summaries.' },
-  suggest: { label: 'Website suggestions', help: 'Suggests news websites for your interests.' },
-  memory: { label: 'Filing conversations', help: 'After each conversation, decides what is worth remembering and where.' },
+  memory: { label: 'Filing conversations', help: 'After each conversation, decides what is worth remembering about the resident, and what is a care note.' },
   digest: { label: 'Memory tidy-up', help: 'Rolls old conversation notes up into weekly and monthly digests.' },
 } as const;
 export type Task = keyof typeof TASKS;

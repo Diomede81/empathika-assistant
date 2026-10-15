@@ -1,12 +1,23 @@
 /** HTML for the control panel. Server-rendered, no external assets, works on a phone. */
-import { PanelRoutines, ROUTINES_CSS, routinesSection } from './routines-page';
 import { MODELS_CSS, modelsSection, PanelModels } from './models-page';
 import { PanelScreen, SCREEN_CSS, screenSection } from './screen-page';
 
+export interface PanelFact {
+  id: string;
+  kind: string;
+  subject?: string;
+  text: string;
+  source: string;
+  unverified?: boolean;
+  date?: string;
+  expiresAt?: string;
+  updatedAt: string;
+  createdAt: string;
+  sharedAt?: string;
+}
+
 export interface PanelData {
-  music?: { state: string; account?: string; pairing?: { url: string; code: string }; error?: string };
   voice: string;
-  routines?: PanelRoutines;
   /** Running on the Empathika box: the Device section can turn it off or restart it. */
   onBox?: boolean;
   device?: { volume?: number; brightness: number; brightnessSupported?: boolean };
@@ -22,109 +33,90 @@ export interface PanelData {
   lock?: { enabled: boolean; locked: boolean; canReset: boolean };
   /** The round screen's glance and photo frame (when the face is on). */
   screen?: PanelScreen;
-  /** The tab to open first (overview, empathika, memory, projects, connections, settings). */
+  /** The tab to open first (overview, resident, family, staff, empathika, connections, settings). */
   tab?: string;
   notice?: { kind: 'ok' | 'error'; text: string };
-  homeAssistant: { connected: boolean; tools: number; error?: string };
+  careApp: {
+    configured: boolean;
+    connected: boolean;
+    error?: string;
+    url?: string;
+    residentId: string;
+    backup: { available: boolean; minutes: number; lastBackupAt?: string; lastError?: string; lastRestore?: string };
+    family: { minutes: number; lastCheckAt?: string; lastError?: string };
+  };
+  staff?: {
+    list: { id: string; name: string; role?: string; badge: boolean; createdAt: string }[];
+    audit: { at: string; staff?: string; event: string; detail?: string }[];
+    session?: string;
+    sessionMinutes: number;
+  };
   web?: { configured: boolean; connected: boolean; remainingCredits?: number; error?: string };
   location?: { place: string; postcode?: string; country: string; countries: Record<string, string> };
-  composio: {
-    configured: boolean;
-    error?: string;
-    apps: { slug: string; name: string; logo?: string; connected: boolean; toolsOffered: number }[];
-    /** The separate work accounts (used in work mode). */
-    workApps: { slug: string; name: string; logo?: string; connected: boolean; toolsOffered: number }[];
-    notEnabled: string[];
-    otherUser: string[];
-    userId: string;
-  };
   servers: { name: string; connected: boolean; offered: number; total: number; error?: string }[];
-  soul?: { docs: Record<string, string>; doc: string; maxChars: number; journal?: { id: string; at: string; text: string; source: string; mode?: string }[] };
+  soul?: { docs: Record<string, string>; doc: string; maxChars: number; journal?: { id: string; at: string; text: string; source: string }[] };
   memory?: {
     mode: string;
     modeText: string;
-    readable: string[];
     vaults: {
       name: string;
       status: string;
       error?: string;
-      facts: { id: string; kind: string; subject?: string; text: string; source: string; unverified?: boolean; date?: string; expiresAt?: string; updatedAt: string }[];
+      facts: PanelFact[];
       notes: { id: string; at: string; summary: string; level?: string; from?: string }[];
       totalNotes: number;
     }[];
+    family: PanelFact[];
     autoLearn: boolean;
     passwordSet: boolean;
-    workApps: string[];
     selected?: string;
     query?: string;
     activity: { at: string; kind: string; what: string; vaults?: string[]; items?: string[] }[];
-    projects: PanelProject[];
-    project?: string;
-    /** Today in the household time zone (YYYY-MM-DD). */
-    today: string;
-    todos: PanelTodo[];
   };
 }
 
-const VAULT_LABEL: Record<string, string> = { personal: 'Personal', household: 'Household', work: 'Work' };
-const SOURCE: Record<string, string> = { you: 'you asked Empathika', conversation: 'learnt in conversation', panel: 'added here' };
+const VAULT_LABEL: Record<string, string> = { resident: 'Resident', care: 'Care (staff only)' };
+const SOURCE: Record<string, string> = {
+  you: 'checked (told to Empathika by staff, or asked to remember)',
+  conversation: 'learnt in conversation',
+  panel: 'added or confirmed here',
+  family: 'from family',
+  app: 'from the care app',
+};
+const KIND_LABEL: Record<string, string> = {
+  person: 'person', life_story: 'life story', preference: 'likes & dislikes', routine: 'routine', date: 'date', health: 'health', family_news: 'family news', fact: 'other',
+};
 const FACTS_SHOWN = 60;
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const hidden = (name: string, value: string) => `<input type="hidden" name="${name}" value="${esc(value)}">`;
 const post = (action: string, fields: Record<string, string>, label: string, cls = 'btn secondary') =>
   `<form method="post" action="${action}">${Object.entries(fields).map(([k, v]) => hidden(k, v)).join('')}<button class="${cls}" type="submit">${label}</button></form>`;
 
-export interface PanelTodo {
-  id: string;
-  title: string;
-  vault: string;
-  projectId?: string;
-  projectName?: string;
-  priority: string;
-  criticality: string;
-  due?: string;
-  assignee?: string;
-  done: boolean;
-}
-
-export interface PanelProject {
-  id: string;
-  name: string;
-  vault: string;
-  status: string;
-  description?: string;
-  people: { name: string; role?: string; contact?: string }[];
-  tasks: { id: string; title: string; text: string; due?: string; status: string; priority?: string; criticality?: string }[];
-  facts: { id: string; text: string; updatedAt: string }[];
-  notes: { id: string; summary: string; at: string }[];
-}
-
 const SOUL_TABS: [string, string, string][] = [
-  ['soul', 'Who Empathika is', 'Her identity, story and personality, in every mode. Write it as Empathika ("I\'m Empathika…").'],
-  ['personal', 'Personal mode', 'How she behaves when work mode is off. In personal mode she only sees personal and household memories.'],
-  ['work', 'Work mode', 'How she behaves in work hours (WORK_HOURS) or after "work mode". In work mode she only sees work and household memories.'],
-  ['guest', 'Guest mode', 'How she behaves when visitors are around ("guest mode"). She only sees household memories.'],
+  ['soul', 'Who Empathika is', 'Her identity and personality, adapted to this resident. Write it as Empathika ("I\'m Empathika…").'],
+  ['resident', 'With the resident', 'How she behaves with the resident and visitors (the normal mode). She never discusses care details here.'],
+  ['staff', 'With staff', 'How she behaves in a staff session, when she can read the care notes and the care record.'],
 ];
 
 function soulSection(s: NonNullable<PanelData['soul']>): string {
   const [doc, , help] = SOUL_TABS.find((t) => t[0] === s.doc) ?? SOUL_TABS[0];
   const tabs = SOUL_TABS.map(([d, name]) => `<a class="tab ${d === doc ? 'on' : ''}" href="/?doc=${d}#soul">${name}</a>`).join('');
-  const modeBadge = (m?: string) => `<span class="badge off">${m === 'work' ? 'Work' : 'Personal'}</span>`;
   const journal = s.journal
     ? s.journal.length
       ? s.journal
-          .map((e) => `<li class="row"><div><div>${esc(e.text)} ${modeBadge(e.mode)}</div><div class="meta">${esc(day(e.at))} · ${e.source === 'panel' ? 'added here' : 'Empathika noted this'}</div></div>${post('/soul/journal-delete', { id: e.id }, 'Forget')}</li>`)
+          .map((e) => `<li class="row"><div><div>${esc(e.text)}</div><div class="meta">${esc(day(e.at))} · ${e.source === 'panel' ? 'added here' : 'Empathika noted this'}</div></div>${post('/soul/journal-delete', { id: e.id }, 'Forget')}</li>`)
           .join('')
-      : '<li class="empty">Nothing yet. After conversations, Empathika notes things that shape who she is here: nicknames, running jokes, how you like her to talk.</li>'
+      : '<li class="empty">Nothing yet. After conversations, Empathika notes what shapes her relationship with the resident: a name they call her, a song they love, how they like her to talk.</li>'
     : '';
-  return `<section id="soul"><h2>Empathika's soul</h2>
+  return `<section id="soul"><h2>Empathika's personality</h2>
 <div class="tabs">${tabs}</div>
 <p class="meta">${esc(help)} Notes between <code>&lt;!--</code> and <code>--&gt;</code> are for you and hidden from her.</p>
 <form method="post" action="/soul/save">${hidden('doc', doc)}<textarea name="text" rows="${doc === 'soul' ? 22 : 10}" maxlength="${s.maxChars}" spellcheck="true" aria-label="${esc(doc)}">${esc(s.docs[doc] ?? '')}</textarea>
 <div class="acts" style="margin-top:8px"><button class="btn" type="submit">Save</button></div></form>
 <form class="addfact danger" method="post" action="/soul/reset">${hidden('doc', doc)}<label class="meta"><input type="checkbox" name="confirm" value="yes"> Go back to the starter version of this page (your text is replaced)</label><button class="btn secondary" type="submit">Reset</button></form>
-${s.journal ? `<h3>Empathika's journal</h3><p class="meta">What Empathika has learnt about herself living with you, kept separately for personal and work mode (each mode only sees its own). Encrypted like her memory.</p><ul>${journal}</ul>
-<form class="addfact" method="post" action="/soul/journal-add"><input name="text" maxlength="240" required placeholder="e.g. We call the hoover Dave, and Empathika is jealous of her"><select name="mode" aria-label="Mode"><option value="personal">Personal</option><option value="work">Work</option></select><button class="btn secondary" type="submit">Add</button></form>` : ''}
+${s.journal ? `<h3>Empathika's journal</h3><p class="meta">What Empathika has learnt about being with this resident. Encrypted like her memory, and backed up to the care app.</p><ul>${journal}</ul>
+<form class="addfact" method="post" action="/soul/journal-add"><input name="text" maxlength="240" required placeholder="e.g. Margaret likes to be called Peggy and loves singing 'We'll Meet Again'"><button class="btn secondary" type="submit">Add</button></form>` : ''}
 </section>`;
 }
 
@@ -151,259 +143,12 @@ function locationSection(l: NonNullable<PanelData['location']>): string {
     .concat(l.countries[l.country] ? [] : [[l.country, l.country]])
     .map(([code, name]) => `<option value="${esc(code)}" ${code === l.country ? 'selected' : ''}>${esc(name)}</option>`)
     .join('');
-  return `<section id="location"><h2>Home location</h2>
-<p class="meta">Where home is, so "what's the weather?", "is the pharmacy open?" or "what's on this weekend?" are answered for your area, and web searches show local results. ${l.place ? '' : '<b>Not set yet.</b>'}</p>
+  return `<section id="location"><h2>Care home location</h2>
+<p class="meta">Where the care home is, so "what's the weather?" or "what's on nearby?" are answered for the right place. ${l.place ? '' : '<b>Not set yet.</b>'}</p>
 <form class="stack" method="post" action="/location">
-<div class="addfact"><input name="place" maxlength="100" required value="${esc(l.place)}" placeholder="Town, city or area, e.g. Clapham, London"></div>
+<div class="addfact"><input name="place" maxlength="100" required value="${esc(l.place)}" placeholder="Town, city or area, e.g. Hove, Brighton"></div>
 <div class="addfact"><input name="postcode" maxlength="10" value="${esc(l.postcode ?? '')}" placeholder="Postcode (optional, e.g. SW4 or SW4 7AB)"><select name="country" aria-label="Country">${opts}</select><button class="btn" type="submit">Save</button></div>
-</form><p class="meta">The postcode makes "near me" answers sharper; it's never mentioned while guest mode is on. Kept encrypted with Empathika's memory.</p></section>`;
-}
-
-const STATUS: Record<string, string> = { active: 'Active', on_hold: 'On hold', done: 'Finished' };
-
-function projectsSection(m: NonNullable<PanelData['memory']>): string {
-  const sel = m.projects.find((p) => p.id === m.project);
-  const today = new Date().toISOString().slice(0, 10);
-  const rank = (p: PanelProject) => ({ active: 0, on_hold: 1, done: 2 })[p.status as 'active'] ?? 3;
-  const list = m.projects.length
-    ? [...m.projects]
-        .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
-        .map((p) => {
-          const open = p.tasks.filter((t) => t.status === 'open').sort((a, b) => (a.due ?? '9').localeCompare(b.due ?? '9'));
-          const overdue = open.filter((t) => t.due && t.due.slice(0, 10) < today).length;
-          const locked = !m.readable.includes(p.vault);
-          return `<li class="row"><div><div class="name">${esc(p.name)} <span class="badge ${p.status === 'active' ? 'ok' : 'off'}">${esc(STATUS[p.status] ?? p.status)}</span> <span class="badge off">${esc(VAULT_LABEL[p.vault])}</span>${locked ? ' <span class="badge off">locked for Empathika</span>' : ''}${overdue ? ` <span class="badge warn">${overdue} overdue</span>` : ''}</div>
-<div class="meta">${p.people.length} ${p.people.length === 1 ? 'person' : 'people'} · ${open.length} open task${open.length === 1 ? '' : 's'}${open[0]?.due ? ` · next: ${esc(open[0].text)}` : ''}</div></div>
-<a class="btn ${sel?.id === p.id ? '' : 'secondary'}" href="/?project=${encodeURIComponent(p.id)}#projects">Open</a></li>`;
-        })
-        .join('')
-    : '<li class="empty">No projects yet. Say "Hey Empathika, create a work project called Milan launch with Marco and Anna", or add one below.</li>';
-  const vaultOpts = (cur = 'work') => ['work', 'personal', 'household'].map((v) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${VAULT_LABEL[v]}</option>`).join('');
-  const create = `<form class="stack" method="post" action="/projects/create">
-<div class="addfact"><input name="name" maxlength="80" required placeholder="New project name"><select name="vault" aria-label="Vault">${vaultOpts()}</select></div>
-<div class="addfact"><input name="people" placeholder="People, e.g. Marco (supplier, marco@acme.com), Anna (designer)"></div>
-<div class="addfact"><input name="description" maxlength="500" placeholder="What it's about (optional)"><button class="btn" type="submit">Create</button></div></form>`;
-  return `<section id="projects"><h2>Projects</h2><ul>${list}</ul>${create}</section>${sel ? projectDetail(sel) : ''}`;
-}
-
-function projectDetail(p: PanelProject): string {
-  const id = { id: p.id };
-  const open = p.tasks.filter((t) => t.status === 'open').sort((a, b) => (a.due ?? '9').localeCompare(b.due ?? '9'));
-  const done = p.tasks.filter((t) => t.status === 'done');
-  const today = new Date().toISOString().slice(0, 10);
-  const statusOpts = Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${k === p.status ? 'selected' : ''}>${v}</option>`).join('');
-  const people = p.people.length
-    ? p.people.map((x) => `<li class="row"><div><div>${esc(x.name)}${x.role ? ` <span class="meta">· ${esc(x.role)}</span>` : ''}</div>${x.contact ? `<div class="meta">${esc(x.contact)}</div>` : ''}</div>${post('/projects/person-remove', { ...id, name: x.name }, 'Remove')}</li>`).join('')
-    : '<li class="empty">No people yet.</li>';
-  const tasks = open.length
-    ? open.map((t) => `<li class="row"><div><div>${esc(t.title)}${t.criticality === 'critical' ? ' <span class="badge warn">critical</span>' : ''}${t.priority === 'high' ? ' <span class="badge warn">high</span>' : ''}${t.due && t.due.slice(0, 10) < today ? ' <span class="badge warn">overdue</span>' : ''}</div><div class="meta">${esc(t.text.slice(t.title.length).replace(/^, /, ''))}</div></div>
-<div class="acts">${post('/projects/task-done', { ...id, task: t.id }, 'Done', 'btn')}${post('/projects/task-delete', { ...id, task: t.id }, 'Delete')}</div></li>`).join('')
-    : '<li class="empty">No open tasks.</li>';
-  const doneList = done.length
-    ? `<details><summary class="meta">${done.length} finished task${done.length === 1 ? '' : 's'}</summary><ul>${done.map((t) => `<li class="row"><div class="meta">${esc(t.text)}</div>${post('/projects/task-reopen', { ...id, task: t.id }, 'Reopen')}</li>`).join('')}</ul></details>`
-    : '';
-  const facts = p.facts.length
-    ? p.facts.map((f) => `<li class="row"><div><div>${esc(f.text)}</div><div class="meta">${esc(day(f.updatedAt))}</div></div>${post('/memory/delete', { id: f.id, vault: p.vault }, 'Forget')}</li>`).join('')
-    : '<li class="empty">Nothing yet. Say "remember for the Milan project that…", or add a note below.</li>';
-  const notes = p.notes.length ? `<details><summary class="meta">${p.notes.length} conversation note${p.notes.length === 1 ? '' : 's'}</summary><ul>${p.notes.map((n) => `<li class="meta">${esc(day(n.at))}: ${esc(n.summary)}</li>`).join('')}</ul></details>` : '';
-  const assignees = `<datalist id="people-${esc(p.id)}">${p.people.map((x) => `<option value="${esc(x.name)}">`).join('')}</datalist>`;
-  return `<section id="project"><h2>${esc(p.name)} · ${esc(VAULT_LABEL[p.vault])}</h2>
-<form class="addfact" method="post" action="/projects/update">${hidden('id', p.id)}<select name="status" aria-label="Status">${statusOpts}</select><input name="description" maxlength="500" value="${esc(p.description ?? '')}" placeholder="Description"><button class="btn secondary" type="submit">Save</button></form>
-<h3>Tasks</h3><ul>${tasks}</ul>${doneList}
-<form class="stack" method="post" action="/projects/task-add">${hidden('id', p.id)}
-<div class="addfact"><input name="title" maxlength="200" required placeholder="New task"></div>
-<div class="addfact"><input type="date" name="date" aria-label="Due date"><input type="time" name="time" aria-label="Time (optional, for a spoken reminder)"><input name="assignee" list="people-${esc(p.id)}" placeholder="Who">${assignees}${levelSelects()}<button class="btn" type="submit">Add</button></div></form>
-<h3>People</h3><ul>${people}</ul>
-<form class="addfact" method="post" action="/projects/person-add">${hidden('id', p.id)}<input name="people" required placeholder="e.g. Marco (supplier, marco@acme.com)"><button class="btn secondary" type="submit">Add</button></form>
-<h3>Project memory</h3><ul>${facts}</ul>${notes}
-<form class="addfact" method="post" action="/projects/note-add">${hidden('id', p.id)}<input name="fact" maxlength="300" required placeholder="Add a note to this project"><button class="btn secondary" type="submit">Remember</button></form>
-<form class="addfact danger" method="post" action="/projects/delete">${hidden('id', p.id)}<label class="meta"><input type="checkbox" name="confirm" value="yes"> Delete this project with its tasks and memory</label><button class="btn secondary" type="submit">Delete</button></form>
-</section>`;
-}
-
-const PRIORITIES = ['high', 'medium', 'low'];
-const CRITICALITIES = ['critical', 'important', 'routine'];
-const opts = (values: string[], selected: string, label = (v: string) => v) =>
-  values.map((v) => `<option value="${v}" ${v === selected ? 'selected' : ''}>${label(v)}</option>`).join('');
-const levelSelects = (priority = 'medium', criticality = 'routine') =>
-  `<select name="priority" aria-label="Priority" title="Priority: how soon">${opts(PRIORITIES, priority, (v) => `${v} priority`)}</select>` +
-  `<select name="criticality" aria-label="Criticality" title="Criticality: what's at stake if it slips">${opts(CRITICALITIES, criticality)}</select>`;
-
-const shortDate = (due: string) => {
-  const [d, t] = due.split('T');
-  return `${new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })}${t ? ` ${t}` : ''}`;
-};
-
-/** My Day: the to-do list grouped by what needs attention first. */
-function myDaySection(m: NonNullable<PanelData['memory']>): string {
-  const today = m.today;
-  const open = m.todos.filter((t) => !t.done);
-  const done = m.todos.filter((t) => t.done);
-  const overdue = open.filter((t) => t.due && t.due.slice(0, 10) < today);
-  const dueToday = open.filter((t) => t.due?.slice(0, 10) === today);
-  const critical = open.filter((t) => t.criticality === 'critical' && !overdue.includes(t) && !dueToday.includes(t));
-  const later = open.filter((t) => !overdue.includes(t) && !dueToday.includes(t) && !critical.includes(t));
-  const projectOpts = (selected?: string) =>
-    m.projects.filter((p) => p.status !== 'done').map((p) => `<option value="${esc(p.id)}" ${p.id === selected ? 'selected' : ''}>${esc(p.name)} (${VAULT_LABEL[p.vault]})</option>`).join('');
-  const row = (t: PanelTodo) => {
-    const late = t.due && t.due.slice(0, 10) < today;
-    const badges =
-      (t.criticality === 'critical' ? ' <span class="badge warn">critical</span>' : t.criticality === 'important' ? ' <span class="badge imp">important</span>' : '') +
-      (t.priority === 'high' ? ' <span class="badge warn">high priority</span>' : t.priority === 'low' ? ' <span class="badge off">low priority</span>' : '') +
-      (late ? ' <span class="badge warn">overdue</span>' : '');
-    const meta = [t.due ? `${late ? 'was due' : 'due'} ${shortDate(t.due)}` : '', t.projectName ? `📁 ${esc(t.projectName)}` : `${VAULT_LABEL[t.vault]} list`, t.assignee ? esc(t.assignee) : '']
-      .filter(Boolean)
-      .join(' · ');
-    const [date, time] = (t.due ?? '').split('T');
-    return `<li class="row"><div style="flex:1;min-width:0"><div>${esc(t.title)}${badges}</div><div class="meta">${meta}</div>
-<details><summary class="meta">Change</summary><form class="addfact edit" method="post" action="/todo/update">${hidden('id', t.id)}${levelSelects(t.priority, t.criticality)}
-<select name="project" aria-label="Project"><option value="none" ${t.projectId ? '' : 'selected'}>No project</option>${projectOpts(t.projectId)}</select>
-<input type="date" name="date" value="${esc(date ?? '')}" aria-label="Due date"><input type="time" name="time" value="${esc(time ?? '')}" aria-label="Time"><button class="btn secondary" type="submit">Save</button></form></details></div>
-<div class="acts">${post('/todo/done', { id: t.id }, 'Done', 'btn')}${post('/todo/delete', { id: t.id }, 'Delete')}</div></li>`;
-  };
-  const group = (title: string, items: PanelTodo[], hint = '') => (items.length ? `<h3>${title} <span class="meta">${items.length}${hint ? ` · ${hint}` : ''}</span></h3><ul>${items.map(row).join('')}</ul>` : '');
-  const summary = [
-    overdue.length ? `<b class="warntext">${overdue.length} overdue</b>` : '',
-    `${dueToday.length} due today`,
-    `${open.filter((t) => t.criticality === 'critical').length} critical`,
-    `${open.length} open in total`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-  const doneList = done.length
-    ? `<details><summary class="meta">${done.length} done in the last 2 weeks</summary><ul>${done.map((t) => `<li class="row"><div class="meta">${esc(t.title)}${t.projectName ? ` · ${esc(t.projectName)}` : ''}</div>${post('/todo/reopen', { id: t.id }, 'Reopen')}</li>`).join('')}</ul></details>`
-    : '';
-  return `<section id="myday"><h2>My Day</h2>
-<p class="meta">${summary}. Ask Empathika "what's going on in my day?" for a briefing with your calendar. <b>Priority</b> = how soon; <b>criticality</b> = what's at stake if it slips.</p>
-<form class="stack" method="post" action="/todo/add">
-<div class="addfact"><input name="title" maxlength="200" required placeholder="New to-do, e.g. Renew the car insurance"></div>
-<div class="addfact wrap">${levelSelects()}<input type="date" name="date" aria-label="Due date"><input type="time" name="time" aria-label="Time (optional, for a spoken reminder)">
-<select name="project" aria-label="Project"><option value="">No project</option>${projectOpts()}</select>
-<select name="vault" aria-label="List" title="Which list, when it has no project"><option value="personal">Personal list</option><option value="work">Work list</option><option value="household">Household list</option></select>
-<button class="btn" type="submit">Add</button></div></form>
-${group('Overdue', overdue, 'should already have been done')}${group('Today', dueToday)}${group('Critical', critical)}${group('Later', later)}
-${open.length ? '' : '<p class="empty">Nothing on the list. Add one above, or say "Hey Empathika, add to my to-do list…".</p>'}
-${doneList}
-<p class="meta">Work items are only visible to Empathika in work mode, personal ones in personal mode.</p></section>`;
-}
-
-const ACTIVITY: Record<string, string> = {
-  shared: 'Shared with AI', recall: 'Searched', saved: 'Saved', updated: 'Updated', forgot: 'Forgot', moved: 'Moved',
-  note: 'Filed', digest: 'Digest', mode: 'Mode', blocked: 'Refused',
-};
-const time = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-const noteWhen = (n: { at: string; level?: string; from?: string }) =>
-  n.level === 'month'
-    ? new Date(n.from ?? n.at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) + ' · monthly digest'
-    : n.level === 'week'
-      ? `Week of ${day(n.from ?? n.at)} · weekly digest`
-      : day(n.at);
-
-function activitySection(a: NonNullable<PanelData['memory']>['activity']): string {
-  const rows = a.length
-    ? a
-        .map(
-          (e) => `<li class="row"><div><div><b>${esc(ACTIVITY[e.kind] ?? e.kind)}</b> · ${esc(e.what)}${e.vaults?.length ? ` <span class="meta">(${esc(e.vaults.join(', '))})</span>` : ''}</div>
-<div class="meta">${esc(time(e.at))}</div>${e.items?.length ? `<details><summary class="meta">${e.items.length} memor${e.items.length === 1 ? 'y' : 'ies'}</summary><ul class="items">${e.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></details>` : ''}</div></li>`,
-        )
-        .join('')
-    : '<li class="empty">Nothing yet.</li>';
-  return `<section id="activity"><h2>Memory activity · last 30 days</h2>
-<p class="meta">Which memories were shared with the AI service, searched, saved or changed, and mode switches. Encrypted like the vaults.</p>
-<ul>${rows}</ul><div class="acts" style="margin-top:12px">${post('/activity/clear', {}, 'Clear activity log')}</div></section>`;
-}
-
-function memorySection(m: NonNullable<PanelData['memory']>): string {
-  const sel = m.selected ?? 'personal';
-  const q = (m.query ?? '').toLowerCase();
-  const v = m.vaults.find((x) => x.name === sel) ?? m.vaults[0];
-  const tabs = m.vaults
-    .map((x) => {
-      const locked = !m.readable.includes(x.name);
-      return `<a class="tab ${x.name === sel ? 'on' : ''}" href="/?vault=${x.name}#memory">${VAULT_LABEL[x.name]} <span class="meta">${x.status === 'open' ? x.facts.length : '!'}</span>${locked ? ' <span class="badge off">locked for Empathika</span>' : ''}</a>`;
-    })
-    .join('');
-  const shown = v.facts.filter((f) => !q || f.text.toLowerCase().includes(q) || (f.subject ?? '').toLowerCase().includes(q));
-  const others = (name: string) => m.vaults.filter((x) => x.name !== name).map((x) => `<option value="${x.name}">${VAULT_LABEL[x.name]}</option>`).join('');
-  const facts =
-    v.status !== 'open'
-      ? `<li class="hint">This vault ${esc(v.error ?? 'cannot be opened')}. Check <code>MEMORY_KEY</code> in <code>.env</code>.</li>`
-      : shown.length
-        ? shown
-            .slice(0, FACTS_SHOWN)
-            .map(
-              (f) => `<li class="row"><div><div>${esc(f.text)}${f.unverified ? ' <span class="badge warn">unverified</span>' : ''}</div>
-<div class="meta">${esc(f.kind)}${f.subject ? ` · ${esc(f.subject)}` : ''} · ${esc(SOURCE[f.source] ?? f.source)} · ${esc(day(f.updatedAt))}${f.expiresAt ? ` · until ${esc(day(f.expiresAt))}` : ''}${f.unverified ? ' · saved right after Empathika read emails or web pages: check it is really yours' : ''}</div></div>
-<div class="acts">${f.unverified ? post('/memory/confirm', { id: f.id, vault: v.name }, 'Confirm') : ''}
-<form method="post" action="/memory/move" class="move">${hidden('id', f.id)}${hidden('vault', v.name)}<select name="to" aria-label="Move to">${others(v.name)}</select><button class="btn secondary" type="submit">Move</button></form>
-${post('/memory/delete', { id: f.id, vault: v.name }, 'Forget')}</div></li>`,
-            )
-            .join('') + (shown.length > FACTS_SHOWN ? `<li class="empty">${shown.length - FACTS_SHOWN} more: use search to find them.</li>` : '')
-        : `<li class="empty">${q ? 'Nothing matches.' : 'Nothing yet. Say "Hey Empathika, remember that…", or add a fact below.'}</li>`;
-  const notes = v.notes.length
-    ? v.notes.map((n) => `<li class="row"><div><div>${esc(n.summary)}</div><div class="meta">${esc(noteWhen(n))}</div></div>${post('/memory/delete', { id: n.id, type: 'note', vault: v.name }, 'Forget')}</li>`).join('')
-    : `<li class="empty">${m.autoLearn ? 'Empathika files a one-line note after each conversation worth remembering.' : 'Conversation notes are off (MEMORY_AUTO_LEARN=off).'}</li>`;
-  const kinds = ['fact', 'person', 'preference', 'routine', 'date', 'project'].map((k) => `<option>${k}</option>`).join('');
-  return `<section id="memory"><h2>Memory</h2>
-${m.passwordSet ? '' : '<p class="hint">Anyone who can open this page can read Empathika\'s memory. Set <code>PANEL_PASSWORD</code> in <code>.env</code> and restart Empathika.</p>'}
-<p class="meta">${esc(m.modeText)} Personal: Work vault locked${m.workApps.length ? ' (and work apps)' : ''} · Work: Personal vault locked · Guest: only Household. Household is shared. <a href="#mode">Change mode</a></p>
-<div class="tabs">${tabs}</div>
-<form class="search" method="get" action="/#memory">${hidden('vault', v.name)}<input name="q" value="${esc(m.query ?? '')}" placeholder="Search ${VAULT_LABEL[v.name]}…"><button class="btn secondary" type="submit">Search</button></form>
-<ul>${facts}</ul>
-<form class="addfact" method="post" action="/memory/add">${hidden('vault', v.name)}<input name="fact" maxlength="300" required placeholder="Add to ${VAULT_LABEL[v.name]}, e.g. Sofia's birthday is 14 March"><select name="kind" aria-label="Kind">${kinds}</select><button class="btn" type="submit">Remember</button></form>
-<p class="meta">Each vault is encrypted separately. Passwords, PINs and codes are never stored.</p></section>
-<section><h2>${VAULT_LABEL[v.name]} conversations${v.totalNotes > v.notes.length ? ` (latest ${v.notes.length} of ${v.totalNotes}; Empathika can search them all)` : ''}</h2><ul>${notes}</ul>
-<p class="meta">Older notes are rolled up into weekly, then monthly digests automatically.</p></section>
-${activitySection(m.activity)}`;
-}
-
-const esc = (s: unknown) =>
-  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-
-const NOTES: Record<string, string> = {
-  outlook: 'Office 365 email and calendar. Work or school accounts may need your IT admin to approve the first sign-in.',
-  whatsapp:
-    'Uses the official WhatsApp Business API: needs a WhatsApp Business account and number, not your personal WhatsApp. ' +
-    'Meta restricts general-purpose AI assistants on this platform.',
-};
-
-const badge = (ok: boolean, yes = 'Connected', no = 'Not connected') =>
-  `<span class="badge ${ok ? 'ok' : 'off'}">${ok ? yes : no}</span>`;
-
-const TABS: [string, string][] = [
-  ['overview', 'Overview'],
-  ['myday', 'My Day'],
-  ['routines', 'Routines'],
-  ['empathika', 'Empathika'],
-  ['memory', 'Memory'],
-  ['projects', 'Projects'],
-  ['connections', 'Connections'],
-  ['settings', 'Settings'],
-];
-
-function myDayTile(m: NonNullable<PanelData['memory']>, tile: (href: string, k: string, v: string, meta: string) => string): string {
-  const open = m.todos.filter((t) => !t.done);
-  const overdue = open.filter((t) => t.due && t.due.slice(0, 10) < m.today).length;
-  const today = open.filter((t) => t.due?.slice(0, 10) === m.today).length;
-  const critical = open.filter((t) => t.criticality === 'critical').length;
-  return tile(
-    '#tab-myday',
-    'My Day',
-    `${today} due today${overdue ? ` · <span class="warntext">${overdue} overdue</span>` : ''}`,
-    `${critical} critical · ${open.length} open to-do${open.length === 1 ? '' : 's'}`,
-  );
-}
-
-function newsTile(r: PanelRoutines, tile: (href: string, k: string, v: string, meta: string) => string): string {
-  if (!r.list.length) return tile('#tab-routines', 'Routines', 'No news briefing yet', 'Set one up: Empathika prepares your news each morning');
-  const first = r.list[0];
-  const b = first.briefing;
-  return tile(
-    '#tab-routines',
-    'News briefing',
-    first.running ? 'Gathering now…' : b?.articles.length ? `${b.articles.length} articles ready` : 'Nothing gathered yet',
-    `${first.daysText} at ${first.time}${r.list.length > 1 ? ` · ${r.list.length} routines` : ''}`,
-  );
+</form><p class="meta">Kept encrypted with Empathika's memory; the postcode is never said out loud.</p></section>`;
 }
 
 function updatesSection(u: NonNullable<PanelData['updates']>): string {
@@ -431,89 +176,187 @@ ${busy ? '' : '<form method="post" action="/updates/check"><button class="btn se
 <p class="meta">New versions come from GitHub (${esc(v?.repo || 'your repository')}): merge a change there and it shows up here. Your settings, keys and Empathika's memory stay as they are.</p></section>`;
 }
 
-/** The front page: the mode switch, then one tile per area with its status; each tile opens its tab. */
+const ACTIVITY: Record<string, string> = {
+  shared: 'Shared with AI', recall: 'Searched', saved: 'Saved', updated: 'Updated', forgot: 'Forgot', moved: 'Moved',
+  note: 'Filed', digest: 'Digest', mode: 'Access', blocked: 'Refused',
+};
+const time = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const noteWhen = (n: { at: string; level?: string; from?: string }) =>
+  n.level === 'month'
+    ? new Date(n.from ?? n.at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) + ' · monthly digest'
+    : n.level === 'week'
+      ? `Week of ${day(n.from ?? n.at)} · weekly digest`
+      : day(n.at);
+
+function activitySection(a: NonNullable<PanelData['memory']>['activity']): string {
+  const rows = a.length
+    ? a
+        .map(
+          (e) => `<li class="row"><div><div><b>${esc(ACTIVITY[e.kind] ?? e.kind)}</b> · ${esc(e.what)}${e.vaults?.length ? ` <span class="meta">(${esc(e.vaults.join(', '))})</span>` : ''}</div>
+<div class="meta">${esc(time(e.at))}</div>${e.items?.length ? `<details><summary class="meta">${e.items.length} memor${e.items.length === 1 ? 'y' : 'ies'}</summary><ul class="items">${e.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></details>` : ''}</div></li>`,
+        )
+        .join('')
+    : '<li class="empty">Nothing yet.</li>';
+  return `<section id="activity"><h2>Memory activity · last 30 days</h2>
+<p class="meta">Which memories were shared with the AI service, searched, saved or changed, and staff sessions. Encrypted like the vaults.</p>
+<ul>${rows}</ul><div class="acts" style="margin-top:12px">${post('/activity/clear', {}, 'Clear activity log')}</div></section>`;
+}
+
+
+function factRow(f: PanelFact, vault: string, others: string): string {
+  const checked = f.source !== 'conversation';
+  return `<li class="row"><div><div>${esc(f.text)}${f.unverified ? ' <span class="badge warn">unverified</span>' : ''}${checked ? ' <span class="badge ok">checked</span>' : ''}</div>
+<div class="meta">${esc(KIND_LABEL[f.kind] ?? f.kind)}${f.subject ? ` · ${esc(f.subject)}` : ''} · ${esc(SOURCE[f.source] ?? f.source)} · ${esc(day(f.updatedAt))}${f.expiresAt ? ` · until ${esc(day(f.expiresAt))}` : ''}${f.unverified ? ' · saved right after Empathika read web pages: check it' : ''}</div></div>
+<div class="acts">${f.unverified || !checked ? post('/memory/confirm', { id: f.id, vault }, 'Confirm') : ''}
+<form method="post" action="/memory/move" class="move">${hidden('id', f.id)}${hidden('vault', vault)}<select name="to" aria-label="Move to">${others}</select><button class="btn secondary" type="submit">Move</button></form>
+${post('/memory/delete', { id: f.id, vault }, 'Forget')}</div></li>`;
+}
+
+function memorySection(m: NonNullable<PanelData['memory']>): string {
+  const sel = m.selected ?? 'resident';
+  const q = (m.query ?? '').toLowerCase();
+  const v = m.vaults.find((x) => x.name === sel) ?? m.vaults[0];
+  const tabs = m.vaults
+    .map((x) => `<a class="tab ${x.name === sel ? 'on' : ''}" href="/?vault=${x.name}#memory">${VAULT_LABEL[x.name] ?? x.name} <span class="meta">${x.status === 'open' ? x.facts.length : '!'}</span></a>`)
+    .join('');
+  const shown = v.facts.filter((f) => f.kind !== 'family_news' && (!q || f.text.toLowerCase().includes(q) || (f.subject ?? '').toLowerCase().includes(q)));
+  const others = m.vaults.filter((x) => x.name !== v.name).map((x) => `<option value="${x.name}">${VAULT_LABEL[x.name] ?? x.name}</option>`).join('');
+  const facts =
+    v.status !== 'open'
+      ? `<li class="hint">This vault ${esc(v.error ?? 'cannot be opened')}. Check <code>MEMORY_KEY</code> in <code>.env</code>.</li>`
+      : shown.length
+        ? shown.slice(0, FACTS_SHOWN).map((f) => factRow(f, v.name, others)).join('') +
+          (shown.length > FACTS_SHOWN ? `<li class="empty">${shown.length - FACTS_SHOWN} more: use search to find them.</li>` : '')
+        : `<li class="empty">${q ? 'Nothing matches.' : v.name === 'care' ? 'No care notes yet. Empathika files health and wellbeing observations here; staff can add notes below.' : 'Nothing yet. Add what you know about the resident below: family, life story, likes and routines.'}</li>`;
+  const notes = v.notes.length
+    ? v.notes.map((n) => `<li class="row"><div><div>${esc(n.summary)}</div><div class="meta">${esc(noteWhen(n))}</div></div>${post('/memory/delete', { id: n.id, type: 'note', vault: v.name }, 'Forget')}</li>`).join('')
+    : `<li class="empty">${m.autoLearn ? 'Empathika files a short note after each conversation worth remembering.' : 'Conversation notes are off (MEMORY_AUTO_LEARN=off).'}</li>`;
+  const kinds = (v.name === 'care' ? ['health', 'routine', 'preference', 'fact'] : ['person', 'life_story', 'preference', 'routine', 'date', 'fact'])
+    .map((k) => `<option value="${k}">${KIND_LABEL[k]}</option>`)
+    .join('');
+  return `<section id="memory"><h2>What Empathika knows about the resident</h2>
+${m.passwordSet ? '' : '<p class="hint">Anyone who can open this page can read the resident\'s memory, including care notes. Set <code>PANEL_PASSWORD</code> in <code>.env</code> and restart Empathika.</p>'}
+<p class="meta">${esc(m.modeText)}. <b>Resident</b>: who they are, used in every conversation. <b>Care</b>: health and wellbeing notes, only ever read in a staff session. Facts marked <span class="badge ok">checked</span> came from staff, family or this page: what the resident says never overwrites them.</p>
+<div class="tabs">${tabs}</div>
+<form class="search" method="get" action="/#memory">${hidden('vault', v.name)}<input name="q" value="${esc(m.query ?? '')}" placeholder="Search ${esc(VAULT_LABEL[v.name] ?? v.name)}…"><button class="btn secondary" type="submit">Search</button></form>
+<ul>${facts}</ul>
+<form class="addfact wrap" method="post" action="/memory/add">${hidden('vault', v.name)}<input name="fact" maxlength="300" required placeholder="${v.name === 'care' ? 'e.g. Has had a cough since Monday; GP informed' : 'e.g. Margaret has two children, Sarah (lives in Leeds) and Tom'}"><input name="subject" maxlength="60" placeholder="About (optional), e.g. Sarah (daughter)" style="flex:0 1 14em"><select name="kind" aria-label="Kind">${kinds}</select><button class="btn" type="submit">Remember</button></form>
+<p class="meta">Each vault is encrypted separately on the box, and backed up to the care app. Passwords, PINs and codes are never stored.</p></section>
+<section><h2>${esc(VAULT_LABEL[v.name] ?? v.name)} · conversation notes${v.totalNotes > v.notes.length ? ` (latest ${v.notes.length} of ${v.totalNotes}; Empathika can search them all)` : ''}</h2><ul>${notes}</ul>
+<p class="meta">Older notes are rolled up into weekly, then monthly digests automatically.</p></section>
+${activitySection(m.activity)}`;
+}
+
+function familySection(m: NonNullable<PanelData['memory']>, app: PanelData['careApp']): string {
+  const rows = m.family.length
+    ? m.family
+        .slice(0, 50)
+        .map(
+          (f) => `<li class="row"><div><div><b>${esc(f.subject ?? 'Family')}</b> · ${esc(f.text)}</div>
+<div class="meta">${esc(when(f.createdAt))} · ${f.sharedAt ? `passed on ${esc(when(f.sharedAt))}` : '<span class="warntext">not passed on yet</span>'}</div></div>${post('/memory/delete', { id: f.id, vault: 'resident' }, 'Remove')}</li>`,
+        )
+        .join('')
+    : '<li class="empty">No messages yet.</li>';
+  const status = !app.configured
+    ? 'The care app is not connected, so messages can\'t arrive yet (see Connections).'
+    : `Checked every ${app.family.minutes} minute${app.family.minutes === 1 ? '' : 's'}${app.family.lastCheckAt ? ` · last check ${esc(when(app.family.lastCheckAt))}` : ''}${app.family.lastError ? ` · <span class="warntext">${esc(app.family.lastError)}</span>` : ''}.`;
+  return `<section id="family"><h2>News from the family</h2>
+<p class="meta">Relatives send WhatsApp messages and photos to the Empathika app; Empathika fetches them, tells the resident (on screen, and in conversation), and remembers them so she can answer "any news from Sarah?". Photos go to the evening photo frame. Messages marked sensitive in the app go to staff only. ${status}</p>
+<div class="acts" style="margin:0 0 12px">${app.connected ? post('/family/check', {}, 'Check for messages now') : ''}</div>
+<ul>${rows}</ul></section>`;
+}
+
+const AUDIT_LABEL: Record<string, string> = {
+  session_start: 'Signed in', session_end: 'Signed out', session_expired: 'Session timed out', wrong_pin: 'Wrong PIN', paused: 'Keypad paused',
+  care_record: 'Care record', care_memory: 'Care notes', staff_added: 'Staff added', staff_removed: 'Staff removed', memory_restore: 'Memory restored',
+};
+
+function staffSection(s: NonNullable<PanelData['staff']>): string {
+  const rows = s.list.length
+    ? s.list
+        .map((x) => `<li class="row"><div><div class="name">${esc(x.name)}${x.role ? ` <span class="meta">· ${esc(x.role)}</span>` : ''}${x.badge ? ' <span class="badge ok">badge</span>' : ''}</div><div class="meta">Added ${esc(day(x.createdAt))}</div></div>
+<form method="post" action="/staff/remove" onsubmit="return confirm('Remove ${esc(x.name)}? Their PIN stops working.')">${hidden('id', x.id)}<button class="btn secondary" type="submit">Remove</button></form></li>`)
+        .join('')
+    : '<li class="empty">No staff yet. Until someone is added, anyone can turn the box off or change its WiFi from the screen, and nobody can open the care record.</li>';
+  const audit = s.audit.length
+    ? s.audit
+        .map((a) => `<li class="row"><div><div><b>${esc(AUDIT_LABEL[a.event] ?? a.event)}</b>${a.staff ? ` · ${esc(a.staff)}` : ''}${a.detail ? ` <span class="meta">${esc(a.detail)}</span>` : ''}</div><div class="meta">${esc(when(a.at))}</div></div></li>`)
+        .join('')
+    : '<li class="empty">Nothing yet.</li>';
+  return `<section id="staff"><h2>Staff</h2>
+<p class="meta">Each member of staff has their own 4-digit PIN. On Empathika's screen (hold a finger on it for 2 seconds → Staff, or say "Empathika, staff mode") the PIN opens a staff session for ${s.sessionMinutes} minutes: Empathika can then read the care notes and look things up in the care record. Turning the box off, restarting and WiFi also need a staff session. After 5 wrong PINs the keypad pauses. ${s.session ? `<b>Now: ${esc(s.session)}.</b>` : ''}</p>
+<ul>${rows}</ul>
+<form class="addfact wrap" method="post" action="/staff/add"><input name="name" maxlength="60" required placeholder="Name, e.g. Jane Smith"><input name="role" maxlength="40" placeholder="Role, e.g. Nurse"><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="off" placeholder="4-digit PIN" style="flex:0 1 8em"><input name="badge" maxlength="40" placeholder="NFC badge id (optional)" style="flex:0 1 12em"><button class="btn" type="submit">Add</button></form>
+<p class="meta">PINs are never shown again and are stored encrypted. NFC badges: an id entered here will work once a badge reader is fitted to the box.</p></section>
+<section id="audit"><h2>Staff activity</h2><p class="meta">Every sign-in, wrong PIN and care-record lookup, newest first. Encrypted on the box.</p><ul>${audit}</ul></section>`;
+}
+
+function careAppSection(a: PanelData['careApp']): string {
+  if (!a.configured) {
+    return `<section id="care-app"><h2>Empathika care app</h2><ul><li class="row"><div><div class="name">Care app ${badge(false, '', 'Not set up')}</div>
+<div class="meta">Set <code>EMPATHIKA_APP_MCP_URL</code>, <code>EMPATHIKA_APP_TOKEN</code> and <code>RESIDENT_ID</code> in <code>.env</code> and restart Empathika. The app provides the care record (for staff), news from the family, and the backup of Empathika's memory. For testing, run the practice app: <code>npm run mock-app</code> (docs/CARE-APP-MCP.md).</div></div></li></ul></section>`;
+  }
+  const b = a.backup;
+  return `<section id="care-app"><h2>Empathika care app</h2><ul><li class="row"><div><div class="name">Care app ${badge(a.connected)}</div>
+<div class="meta">${a.connected ? `Resident <code>${esc(a.residentId || 'not set')}</code> · ${esc(a.url ?? '')}` : esc(a.error ?? 'Not reachable')}</div></div></li>
+<li class="row"><div><div class="name">Memory backup ${badge(b.available, 'Available', 'Not available')}</div>
+<div class="meta">${b.lastBackupAt ? `Last backup ${esc(when(b.lastBackupAt))}` : 'No backup yet'}${b.minutes ? ` · every ${b.minutes} minutes when something changed` : ' · only when asked here'}${b.lastError ? ` · <span class="warntext">${esc(b.lastError)}</span>` : ''}${b.lastRestore ? `<br>Last restore: ${esc(b.lastRestore)}` : ''}<br>A new or repaired box restores the resident's memories from the app by itself.</div></div>
+<div class="acts">${b.available ? post('/backup/now', {}, 'Back up now', 'btn') : ''}${a.connected ? `<form method="post" action="/backup/restore" onsubmit="return confirm('Add any memories from the app backup that are missing here? Nothing here is overwritten.')"><button class="btn secondary" type="submit">Restore from the app</button></form>` : ''}</div></li></ul></section>`;
+}
+
+const esc = (s: unknown) =>
+  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+const badge = (ok: boolean, yes = 'Connected', no = 'Not connected') =>
+  `<span class="badge ${ok ? 'ok' : 'off'}">${ok ? yes : no}</span>`;
+
+const TABS: [string, string][] = [
+  ['overview', 'Overview'],
+  ['memory', 'Resident'],
+  ['family', 'Family news'],
+  ['staff', 'Staff'],
+  ['empathika', 'Empathika'],
+  ['connections', 'Connections'],
+  ['settings', 'Settings'],
+];
+
+/** The front page: one tile per area with its status; each tile opens its tab. */
 function overview(d: PanelData): string {
   const m = d.memory;
-  const modes = m
-    ? (['personal', 'work', 'guest', 'auto'] as const)
-        .map((x) => post('/mode', { mode: x }, x === 'auto' ? 'Automatic' : `${x[0].toUpperCase()}${x.slice(1)}`, `btn ${m.mode === x ? '' : 'secondary'}`))
-        .join('')
-    : '';
-  const count = (list: { connected: boolean }[]) => `${list.filter((a) => a.connected).length} of ${list.length}`;
   const tile = (href: string, k: string, v: string, meta: string) =>
     `<a class="tile" href="${href}"><div class="k">${k}</div><div class="v">${v}</div><div class="meta">${meta}</div></a>`;
-  const facts = m ? m.vaults.filter((v) => m.readable.includes(v.name)).reduce((n, v) => n + v.facts.length, 0) : 0;
-  const tasks = m ? m.projects.reduce((n, p) => n + p.tasks.filter((t) => t.status === 'open').length, 0) : 0;
-  const music = d.music && d.music.state !== 'off' ? (d.music.state === 'ready' ? badge(true, 'Ready') : badge(false, '', d.music.state === 'pairing' ? 'Sign-in needed' : 'Not running')) : '';
+  const count = (name: string) => m?.vaults.find((v) => v.name === name)?.facts.filter((f) => f.kind !== 'family_news').length ?? 0;
+  const unshared = m?.family.filter((f) => !f.sharedAt).length ?? 0;
   const tiles = [
-    d.composio.configured
-      ? tile('#apps', 'Apps', `${count(d.composio.apps)} personal · ${count(d.composio.workApps)} work`, 'Email, calendar, messaging and more')
-      : tile('#apps', 'Apps', badge(false, '', 'Not set up'), 'Add a Composio key to connect email and other apps'),
-    tile('#web', 'Web search', d.web?.configured ? badge(d.web.connected) : badge(false, '', 'Not set up'), d.web?.remainingCredits !== undefined ? `${d.web.remainingCredits.toLocaleString('en-GB')} credits left` : 'Searching and reading web pages'),
-    tile('#home-assistant', 'Home Assistant', badge(d.homeAssistant.connected), d.homeAssistant.connected ? `${d.homeAssistant.tools} actions` : 'Lights, heating and devices'),
-    music ? tile('#music', 'Music', `Spotify ${music}`, d.music?.account ? `Signed in as ${esc(d.music.account)}` : 'Play music by voice') : '',
-    m ? myDayTile(m, tile) : '',
-    d.routines ? newsTile(d.routines, tile) : '',
-    m ? tile('#tab-memory', 'Memory', `${facts} thing${facts === 1 ? '' : 's'} Empathika knows`, 'In the vaults open in this mode') : '',
-    m ? tile('#tab-projects', 'Projects', `${m.projects.length} project${m.projects.length === 1 ? '' : 's'}`, `${tasks} open task${tasks === 1 ? '' : 's'}`) : '',
-    d.soul ? tile('#tab-empathika', 'Personality', "Empathika's soul", 'Who she is and how she behaves in each mode') : '',
-    d.location ? tile('#location', 'Home location', d.location.place ? esc(d.location.place) : badge(false, '', 'Not set'), 'For local answers and search results') : '',
+    m ? tile('#tab-memory', 'Resident', `${count('resident')} thing${count('resident') === 1 ? '' : 's'} Empathika knows`, `${count('care')} care note${count('care') === 1 ? '' : 's'} (staff only)`) : '',
+    m ? tile('#tab-family', 'Family news', `${m.family.length} message${m.family.length === 1 ? '' : 's'}`, unshared ? `<span class="warntext">${unshared} not passed on yet</span>` : 'All passed on') : '',
+    d.staff ? tile('#tab-staff', 'Staff', `${d.staff.list.length} with a PIN`, d.staff.session ? esc(d.staff.session) : 'No staff session now') : '',
+    tile('#care-app', 'Care app', d.careApp.configured ? badge(d.careApp.connected) : badge(false, '', 'Not set up'), d.careApp.backup.lastBackupAt ? `Backed up ${esc(when(d.careApp.backup.lastBackupAt))}` : 'Care record, family news and backup'),
+    d.soul ? tile('#tab-empathika', 'Personality', "Empathika's soul", 'Who she is with the resident and with staff') : '',
+    tile('#web', 'Web search', d.web?.configured ? badge(d.web.connected) : badge(false, '', 'Not set up'), 'Optional: news, facts, local information'),
+    d.location ? tile('#location', 'Location', d.location.place ? esc(d.location.place) : badge(false, '', 'Not set'), 'For the weather and local answers') : '',
   ].join('');
-  return `${m ? `<section id="mode"><h2>Mode</h2><div class="name">${esc(m.modeText)}</div>
-<p class="meta">Each mode has its own behaviour, memories and accounts. You can also say "Empathika, work mode", "personal mode" or "guest mode".</p>
-<div class="modes">${modes}</div></section>` : ''}
+  return `${m ? `<section id="mode"><h2>Right now</h2><div class="name">${esc(m.modeText)}</div>
+<p class="meta">Resident mode is normal. A staff session (PIN on the screen) opens the care notes and the care record for a few minutes.</p>
+${m.mode === 'staff' ? `<div class="modes">${post('/staff/end', {}, 'End the staff session')}</div>` : ''}</section>` : ''}
 <div class="tiles">${tiles}</div>`;
 }
 
 export function renderPanel(d: PanelData): string {
-  const appRows = (list: PanelData['composio']['apps'], side: 'personal' | 'work') =>
-    list.length
-      ? list
-          .map(
-            (a) => `
-      <li class="row">
-        <div class="app">
-          ${a.logo ? `<img src="${esc(a.logo)}" alt="" width="32" height="32">` : '<span class="ph"></span>'}
-          <div>
-            <div class="name">${esc(a.name)} ${badge(a.connected)}</div>
-            <div class="meta">${a.connected ? `${a.toolsOffered} action${a.toolsOffered === 1 ? '' : 's'} available to Empathika` : esc(NOTES[a.slug] ?? `Sign in with your ${side} account.`)}</div>
-            ${a.connected && NOTES[a.slug] ? `<div class="meta">${esc(NOTES[a.slug])}</div>` : ''}
-          </div>
-        </div>
-        <a class="btn ${a.connected ? 'secondary' : ''}" href="/connect/${encodeURIComponent(a.slug)}?side=${side}">${a.connected ? 'Reconnect' : 'Connect'}</a>
-      </li>`,
-          )
-          .join('')
-      : `<li class="empty">${d.composio.error ? `Composio error: ${esc(d.composio.error)}` : 'Loading apps…'}</li>`;
-  const apps = d.composio.configured
-    ? `<li class="group"><h3>Personal accounts</h3><p class="meta">Used in personal mode: your own email, WhatsApp, Instagram…</p></li>${appRows(d.composio.apps, 'personal')}` +
-      `<li class="group"><h3>Work accounts</h3><p class="meta">Used in work mode: your work email, calendar, LinkedIn… Until one is connected, work mode uses the personal accounts.</p></li>${appRows(d.composio.workApps, 'work')}`
-    : `<li class="empty">Add <code>COMPOSIO_API_KEY</code> to <code>.env</code> (from <a href="https://platform.composio.dev" target="_blank" rel="noopener">platform.composio.dev</a>) and restart Empathika to connect Office 365, WhatsApp and other apps.</li>`;
-
-  const hints = [
-    d.composio.notEnabled.length
-      ? `Connected in Composio but not enabled in Empathika: <b>${esc(d.composio.notEnabled.join(', '))}</b>. Add ${d.composio.notEnabled.length === 1 ? 'it' : 'them'} to <code>COMPOSIO_TOOLKITS</code> in <code>.env</code> and restart Empathika.`
-      : '',
-    d.composio.otherUser.length
-      ? `Connected in Composio under a different user, so Empathika can't use ${d.composio.otherUser.length === 1 ? 'it' : 'them'}: <b>${esc(d.composio.otherUser.join(', '))}</b>. Add the app to <code>COMPOSIO_TOOLKITS</code> and connect it here, or set <code>COMPOSIO_USER_ID</code> to the user you used (Empathika uses "${esc(d.composio.userId)}").`
-      : '',
-  ].filter(Boolean).map((h) => `<li class="hint">${h}</li>`).join('');
-
   const servers = d.servers
-    .filter((s) => s.name !== 'composio')
     .map(
       (s) => `<li class="row"><div><div class="name">${esc(s.name)} ${badge(s.connected)}</div>
         <div class="meta">${s.connected ? `${s.offered} of ${s.total} actions available to Empathika` : esc(s.error ?? '')}</div></div></li>`,
     )
     .join('');
 
-  const show: Record<string, boolean> = { overview: true, myday: Boolean(d.memory), routines: Boolean(d.routines), empathika: Boolean(d.soul), memory: Boolean(d.memory), projects: Boolean(d.memory), connections: true, settings: true };
+  const show: Record<string, boolean> = { overview: true, memory: Boolean(d.memory), family: Boolean(d.memory), staff: Boolean(d.staff), empathika: Boolean(d.soul), connections: true, settings: true };
   const attention: Record<string, boolean> = {
-    connections: Boolean(d.composio.error || d.composio.notEnabled.length || d.composio.otherUser.length || (d.web?.configured && !d.web.connected) || d.music?.state === 'pairing'),
+    connections: Boolean((d.careApp.configured && !d.careApp.connected) || d.careApp.backup.lastError || (d.web?.configured && !d.web.connected)),
     settings: Boolean(d.location && !d.location.place),
-    routines: Boolean(d.routines?.list.some((r) => r.enabled && r.lastError && !r.running)),
-    myday: Boolean(d.memory?.todos.some((t) => !t.done && t.due && t.due.slice(0, 10) < d.memory!.today)),
     memory: Boolean(d.memory?.vaults.some((v) => v.status !== 'open' || v.facts.some((f) => f.unverified))),
+    family: Boolean(d.memory?.family.some((f) => !f.sharedAt)),
+    staff: Boolean(d.staff && !d.staff.list.length),
   };
 
   return `<!doctype html>
@@ -532,7 +375,7 @@ ul{list-style:none;margin:0;padding:0}.row{display:flex;align-items:center;justi
 select{flex:none}.modes,.tabs,.acts{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.acts{margin:0;flex:none}.move{display:flex;gap:6px}
 .tab{padding:6px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--text)}.tab.on{border-color:var(--accent);color:var(--accent);font-weight:600}
 .badge.warn{background:var(--errbg);color:var(--err)}.badge.imp{background:#fff4e0;color:#9a5b00}.warntext{color:var(--err)}
-${ROUTINES_CSS}${MODELS_CSS}${SCREEN_CSS}
+${MODELS_CSS}${SCREEN_CSS}
 .wrap{flex-wrap:wrap}.level{align-items:center}.level label{width:84px;flex:none}.level input[type=range]{flex:1;accent-color:var(--accent)}.level span{width:44px;text-align:right}.edit{flex-wrap:wrap;margin:8px 0}summary{cursor:pointer}
 h3{font-size:14px;margin:16px 0 8px}.stack{margin:12px 0}.stack .addfact{margin:6px 0}.danger{margin-top:20px;align-items:center;justify-content:space-between}
 textarea{width:100%;font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);resize:vertical;font-variant-ligatures:none}
@@ -563,27 +406,20 @@ ${d.notice ? `<div class="notice ${d.notice.kind}">${esc(d.notice.text)}</div>` 
 
 <div class="pane" id="tab-overview">${overview(d)}</div>
 
-<div class="pane" id="tab-myday">${d.memory ? myDaySection(d.memory) : ''}</div>
+<div class="pane" id="tab-memory">${d.memory ? memorySection(d.memory) : ''}</div>
 
-<div class="pane" id="tab-routines">${d.routines ? routinesSection(d.routines, esc) : ''}</div>
+<div class="pane" id="tab-family">${d.memory ? familySection(d.memory, d.careApp) : ''}</div>
+
+<div class="pane" id="tab-staff">${d.staff ? staffSection(d.staff) : ''}</div>
 
 <div class="pane" id="tab-empathika">${d.soul ? soulSection(d.soul) : ''}</div>
 
-<div class="pane" id="tab-memory">${d.memory ? memorySection(d.memory) : ''}</div>
-
-<div class="pane" id="tab-projects">${d.memory ? projectsSection(d.memory) : ''}</div>
-
 <div class="pane" id="tab-connections">
-<div class="jump"><a href="#apps">Apps</a><a href="#web">Web search</a><a href="#home-assistant">Home Assistant</a>${musicSection(d.music) ? '<a href="#music">Music</a>' : ''}${servers ? '<a href="#servers">Other</a>' : ''}</div>
-<section id="apps"><h2>Apps</h2><ul>${apps}${hints}</ul>
-<p class="meta add">To add another app (e.g. linkedin, instagram, slack, notion), add its name to <code>COMPOSIO_TOOLKITS</code> (personal) or <code>COMPOSIO_WORK_TOOLKITS</code> (work) in <code>.env</code> and restart Empathika; it then appears here with a Connect button.</p></section>
+${careAppSection(d.careApp)}
 <section id="web"><h2>Web search</h2><ul><li class="row"><div><div class="name">Firecrawl ${d.web?.configured ? badge(d.web.connected) : '<span class="badge off">Not set up</span>'}</div>
-<div class="meta">${!d.web?.configured ? 'Add <code>FIRECRAWL_API_KEY</code> to <code>.env</code> (free key at <a href="https://firecrawl.dev" target="_blank" rel="noopener">firecrawl.dev</a>) and restart Empathika: she can then search the web and read pages.' : d.web.connected ? `Empathika can search the web and read pages${d.web.remainingCredits !== undefined ? ` · ${d.web.remainingCredits.toLocaleString('en-GB')} credits left` : ''}` : esc(d.web.error ?? 'Not reachable')}</div></div></li></ul></section>
-<section id="home-assistant"><h2>Home Assistant</h2><ul><li class="row"><div><div class="name">Home Assistant ${badge(d.homeAssistant.connected)}</div>
-<div class="meta">${d.homeAssistant.connected ? `${d.homeAssistant.tools} actions available to Empathika` : esc(d.homeAssistant.error ?? 'Not connected')}</div></div></li></ul></section>
-${musicSection(d.music)}
+<div class="meta">${!d.web?.configured ? 'Optional. Add <code>FIRECRAWL_API_KEY</code> to <code>.env</code> (free key at <a href="https://firecrawl.dev" target="_blank" rel="noopener">firecrawl.dev</a>) and restart Empathika: she can then look up news, facts and local information.' : d.web.connected ? `Empathika can search the web and read pages${d.web.remainingCredits !== undefined ? ` · ${d.web.remainingCredits.toLocaleString('en-GB')} credits left` : ''}` : esc(d.web.error ?? 'Not reachable')}</div></div></li></ul></section>
 ${servers ? `<section id="servers"><h2>Other MCP servers</h2><ul>${servers}</ul></section>` : ''}
-<p class="meta">Sending, replying, deleting and similar actions always need your spoken "yes" first.</p>
+<p class="meta">Actions that change the care record (adding a note…) always need a spoken "yes" first.</p>
 </div>
 
 <div class="pane" id="tab-settings">${d.location ? locationSection(d.location) : ''}
@@ -594,14 +430,14 @@ ${d.device ? `<form class="addfact level" method="post" action="/device/level"><
 <form class="addfact level" method="post" action="/device/level"><label class="meta" for="bri">Brightness</label><input id="bri" type="range" name="brightness" min="5" max="100" step="5" value="${d.device.brightness}" ${!d.onBox || d.device.brightnessSupported === false ? 'disabled' : ''} oninput="this.nextElementSibling.textContent=this.value+'%'" onchange="this.form.submit()"><span class="meta">${d.device.brightness}%</span></form>
 ${d.device.volume === undefined ? '<p class="meta">The speaker volume can\'t be read: is the sound system running?</p>' : ''}${d.onBox && d.device.brightnessSupported === false ? "<p class=\"meta\">This screen doesn't let the Pi change its brightness.</p>" : ''}` : ''}
 ${d.onBox
-  ? `<p class="meta">Turn the Empathika box off safely before unplugging it, or restart it. You can also hold a finger on its screen for 2 seconds, or say "Empathika, turn off". To turn it on again, press the power button on the Raspberry Pi.</p>
+  ? `<p class="meta">Turn the Empathika box off safely before unplugging it, or restart it. On the box itself this needs a staff session (hold a finger on the screen for 2 seconds). To turn it on again, press the power button on the Raspberry Pi.</p>
 <form class="addfact danger" method="post" action="/device/power"><input type="hidden" name="action" value="reboot"><label class="meta"><input type="checkbox" name="confirm" value="yes"> Yes, restart Empathika now</label><button class="btn secondary" type="submit">Restart</button></form>
 <form class="addfact danger" method="post" action="/device/power"><input type="hidden" name="action" value="poweroff"><label class="meta"><input type="checkbox" name="confirm" value="yes"> Yes, turn Empathika off now</label><button class="btn secondary" type="submit">Turn off</button></form>`
   : '<p class="meta">Turning off and restarting are available when Empathika runs on the Empathika box (Raspberry Pi).</p>'}
 </section>
 ${d.updates ? updatesSection(d.updates) : ''}
 <section id="security"><h2>Security</h2><ul><li class="row"><div><div class="name">Panel password ${badge(Boolean(d.memory?.passwordSet), 'On', 'Off')}</div>
-<div class="meta">${d.memory?.passwordSet ? 'This page asks for a password.' : 'Anyone on your network can open this page. Set <code>PANEL_PASSWORD</code> in <code>.env</code> and restart Empathika.'}</div></div></li>
+<div class="meta">${d.memory?.passwordSet ? 'This page asks for a password.' : 'Anyone on the network can open this page, including the care notes. Set <code>PANEL_PASSWORD</code> in <code>.env</code> and restart Empathika.'}</div></div></li>
 ${d.lock ? lockRow(d.lock) : ''}
 <li class="row"><div><div class="name">Voice</div><div class="meta">${esc(d.voice)}</div></div></li></ul></section></div>
 </main>
@@ -632,25 +468,4 @@ ${d.lock ? lockRow(d.lock) : ''}
   if (document.querySelector('[data-wait]')) setTimeout(function () { location.reload(); }, 15000);
 })();
 </script></body></html>`;
-}
-
-function musicSection(m: PanelData['music']): string {
-  if (!m || m.state === 'off') return '';
-  const check = '<form method="post" action="/music/check"><button class="btn secondary" type="submit">Check again</button></form>';
-  let body: string;
-  if (m.state === 'ready') {
-    body = `<li class="row"><div><div class="name">Spotify ${badge(true, 'Ready')}</div>
-      <div class="meta">Signed in as ${esc(m.account)}. Say "Hey Empathika, play…", or pick <b>Empathika</b> as the speaker in the Spotify app.</div></div></li>`;
-  } else if (m.state === 'pairing') {
-    body = `<li class="row"><div><div class="name">Spotify ${badge(false, '', 'Sign-in needed')}</div>
-      <div class="meta">${
-        m.pairing
-          ? `One-time step: open the link, sign in to Spotify and approve "Empathika". If asked, the code is <b>${esc(m.pairing.code)}</b>.`
-          : 'Waiting for a sign-in code from the Spotify speaker…'
-      }</div></div>${m.pairing ? `<a class="btn" href="${esc(m.pairing.url)}" target="_blank" rel="noopener">Sign in to Spotify</a>` : check}</li>`;
-  } else {
-    body = `<li class="row"><div><div class="name">Spotify ${badge(false, '', 'Not running')}</div>
-      <div class="meta">Start the Spotify speaker: <code>docker compose --profile music up -d</code> (needs Spotify Premium). ${esc(m.error ?? '')}</div></div>${check}</li>`;
-  }
-  return `<section id="music"><h2>Music</h2><ul>${body}</ul></section>`;
 }

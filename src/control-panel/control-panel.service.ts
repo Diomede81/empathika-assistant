@@ -1,18 +1,16 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
-import { MusicService } from '../music/music.service';
 import { WebService } from '../web/web.service';
 import { COUNTRIES, LocationService } from '../location/location.service';
 import { createServer, IncomingMessage, Server, ServerResponse } from 'node:http';
 import { APP_CONFIG, AppConfig } from '../config';
-import { ComposioService, Side } from '../composio/composio.service';
-import { HaMcpService } from '../ha-mcp/ha-mcp.service';
 import { McpServersService } from '../mcp/mcp-servers.service';
 import { KINDS, Kind, MemoryService } from '../memory/memory.service';
-import { Mode, ModesService, VaultName, VAULTS } from '../memory/modes.service';
+import { ModesService, VaultName, VAULTS } from '../memory/modes.service';
 import { PanelAuth } from './panel-auth';
-import { localToday, ProjectsService, taskText } from '../memory/projects.service';
-import { TodoService } from '../memory/todo.service';
-import { daysText, RoutinesService } from '../routines/routines.service';
+import { CareAppService } from '../care-app/care-app.service';
+import { MemoryBackupService } from '../care-app/memory-backup.service';
+import { FamilyUpdatesService } from '../care-app/family-updates.service';
+import { StaffService } from '../staff/staff.service';
 import { ModelsService, Task, TASKS } from '../models/models.service';
 import { requestPower } from '../face/power';
 import { DeviceService } from '../device/device.service';
@@ -23,18 +21,20 @@ import { PanelData, renderPanel } from './page';
 import { SOUL_DOCS, SOUL_MAX_CHARS, SoulDoc, SoulService } from '../soul/soul.service';
 
 /**
- * A small web page (default http://localhost:8099) to see what Empathika is connected to and
- * to sign in to apps through Composio. Only reachable from this computer by default.
+ * A small web page (default http://localhost:8099) for the care team: what Empathika knows about
+ * the resident, family news, staff PINs and activity, her personality, and the care app
+ * connection. Only reachable from this computer by default; set PANEL_PASSWORD.
  */
 @Injectable()
 export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger('ControlPanel');
   private server?: Server;
-  @Optional() @Inject(MusicService) private readonly music?: MusicService;
   @Optional() @Inject(WebService) private readonly web?: WebService;
   @Optional() @Inject(LocationService) private readonly location?: LocationService;
   @Optional() @Inject(SoulService) private readonly soul?: SoulService;
-  @Optional() @Inject(RoutinesService) private readonly routines?: RoutinesService;
+  @Optional() @Inject(StaffService) private readonly staff?: StaffService;
+  @Optional() @Inject(MemoryBackupService) private readonly backup?: MemoryBackupService;
+  @Optional() @Inject(FamilyUpdatesService) private readonly family?: FamilyUpdatesService;
   @Optional() @Inject(ModelsService) private readonly models?: ModelsService;
   @Optional() @Inject(DeviceService) private readonly device?: DeviceService;
   @Optional() @Inject(UpdatesService) private readonly updates?: UpdatesService;
@@ -43,13 +43,10 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
-    private readonly composio: ComposioService,
-    private readonly ha: HaMcpService,
+    private readonly app: CareAppService,
     private readonly mcp: McpServersService,
     private readonly memory: MemoryService,
     private readonly modes: ModesService,
-    private readonly projects: ProjectsService,
-    private readonly todos: TodoService,
   ) {
     this.auth = new PanelAuth(cfg.controlPanel.password);
   }
@@ -85,24 +82,8 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
     }
     if (req.method === 'GET' && url.pathname === '/') return this.page(res, url);
     if (req.method === 'GET' && url.pathname === '/api/status') return this.json(res, await this.data());
-    if (req.method === 'POST' && url.pathname === '/music/check') {
-      await this.music?.poll();
-      return this.redirect(res, '/#music');
-    }
-    if (req.method === 'GET' && url.pathname.startsWith('/connect/')) {
-      const toolkit = decodeURIComponent(url.pathname.slice('/connect/'.length));
-      const side: Side = url.searchParams.get('side') === 'work' ? 'work' : 'personal';
-      if (!this.composio.account(side).toolkits.includes(toolkit)) return this.redirect(res, '/?error=Unknown%20app');
-      this.log.log(`Starting sign-in for ${toolkit} (${side})`);
-      return this.redirect(res, await this.composio.loginUrl(toolkit, side));
-    }
-    if (req.method === 'GET' && url.pathname === '/callback') {
-      await this.composio.refresh();
-      const failed = url.searchParams.get('status') === 'failed' || url.searchParams.has('error');
-      return this.redirect(res, failed ? '/?error=Sign-in%20was%20not%20completed' : '/?connected=1#apps');
-    }
     if (req.method === 'POST' && url.pathname === '/refresh') {
-      await Promise.all([this.mcp.refreshAll(), this.composio.refresh(), this.music?.poll(), this.web?.check()]);
+      await Promise.all([this.mcp.refreshAll(), this.web?.check()]);
       return this.redirect(res, '/?refreshed=1');
     }
     if (req.method === 'GET' && url.pathname === '/api/memory') {
@@ -138,7 +119,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       const f = await readForm(req);
       const action = f.get('action') === 'reboot' ? 'reboot' : 'poweroff';
       if (f.get('confirm') !== 'yes') return this.redirect(res, '/?error=Tick%20the%20box%20to%20confirm.#device');
-      if (!requestPower(this.cfg, action)) return this.redirect(res, '/?error=Only%20available%20on%20the%20Max%20box.#device');
+      if (!requestPower(this.cfg, action)) return this.redirect(res, '/?error=Only%20available%20on%20the%20Empathika%20box.#device');
       this.log.log(action === 'reboot' ? 'Restarting (asked from the control panel)' : 'Turning off (asked from the control panel)');
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(
         `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Empathika</title><body style="font:16px system-ui;margin:40px;max-width:520px">` +
@@ -156,11 +137,19 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       const ok = !/failed|isn't set up|Choose|Unknown/.test(msg);
       return this.redirect(res, `/?${ok ? 'ok' : 'error'}=${encodeURIComponent(msg)}#models`);
     }
-    if (req.method === 'POST' && url.pathname.startsWith('/routines/') && this.routines) return this.routineAction(req, res, url.pathname.slice('/routines/'.length));
-    if (req.method === 'POST' && url.pathname.startsWith('/todo/')) return this.todoAction(req, res, url.pathname.slice('/todo/'.length));
-    if (req.method === 'POST' && url.pathname.startsWith('/projects/')) return this.projectAction(req, res, url.pathname.slice('/projects/'.length));
-    if (req.method === 'GET' && url.pathname === '/api/projects') {
-      return this.json(res, this.projects.all().map((p) => ({ ...p, memory: this.memory.projectMemory(p).facts.map(({ vec, ...f }) => f) })));
+    if (req.method === 'POST' && url.pathname.startsWith('/staff/') && this.staff) return this.staffAction(req, res, url.pathname.slice('/staff/'.length));
+    if (req.method === 'POST' && url.pathname === '/backup/now' && this.backup) {
+      const r = await this.backup.backup(true);
+      return this.redirect(res, `/?${r.ok ? 'ok' : 'error'}=${encodeURIComponent(r.message)}#care-app`);
+    }
+    if (req.method === 'POST' && url.pathname === '/backup/restore' && this.backup) {
+      const r = await this.backup.restore();
+      return this.redirect(res, `/?${r.ok ? 'ok' : 'error'}=${encodeURIComponent(r.message)}#care-app`);
+    }
+    if (req.method === 'POST' && url.pathname === '/family/check' && this.family) {
+      const n = await this.family.check();
+      const msg = this.family.lastError ? `Could not check: ${this.family.lastError}` : n ? `${n} new message${n === 1 ? '' : 's'}.` : 'No new messages.';
+      return this.redirect(res, `/?${this.family.lastError ? 'error' : 'ok'}=${encodeURIComponent(msg)}#family`);
     }
     if (req.method === 'GET' && url.pathname === '/api/memory/activity') return this.json(res, this.memory.recentActivity(500));
     if (req.method === 'POST' && url.pathname === '/activity/clear') {
@@ -188,57 +177,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       const msg = await this.location.save({ place: f.get('place') ?? '', postcode: f.get('postcode') ?? '', country: f.get('country') ?? '' });
       return this.redirect(res, `/?${msg.startsWith('Saved') ? 'ok' : 'error'}=${encodeURIComponent(msg)}#location`);
     }
-    if (req.method === 'POST' && url.pathname === '/mode') {
-      const m = (await readForm(req)).get('mode') ?? '';
-      if (['personal', 'work', 'guest', 'auto'].includes(m)) this.modes.set(m as Mode | 'auto');
-      return this.redirect(res, '/?ok=Mode%20changed.#mode');
-    }
     res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
-  }
-
-  private async projectAction(req: IncomingMessage, res: ServerResponse, action: string): Promise<void> {
-    const f = await readForm(req);
-    const get = (k: string) => (f.get(k) ?? '').trim();
-    const back = (msg: string, id?: string, ok = true) =>
-      this.redirect(res, `/?${ok ? 'ok' : 'error'}=${encodeURIComponent(msg)}${id ? `&project=${encodeURIComponent(id)}` : ''}#projects`);
-    if (action === 'create') {
-      const vault = (VAULTS.includes(get('vault') as VaultName) ? get('vault') : 'personal') as VaultName;
-      const msg = this.projects.create(get('name'), vault, get('description'), get('people'), true);
-      const created = this.projects.all().find((p) => p.name.toLowerCase() === get('name').toLowerCase() && p.vault === vault);
-      return back(msg, created?.id, msg.startsWith('Created'));
-    }
-    const p = this.projects.byId(get('id'));
-    if (!p) return back('Project not found.', undefined, false);
-    const task = p.tasks.find((t) => t.id === get('task'));
-    switch (action) {
-      case 'update':
-        return back(this.projects.update(p, { status: get('status'), description: get('description'), rename: get('rename') }), p.id);
-      case 'delete':
-        if (get('confirm') !== 'yes') return back('Tick the box to confirm deleting the project.', p.id, false);
-        this.memory.deleteProject(p.id);
-        this.memory.activity('forgot', `Deleted project ${p.name} with its tasks and memory`, [p.vault]);
-        return back(`Deleted ${p.name}.`);
-      case 'person-add':
-        return back(this.projects.addPeople(p, get('people')), p.id);
-      case 'person-remove':
-        return back(this.projects.removePerson(p, get('name')), p.id);
-      case 'task-add': {
-        const due = get('date') ? (get('time') ? `${get('date')}T${get('time')}` : get('date')) : undefined;
-        return back(this.projects.addTask(p, { title: get('title'), due, assignee: get('assignee'), priority: get('priority'), criticality: get('criticality') }), p.id);
-      }
-      case 'task-done':
-        return task ? back(this.projects.completeTask(p, task), p.id) : back('Task not found.', p.id, false);
-      case 'task-reopen':
-        return task ? back(this.projects.updateTask(p, task, { reopen: true }), p.id) : back('Task not found.', p.id, false);
-      case 'task-delete':
-        return task ? back(this.projects.deleteTask(p, task), p.id) : back('Task not found.', p.id, false);
-      case 'note-add': {
-        const r = await this.memory.remember({ text: get('fact'), vault: p.vault, projectId: p.id, source: 'panel' });
-        return back(r.ok ? 'Saved to the project memory.' : r.message, p.id, r.ok);
-      }
-      default:
-        res.writeHead(404).end();
-    }
   }
 
   private async modelsData(m: ModelsService): Promise<PanelData['models']> {
@@ -250,98 +189,6 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       providers,
       tasks: (Object.keys(TASKS) as Task[]).map((t) => ({ id: t, ...TASKS[t], ...m.assignment(t), describe: m.describe(t) })),
     };
-  }
-
-  private async routineAction(req: IncomingMessage, res: ServerResponse, action: string): Promise<void> {
-    const r = this.routines!;
-    const f = await readForm(req);
-    const get = (k: string) => (f.get(k) ?? '').trim();
-    const id = get('id');
-    const back = (msg: string, ok = true, anchor = id ? `routine-${id}` : 'routines') => this.redirect(res, `/?${ok ? 'ok' : 'error'}=${encodeURIComponent(msg)}#${anchor}`);
-    const routine = r.routines.find((x) => x.id === id);
-    if (action !== 'save' && !routine) return back('That routine no longer exists.', false, 'routines');
-    switch (action) {
-      case 'save': {
-        const msg = r.save(
-          {
-            name: get('name'),
-            sourcesText: f.get('sources') ?? '',
-            interests: get('interests'),
-            avoid: get('avoid'),
-            time: get('time'),
-            days: f.getAll('days').map(Number),
-            count: Number(get('count')),
-            vault: get('vault') as VaultName,
-            search: f.get('search') === 'yes',
-            ...(id ? { enabled: f.get('enabled') === 'yes' } : {}),
-          },
-          id || undefined,
-        );
-        const ok = /^(Created|Saved)/.test(msg);
-        const created = !id && ok ? r.routines[r.routines.length - 1] : undefined;
-        // A new briefing with interests but no websites yet: start suggesting straight away.
-        if (created && !created.sources.length) {
-          void r.suggest(created.id);
-          return back(`${msg} Empathika is now finding websites for your interests: tick the ones you want.`, true, `routine-${created.id}`);
-        }
-        return back(msg, ok, created ? `routine-${created.id}` : id ? `routine-${id}` : 'routine-new');
-      }
-      case 'feedback': {
-        const msg = r.feedback(routine!.id, get('url'), get('vote') === 'up');
-        return back(msg, msg.startsWith('Noted'));
-      }
-      case 'suggest': {
-        void r.suggest(routine!.id);
-        return back('Finding websites for your interests: about a minute.');
-      }
-      case 'add-suggested': {
-        const msg = r.addSuggested(routine!.id, f.getAll('url'));
-        return back(msg, msg.startsWith('Added'));
-      }
-      case 'run':
-        void r.run(routine!.id, true);
-        return back(`Gathering ${routine!.name}: it takes a minute or two. Refresh this page to see it.`);
-      case 'toggle':
-        return back(r.save({ enabled: !routine!.enabled }, routine!.id).replace(/^Saved/, routine!.enabled ? 'Resumed' : 'Paused'));
-      case 'delete':
-        if (get('confirm') !== 'yes') return back('Tick the box to confirm deleting the routine.', false);
-        r.remove(routine!.id);
-        return back(`Deleted ${routine!.name}.`, true, 'routines');
-      default:
-        res.writeHead(404).end();
-    }
-  }
-
-  private async todoAction(req: IncomingMessage, res: ServerResponse, action: string): Promise<void> {
-    const f = await readForm(req);
-    const get = (k: string) => (f.get(k) ?? '').trim();
-    const back = (msg: string, ok = true) => this.redirect(res, `/?${ok ? 'ok' : 'error'}=${encodeURIComponent(msg)}#myday`);
-    const due = get('date') ? (get('time') ? `${get('date')}T${get('time')}` : get('date')) : '';
-    const project = get('project') ? this.projects.byId(get('project')) : undefined;
-    if (action === 'add') {
-      const msg = this.todos.add({ title: get('title'), priority: get('priority'), criticality: get('criticality'), due: due || undefined, project, vault: get('vault'), assignee: get('assignee') }, true);
-      return back(msg, msg.startsWith('Added'));
-    }
-    const item = this.todos.byId(get('id'));
-    if (!item) return back('That to-do no longer exists.', false);
-    switch (action) {
-      case 'done':
-        return back(this.todos.complete(item));
-      case 'reopen':
-        return back(this.todos.update(item, { reopen: true }, true));
-      case 'delete':
-        return back(this.todos.delete(item));
-      case 'update': {
-        const msg = this.todos.update(
-          item,
-          { priority: get('priority'), criticality: get('criticality'), due: f.has('date') ? due : undefined, moveTo: get('project') === 'none' ? 'none' : (project ?? undefined) },
-          true,
-        );
-        return back(msg, msg.startsWith('Updated'));
-      }
-      default:
-        res.writeHead(404).end();
-    }
   }
 
   private async soulAction(req: IncomingMessage, res: ServerResponse, action: string): Promise<void> {
@@ -360,7 +207,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
         this.soul.reset(doc);
         return back('Back to the starter version.');
       case 'journal-add':
-        return this.soul.addEntry(f.get('text') ?? '', 'panel', f.get('mode') === 'work' ? 'work' : 'personal') ? back('Added to Empathika\'s journal.') : back('Nothing added (empty, or already there).', false);
+        return this.soul.addEntry(f.get('text') ?? '', 'panel') ? back('Added to Empathika\'s journal.') : back('Nothing added (empty, or already there).', false);
       case 'journal-delete':
         return back(this.soul.removeEntry(f.get('id') ?? '') ? 'Removed from Empathika\'s journal.' : 'Could not find that entry.');
       default:
@@ -371,12 +218,12 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
   private async memoryAction(req: IncomingMessage, res: ServerResponse, action: string): Promise<void> {
     const f = await readForm(req);
     const id = f.get('id') ?? '';
-    const vault = (VAULTS.includes(f.get('vault') as VaultName) ? f.get('vault') : 'personal') as VaultName;
+    const vault = (VAULTS.includes(f.get('vault') as VaultName) ? f.get('vault') : 'resident') as VaultName;
     const back = (msg: string, ok = true) => this.redirect(res, `/?${ok ? 'ok' : 'error'}=${encodeURIComponent(msg)}&vault=${vault}#memory`);
     switch (action) {
       case 'add': {
         const kind = KINDS.includes(f.get('kind') as Kind) ? (f.get('kind') as Kind) : undefined;
-        const r = await this.memory.remember({ text: f.get('fact') ?? '', vault, kind, date: f.get('date') || undefined, source: 'panel' });
+        const r = await this.memory.remember({ text: f.get('fact') ?? '', vault, kind, subject: f.get('subject') || undefined, date: f.get('date') || undefined, source: 'panel' });
         return back(r.ok ? 'Saved to memory.' : r.message, r.ok);
       }
       case 'delete':
@@ -418,9 +265,6 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
         glance: f.get('glance') === 'on',
         frame: f.get('frame') === 'on',
         captions: f.get('captions') === 'on',
-        notifyBriefing: f.get('notifyBriefing') === 'on',
-        notifyEmail: f.get('notifyEmail') === 'on',
-        notifyTodos: f.get('notifyTodos') === 'on',
         frameFrom: f.get('frameFrom') ?? '',
         frameTo: f.get('frameTo') ?? '',
         frameEverySec: Number(f.get('frameEverySec') ?? 20),
@@ -430,37 +274,47 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
     return this.redirect(res, '/#screen');
   }
 
+  private async staffAction(req: IncomingMessage, res: ServerResponse, action: string): Promise<void> {
+    const f = await readForm(req);
+    const back = (msg: string, ok = true) => this.redirect(res, `/?${ok ? 'ok' : 'error'}=${encodeURIComponent(msg)}#staff`);
+    switch (action) {
+      case 'add': {
+        const r = this.staff!.add(f.get('name') ?? '', (f.get('pin') ?? '').trim(), f.get('role') ?? undefined, f.get('badge') ?? undefined);
+        return back(r.message, r.ok);
+      }
+      case 'remove':
+        return back(this.staff!.remove(f.get('id') ?? '') ? 'Removed. Their PIN no longer works.' : 'Not found.');
+      case 'end':
+        return back(this.modes.endStaff() ? 'Staff session ended.' : 'No staff session was open.');
+      default:
+        res.writeHead(404).end();
+    }
+  }
+
   private async data(): Promise<PanelData> {
     const rt = this.cfg.realtime;
-    const apps = this.composio.enabled ? await this.composio.apps('personal').catch(() => []) : [];
-    const workApps = this.composio.enabled ? await this.composio.apps('work').catch(() => []) : [];
-    const ha = await this.ha.status(0);
     return {
-      music: this.music && {
-        state: this.music.state,
-        account: this.music.account,
-        pairing: this.music.pairing,
-        error: this.music.lastError,
-      },
       voice:
         this.cfg.voiceMode === 'realtime'
           ? `${rt.provider === 'gemini' ? 'Gemini Live' : 'OpenAI Realtime'} (${rt.model}, "${rt.voice}")`
           : `Pipeline (${this.cfg.llm.model})`,
-      homeAssistant: { connected: ha.connected, tools: ha.tools, error: ha.error },
+      careApp: {
+        configured: this.app.configured,
+        connected: this.app.connected,
+        error: this.app.lastError,
+        url: this.cfg.app.mcpUrl || undefined,
+        residentId: this.cfg.app.residentId,
+        backup: { available: Boolean(this.backup?.available), minutes: this.cfg.app.backupMinutes, ...(this.backup?.status ?? {}) },
+        family: { minutes: this.cfg.app.familyMinutes, lastCheckAt: this.family?.lastCheckAt, lastError: this.family?.lastError },
+      },
+      staff: this.staff && {
+        list: this.staff.list(),
+        audit: this.staff.auditLog(100),
+        session: this.modes.staff ? this.modes.describe() : undefined,
+        sessionMinutes: this.cfg.staff.sessionMinutes,
+      },
       web: this.web?.status,
       location: this.location && { ...(this.location.home ?? { place: '', country: this.location.country }), countries: COUNTRIES },
-      routines: this.routines && this.memory.enabled
-        ? {
-            firecrawl: this.routines.firecrawl,
-            list: this.routines.routines.map((x) => ({
-              ...x,
-              daysText: daysText(x.days),
-              running: this.routines!.isRunning(x.id),
-              briefing: this.routines!.briefings[x.id],
-              suggestions: this.routines!.suggestions(x.id),
-            })),
-          }
-        : undefined,
       models: this.models && (await this.modelsData(this.models)),
       onBox: this.cfg.face.onBox,
       device: await this.device?.status(),
@@ -475,19 +329,10 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
         available: this.updates.onBox ? await this.updates.check() : undefined,
         auto: this.updates.auto,
       },
-      composio: {
-        configured: this.composio.enabled,
-        error: this.composio.lastError,
-        apps,
-        workApps,
-        ...(await this.composio.diagnostics()),
-        userId: this.cfg.composio.userId,
-      },
       memory: this.memory.enabled
         ? {
             mode: this.modes.mode,
             modeText: this.modes.describe(),
-            readable: this.modes.readable(),
             vaults: this.memory.snapshot().map((v) => ({
               name: v.name,
               status: v.status,
@@ -496,39 +341,10 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
               notes: [...v.episodes].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 10),
               totalNotes: v.episodes.length,
             })),
+            family: this.memory.familyNews(),
             autoLearn: this.cfg.memory.autoLearn,
             passwordSet: this.auth.enabled,
-            workApps: this.cfg.memory.workApps,
             activity: this.memory.recentActivity(60),
-            today: localToday(),
-            todos: this.todos.items(VAULTS, true)
-              .filter((x) => x.task.status === 'open' || (x.task.doneAt ?? '') > new Date(Date.now() - 14 * 86400_000).toISOString())
-              .map(({ task: t, vault, project }) => ({
-                id: t.id,
-                title: t.title,
-                vault,
-                projectId: project?.id,
-                projectName: project?.name,
-                priority: t.priority === 'normal' ? 'medium' : (t.priority ?? 'medium'),
-                criticality: t.criticality ?? 'routine',
-                due: t.due,
-                assignee: t.assignee,
-                done: t.status === 'done',
-              })),
-            projects: this.projects.all().map((p) => {
-              const mem = this.memory.projectMemory(p);
-              return {
-                id: p.id,
-                name: p.name,
-                vault: p.vault,
-                status: p.status,
-                description: p.description,
-                people: p.people,
-                tasks: p.tasks.map((t) => ({ ...t, text: taskText(t) })),
-                facts: mem.facts.slice(0, 50).map((x) => ({ id: x.id, text: x.text, updatedAt: x.updatedAt })),
-                notes: mem.notes.slice(0, 10).map((x) => ({ id: x.id, summary: x.summary, at: x.at })),
-              };
-            }),
           }
         : undefined,
       soul: this.soul && {
@@ -548,19 +364,17 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
 
   private async page(res: ServerResponse, url: URL): Promise<void> {
     const d = await this.data();
-    if (url.searchParams.has('connected')) d.notice = { kind: 'ok', text: 'Signed in. Empathika can use this app now.' };
-    else if (url.searchParams.has('refreshed')) d.notice = { kind: 'ok', text: 'Refreshed.' };
+    if (url.searchParams.has('refreshed')) d.notice = { kind: 'ok', text: 'Refreshed.' };
     else if (url.searchParams.get('ok')) d.notice = { kind: 'ok', text: url.searchParams.get('ok')! };
     else if (url.searchParams.get('error')) d.notice = { kind: 'error', text: url.searchParams.get('error')! };
     if (d.memory) {
-      d.memory.selected = (VAULTS.includes(url.searchParams.get('vault') as VaultName) ? url.searchParams.get('vault') : 'personal') as VaultName;
+      d.memory.selected = (VAULTS.includes(url.searchParams.get('vault') as VaultName) ? url.searchParams.get('vault') : 'resident') as VaultName;
       d.memory.query = url.searchParams.get('q') ?? '';
-      d.memory.project = url.searchParams.get('project') ?? undefined;
     }
     if (d.soul && SOUL_DOCS.includes(url.searchParams.get('doc') as SoulDoc)) d.soul.doc = url.searchParams.get('doc') as SoulDoc;
     // Which tab opens first (a #section in the address, e.g. after saving, takes precedence in the browser).
     const q = url.searchParams;
-    d.tab = q.get('tab') ?? (q.has('doc') ? 'empathika' : q.has('project') ? 'projects' : q.has('vault') || q.has('q') ? 'memory' : q.has('connected') ? 'connections' : undefined);
+    d.tab = q.get('tab') ?? (q.has('doc') ? 'empathika' : q.has('vault') || q.has('q') ? 'memory' : undefined);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(renderPanel(d));
   }
 

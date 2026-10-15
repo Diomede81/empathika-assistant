@@ -13,10 +13,16 @@ import WebSocket from 'ws';
 import type { ChatCompletionTool } from 'openai/resources/chat/completions';
 import { APP_CONFIG, AppConfig, loadConfig } from '../config';
 import { ActionsModule } from '../actions/actions.module';
-import { MusicModule } from '../music/music.module';
 import { ToolRouterService } from '../actions/tool-router.service';
 import { BuiltinActionsService } from '../actions/builtin-actions.service';
-import { HaMcpService } from '../ha-mcp/ha-mcp.service';
+import { CareAppService } from '../care-app/care-app.service';
+import { CareAppModule } from '../care-app/care-app.module';
+import { StaffModule } from '../staff/staff.module';
+import { ModelsModule } from '../models/models.module';
+import { DeviceModule } from '../device/device.module';
+import { LockModule } from '../lock/lock.module';
+import { LocationModule } from '../location/location.module';
+import { SoulModule } from '../soul/soul.module';
 import { buildGeminiSetup, geminiDeclarations, GeminiSetupParts } from '../realtime/gemini-live-client';
 import type { VoiceClientOptions } from '../realtime/voice-client';
 import { matchesAny } from '../mcp/glob';
@@ -28,7 +34,7 @@ try {
 }
 
 @Global()
-@Module({ imports: [ActionsModule, MusicModule], providers: [{ provide: APP_CONFIG, useFactory: loadConfig }], exports: [APP_CONFIG] })
+@Module({ imports: [ModelsModule, DeviceModule, LockModule, LocationModule, SoulModule, StaffModule, CareAppModule, ActionsModule], providers: [{ provide: APP_CONFIG, useFactory: loadConfig }], exports: [APP_CONFIG] })
 class CheckModule {}
 
 type Result = { ok: boolean; detail: string };
@@ -76,19 +82,18 @@ async function main(): Promise<void> {
   const rt = cfg.realtime;
   if (!rt.apiKey) throw new Error('No Gemini key: set GEMINI_API_KEY in .env');
   console.log(`Model ${rt.model}, voice ${rt.voice}${rt.language ? `, language ${rt.language}` : ''}`);
-  console.log('Waiting for Home Assistant and apps to connect…');
-  await app.get(HaMcpService).status(15000);
-  await new Promise((r) => setTimeout(r, 4000)); // Composio session start
+  console.log('Waiting for the care app to connect…');
+  await new Promise((r) => setTimeout(r, 4000));
 
   const all = app.get(ToolRouterService).tools.filter((t) => !(t.type === 'function' && matchesAny(t.function.name, rt.excludeTools)));
   if (rt.excludeTools.length) console.log(`Leaving out (REALTIME_EXCLUDE_TOOLS): ${rt.excludeTools.join(', ')}`);
   const builtinNames = new Set(app.get(BuiltinActionsService).tools.map((t) => (t.type === 'function' ? t.function.name : '')));
-  const haNames = new Set(app.get(HaMcpService).openAiTools.map((t) => (t.type === 'function' ? t.function.name : '')));
+  const haNames = new Set(app.get(CareAppService).tools.map((t) => (t.type === 'function' ? t.function.name : '')));
   const nameOf = (t: ChatCompletionTool) => (t.type === 'function' ? t.function.name : '');
   const groups: Record<string, ChatCompletionTool[]> = {
     'built-in (time, timers, memory)': all.filter((t) => builtinNames.has(nameOf(t))),
-    'Home Assistant': all.filter((t) => haNames.has(nameOf(t))),
-    'apps (Composio / MCP servers)': all.filter((t) => !builtinNames.has(nameOf(t)) && !haNames.has(nameOf(t))),
+    'care app': all.filter((t) => haNames.has(nameOf(t))),
+    'other MCP servers': all.filter((t) => !builtinNames.has(nameOf(t)) && !haNames.has(nameOf(t))),
   };
   console.log(`Actions: ${Object.entries(groups).map(([k, v]) => `${k} ${v.length}`).join(', ')}\n`);
 

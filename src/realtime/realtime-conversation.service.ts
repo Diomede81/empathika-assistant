@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { FaceService } from '../face/face.service';
 import { APP_CONFIG, AppConfig } from '../config';
-import { describeCapabilities } from '../actions/capabilities';
+import { CARE_APP_OFFLINE, describeCapabilities } from '../actions/capabilities';
 import { SpeakerService } from '../audio/speaker.service';
 import { Resampler } from '../audio/resampler';
 import { AsyncQueue } from '../wyoming/async-queue';
@@ -34,7 +34,7 @@ const INTERRUPT_REOPEN_MS = 250;
  * One spoken conversation using OpenAI Realtime (speech in, speech out, no separate
  * transcription or text-to-speech). The local wake word starts it; it ends after
  * REALTIME_FOLLOW_UP_MS of quiet, so the paid connection is only open while talking.
- * Home Assistant, time and timer actions work exactly as in the normal pipeline.
+ * Memory, care-app, time and timer actions work exactly as in the normal pipeline.
  */
 @Injectable()
 export class RealtimeConversationService {
@@ -79,7 +79,7 @@ export class RealtimeConversationService {
       instructions:
         `${this.soul?.systemPrompt() ?? this.cfg.llm.systemPrompt}\n${rt.style}\nCurrent local time: ${describeNow()}.` +
         (this.memory.enabled ? `\n${this.memory.promptSection()}` : '') +
-        (this.tools.homeAssistantConnected ? '' : '\nHome Assistant is NOT connected right now, so you cannot control devices.'),
+        (this.cfg.app.mcpUrl && !this.tools.careAppConnected ? `\n${CARE_APP_OFFLINE}` : ''),
       tools: rt.tools
         ? this.tools.tools.filter((t) => !(t.type === 'function' && matchesAny(t.function.name, rt.excludeTools)))
         : [],
@@ -95,7 +95,7 @@ export class RealtimeConversationService {
     this.log.log(
       `Actions offered this session: ${options.tools.length}` +
         (rt.tools ? '' : ' (REALTIME_TOOLS=off)') +
-        (capabilities ? '' : ' - no email/web apps among them, so Empathika will say she has no access'),
+        (capabilities ? '' : ' - no care record or web among them'),
     );
     const client: VoiceClient = rt.provider === 'gemini' ? new GeminiLiveClient(options) : new RealtimeClient(options);
     const resampler = new Resampler(micRate, client.inputRate);

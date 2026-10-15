@@ -26,7 +26,7 @@ export interface WebStatus {
 }
 
 /**
- * Searching the web and reading web pages with Firecrawl, built in (no Composio needed).
+ * Searching the web and reading web pages with Firecrawl, built in (optional).
  * Two actions for the AI model:
  *  - web_search: a web or news search; can also read the top results in the same step, so
  *    "what's the latest on X?" needs one round trip instead of two.

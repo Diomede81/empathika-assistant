@@ -1,7 +1,7 @@
 {
   "name": "empathika-assistant",
   "version": "0.1.0",
-  "description": "Empathika: a low-latency voice assistant for Home Assistant (NestJS + MCP + Wyoming)",
+  "description": "Empathika: a voice companion for care-home residents, with memory, family updates and a staff-only care record (NestJS + MCP + Wyoming)",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -14,7 +14,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "mic-check": "tsc -p tsconfig.json && node dist/tools/mic-check.js",
     "wake-coach": "./scripts/wake-coach.sh",
-    "chat": "tsc -p tsconfig.json && node dist/tools/chat.js"
+    "chat": "tsc -p tsconfig.json && node dist/tools/chat.js",
+    "mock-app": "tsc -p tsconfig.json && node dist/tools/mock-care-app.js"
   },
   "dependencies": {
     "@composio/core": "^0.22.0",

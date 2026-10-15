@@ -10,7 +10,7 @@
 #   3. Sets up sound so the ReSpeaker mic board is the default microphone and speaker
 #   4. Configures the round screen and shows Empathika's face full-screen at boot
 #   5. Installs WiFi setup mode (the "Empathika-Setup" network with a QR code on the face)
-#   6. Builds and starts Empathika (and the Spotify speaker if enabled in .env)
+#   6. Builds and starts Empathika
 #
 # Options (environment variables):
 #   EMPATHIKA_SCREEN=dsi|hdmi|none   which round screen is fitted (asked if not set)

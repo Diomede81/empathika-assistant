@@ -6,17 +6,19 @@ want to check:
 
 | Goal | What you need | Setup time |
 |---|---|---|
-| **1. Test Home Assistant control and the AI model** | Nothing extra: you type, Empathika replies in text | 5 min |
+| **1. Test memory, family news, staff access and the AI model** | Nothing extra: you type, Empathika replies in text | 5 min |
 | **2. Full voice test** (microphone and speaker) | A small "sound bridge" from your computer into the container | 10–15 min |
 
 ## Before you start
 
 1. Install **Docker Desktop** (Mac/Windows) or Docker Engine (Linux).
 2. In the project folder: `cp .env.example .env`, then set:
-   - `HA_TOKEN` and `HA_MCP_URL`. **Use your Home Assistant's IP address**, e.g.
-     `http://192.168.1.50:8123/api/mcp`. `homeassistant.local` usually doesn't resolve
-     inside containers.
    - `LLM_API_KEY` (free Groq key: https://console.groq.com).
+   - The care app. Until the real one exists, start the practice app on your computer with
+     `npm install && npm run mock-app` and set `EMPATHIKA_APP_MCP_URL=http://host.docker.internal:8090/mcp`,
+     `EMPATHIKA_APP_TOKEN=practice`, `RESIDENT_ID=res-001`. Its page, <http://localhost:8090>, sends
+     "WhatsApp" messages from the family.
+   - `PANEL_PASSWORD`, and add a member of staff with a PIN on the control panel (Staff tab).
    - `WAKEWORD_NAMES=hey_jarvis` until your "Hey Empathika" model is trained.
 
 ## 1. Typing mode (no audio)
@@ -25,8 +27,9 @@ want to check:
 docker compose --profile empathika build
 docker compose run --rm empathika node dist/tools/chat.js
 ```
-Type *"turn on the kitchen lights"*. The log shows which Home Assistant action Empathika called,
-and each reply shows how fast the AI answered. This is the quickest way to compare AI
+Try *"I grew up in Whitby, by the sea"*, *"any news from my family?"*, then `/staff 4826` (the PIN
+you set) and *"what medication is she on?"*, then `/end`. The log shows which actions Empathika
+called, and each reply shows how fast the AI answered. This is the quickest way to compare AI
 providers: change `LLM_BASE_URL`, `LLM_MODEL` and `LLM_API_KEY` in `.env` and run it again.
 
 ## 2. Full voice test
@@ -97,7 +100,7 @@ fine for checking that the fallback works, but it's not the real experience.
 
 | Symptom | Fix |
 |---|---|
-| `Cannot reach Home Assistant MCP` | Use the IP address in `HA_MCP_URL`; check the token; check the MCP Server integration is added |
+| `Cannot connect to empathika-app` | Check `EMPATHIKA_APP_MCP_URL` (inside Docker, `localhost` is the container: use `host.docker.internal` or the app's address) and `EMPATHIKA_APP_TOKEN` |
 | `Connection refused` / no sound (Mac) | Is the sound server running? `pactl info`. Restart it with the command above |
 | Empathika never hears the wake word | Run the mic-check; on Mac, check the microphone permission for Terminal |
 | Empathika wakes (chime) but never answers | Run `docker compose logs --tail 30 empathika`. Every outcome is logged: "No request heard" (lower `VAD_RMS_THRESHOLD` as suggested), "could not make out any words", or a speech-to-text or voice service error naming the service to check |

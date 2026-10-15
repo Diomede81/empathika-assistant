@@ -1,8 +1,9 @@
 /**
- * Type to Empathika instead of talking: same AI model, same Home Assistant tools, no audio.
+ * Type to Empathika instead of talking: same AI model, same memory and care-app actions, no audio.
  *   npm run chat              (or: docker compose run --rm empathika chat)
- * Ideal for testing the Home Assistant connection and choosing an LLM before the
- * microphone/speaker setup is done. Add --speak to also hear the replies through Piper.
+ * Ideal for testing the care app connection, memory and family updates, and choosing an LLM
+ * before the microphone/speaker setup is done. Add --speak to also hear the replies through Piper.
+ * Type /staff 1234 to sign in as staff with that PIN, and /end to end the staff session.
  */
 import 'reflect-metadata';
 import { Global, Module } from '@nestjs/common';
@@ -11,11 +12,18 @@ import { createInterface } from 'node:readline';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { APP_CONFIG, loadConfig } from '../config';
 import { LlmModule } from '../llm/llm.module';
-import { MusicModule } from '../music/music.module';
 import { FaceModule } from '../face/face.module';
 import { FaceService } from '../face/face.service';
 import { LlmService, explainLlmError } from '../llm/llm.service';
-import { HaMcpService } from '../ha-mcp/ha-mcp.service';
+import { CareAppService } from '../care-app/care-app.service';
+import { StaffService } from '../staff/staff.service';
+import { StaffModule } from '../staff/staff.module';
+import { CareAppModule } from '../care-app/care-app.module';
+import { ModelsModule } from '../models/models.module';
+import { DeviceModule } from '../device/device.module';
+import { LockModule } from '../lock/lock.module';
+import { LocationModule } from '../location/location.module';
+import { SoulModule } from '../soul/soul.module';
 import { TimerService, announcement } from '../actions/timer.service';
 import { TtsModule } from '../tts/tts.module';
 import { TtsService } from '../tts/tts.service';
@@ -33,7 +41,7 @@ try {
 @Global()
 @Module({
   // The face screen follows typing mode too (with --speak the mouth moves with the voice).
-  imports: [LlmModule, TtsModule, MusicModule, FaceModule],
+  imports: [ModelsModule, DeviceModule, LockModule, LocationModule, SoulModule, StaffModule, CareAppModule, LlmModule, TtsModule, FaceModule],
   providers: [{ provide: APP_CONFIG, useFactory: loadConfig }],
   exports: [APP_CONFIG],
 })
@@ -60,11 +68,13 @@ async function main(): Promise<void> {
       void s.done();
     }
   });
-  const ha = await app.get(HaMcpService).status();
+  const care = app.get(CareAppService);
   console.log(
-    ha.connected
-      ? `\nHome Assistant: connected (${ha.tools} tools)`
-      : `\n!! Home Assistant: NOT connected - ${ha.error}\n!! Empathika can chat but cannot control devices. Fix .env and run again.`,
+    !care.configured
+      ? '\nCare app: not set up (EMPATHIKA_APP_MCP_URL). Memory, reminders and conversation still work.'
+      : care.connected
+        ? '\nCare app: connected'
+        : `\n!! Care app: NOT connected - ${care.lastError}`,
   );
   const face = app.get(FaceService);
   const memory = app.get(MemoryService);
@@ -73,7 +83,7 @@ async function main(): Promise<void> {
     console.log(`Memory: ${vaults.join(', ')}. ${app.get(ModesService).describe()}`);
   }
   const transcript: TranscriptLine[] = [];
-  console.log('\nType a request for Empathika (e.g. "turn on the kitchen lights"). Empty line or Ctrl+C to quit.\n');
+  console.log('\nType to Empathika (e.g. "any news from my daughter?"). /staff 1234 signs in as staff, /end ends it. Empty line or Ctrl+C to quit.\n');
 
   rl.setPrompt('You: ');
   rl.prompt();
@@ -82,6 +92,15 @@ async function main(): Promise<void> {
     if (next.done) break;
     const text = String(next.value).trim();
     if (!text) break;
+    const pin = /^\/staff\s+(\d{4})$/.exec(text);
+    if (pin || text === '/end') {
+      const modes = app.get(ModesService);
+      if (pin) console.log(app.get(StaffService).unlockWithPin(pin[1]).message);
+      else modes.endStaff();
+      console.log(`(${modes.describe()})\n`);
+      rl.prompt();
+      continue;
+    }
     history.push({ role: 'user', content: text });
     transcript.push({ who: 'user', text });
     let reply = '';

@@ -1,20 +1,14 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import type { ChatCompletionTool } from 'openai/resources/chat/completions';
-import { HaMcpService } from '../ha-mcp/ha-mcp.service';
 import { McpServersService } from '../mcp/mcp-servers.service';
 import { matchesAny } from '../mcp/glob';
-import { Inject } from '@nestjs/common';
 import { EXTERNAL_FLAG } from './builtin-actions.service';
-import { ModesService } from '../memory/modes.service';
-import { APP_CONFIG, AppConfig } from '../config';
 import { BuiltinActionsService } from './builtin-actions.service';
 import { ScreenToolsService } from './screen-tools.service';
 import { LockService } from '../lock/lock.service';
-import { MusicService } from '../music/music.service';
 import { WebService } from '../web/web.service';
-import { RoutinesService } from '../routines/routines.service';
 import { UpdatesService } from '../updates/updates.service';
-import { ComposioService, SERVER } from '../composio/composio.service';
+import { CareAppService } from '../care-app/care-app.service';
 import { EventEmitter } from 'node:events';
 import { Activity, describeActivity } from './activity';
 
@@ -25,22 +19,24 @@ export interface ActivityEvent extends Activity {
   ok?: boolean;
 }
 
-/** Actions that change something outside the house: sending, deleting, accepting... */
-const RISKY = /(SEND|REPLY|FORWARD|DELETE|REMOVE|TRASH|ARCHIVE|MOVE|CREATE|UPDATE|ACCEPT|DECLINE|CANCEL|POST|INVITE|SHARE)/i;
+/** Actions that change something in another system: adding a note to the care record, sending, deleting... */
+const RISKY = /(SEND|REPLY|FORWARD|DELETE|REMOVE|TRASH|ARCHIVE|MOVE|CREATE|UPDATE|ACCEPT|DECLINE|CANCEL|POST|INVITE|SHARE)|(^|_)(ADD|WRITE|EDIT|SET|LOG|RECORD)(_|$)/i;
 const CONFIRM_WINDOW_MS = 3 * 60 * 1000;
 const CONFIRM_PARAM = 'confirmed';
-/** Facts saved this soon after reading emails/web pages are marked unverified (they may come from that content). */
+/** Facts saved this soon after reading web pages are marked unverified (they may come from that content). */
 const EXTERNAL_CONTENT_WINDOW_MS = 10 * 60 * 1000;
 
 /**
- * Every action Empathika can take, in one place: built-in actions (time, timers), Home
- * Assistant, and extra MCP servers (Composio apps such as Office 365, WhatsApp...).
- * Used by both voice modes.
+ * Every action Empathika can take, in one place: built-in actions (time, timers, memory, staff
+ * sessions, family news), the Empathika care app, and any extra MCP servers
+ * (config/mcp-servers.json). Used by both voice modes.
  *
- * Safety: risky actions on external apps (sending email, deleting, accepting invites…)
- * are never run on the first request. Empathika must read the details back and get a "yes";
- * the action only runs when the same request comes back with confirmed=true within
- * 3 minutes. Voice is easy to mishear, so this is enforced here, not left to the AI.
+ * Safety:
+ *  - care-record actions only exist in a staff session (CareAppService checks it again on every call);
+ *  - actions that change another system (adding a care note, sending, deleting…) are never run
+ *    on the first request. Empathika must read the details back and get a "yes"; the action only
+ *    runs when the same request comes back with confirmed=true within 3 minutes. Voice is easy to
+ *    mishear, so this is enforced here, not left to the AI.
  */
 @Injectable()
 export class ToolRouterService {
@@ -49,64 +45,36 @@ export class ToolRouterService {
   private externalContentAt = 0;
 
   constructor(
-    private readonly modes: ModesService,
-    @Inject(APP_CONFIG) private readonly cfg: AppConfig,
-    private readonly ha: HaMcpService,
     private readonly builtin: BuiltinActionsService,
     private readonly mcp: McpServersService,
-    @Optional() private readonly music?: MusicService,
-    @Optional() private readonly composio?: ComposioService,
+    @Optional() private readonly app?: CareAppService,
     @Optional() private readonly web?: WebService,
-    @Optional() private readonly routines?: RoutinesService,
     @Optional() private readonly updates?: UpdatesService,
     @Optional() private readonly screenTools?: ScreenToolsService,
     @Optional() private readonly lock?: LockService,
   ) {}
 
-  /** Work apps (WORK_APPS) are only available in work mode. */
-  /**
-   * Personal and work accounts (two Composio logins): work mode uses the work ones, personal mode
-   * the personal ones, guest mode neither (visitors shouldn't reach anyone's email). Until a work
-   * account is connected, work mode keeps using the personal ones, as before.
-   */
-  isHiddenAccountSet(server: string): boolean {
-    const mode = this.modes.mode;
-    if (server === SERVER.work) return mode !== 'work';
-    if (server === SERVER.personal) return mode === 'guest' || (mode === 'work' && Boolean(this.composio?.hasConnected('work')));
-    return false;
-  }
-
-  /**
-   * Work apps (WORK_APPS) are hidden outside work mode, personal apps (PERSONAL_APPS) in work mode.
-   * These name rules can't tell two Outlooks apart, so once separate work accounts are connected
-   * they no longer apply to the Composio account sets: those are already split by mode (your
-   * personal Outlook in personal mode, the work one in work mode).
-   */
-  isLockedWorkApp(name: string, server?: string): boolean {
-    if (server && (server === SERVER.personal || server === SERVER.work) && this.composio?.hasConnected('work')) return false;
-    const n = name.toUpperCase();
-    const mode = this.modes.mode;
-    return (mode !== 'work' && matchesAny(n, this.cfg.memory.workApps)) || (mode === 'work' && matchesAny(n, this.cfg.memory.personalApps));
-  }
-
-  onModuleInit(): void {
-    this.mcp.hide = (name, server) => this.isLockedWorkApp(name, server);
-    this.mcp.serverHidden = (server) => this.isHiddenAccountSet(server);
-  }
-
   /** Tool definitions in Chat Completions format. */
   get tools(): ChatCompletionTool[] {
-    const external = this.mcp.tools.map((t) => (t.type === 'function' && this.needsConfirmation(t.function.name) ? withConfirmParam(t) : t));
-    return [...this.builtin.tools, ...(this.web?.tools ?? []), ...(this.routines?.tools ?? []), ...(this.updates?.tools ?? []), ...(this.screenTools?.tools ?? []), ...(this.music?.tools ?? []), ...this.ha.openAiTools, ...external];
+    const confirm = (t: ChatCompletionTool) => (t.type === 'function' && this.needsConfirmation(t.function.name) ? withConfirmParam(t) : t);
+    return [
+      ...this.builtin.tools,
+      ...(this.app?.tools ?? []).map(confirm),
+      ...(this.web?.tools ?? []),
+      ...(this.updates?.tools ?? []),
+      ...(this.screenTools?.tools ?? []),
+      ...this.mcp.tools.map(confirm),
+    ];
   }
 
-  get homeAssistantConnected(): boolean {
-    return this.ha.openAiTools.length > 0;
+  get careAppConnected(): boolean {
+    return Boolean(this.app?.connected);
   }
 
   needsConfirmation(name: string): boolean {
+    if (this.app?.has(name)) return RISKY.test(name);
     const server = this.mcp.serverFor(name);
-    if (!server) return false; // built-in and Home Assistant actions run straight away
+    if (!server) return false; // built-in actions run straight away
     return RISKY.test(name) || matchesAny(name, server.config.confirmTools);
   }
 
@@ -138,21 +106,12 @@ export class ToolRouterService {
         this.externalContentAt = Date.now(); // facts from web pages are marked unverified
         return await this.web.call(name, args);
       }
-      if (this.routines?.has(name)) {
-        if (name === 'news_briefing') this.externalContentAt = Date.now(); // summaries of web pages
-        return await this.routines.call(name, args);
-      }
       if (this.updates?.has(name)) return await this.updates.call(name, args);
       if (this.screenTools?.has(name)) return await this.screenTools.call(name, args);
-      if (this.music?.has(name)) return await this.music.call(name, args);
-      const server = this.mcp.serverFor(name);
-      if (!server) return await this.ha.call(name, args);
-      if (this.isLockedWorkApp(name, server.config.name)) {
-        return this.modes.mode === 'work'
-          ? 'Personal apps are locked in work mode. The user can say "personal mode" to unlock them.'
-          : 'Work apps are locked outside work mode. The user can say "work mode" to unlock them.';
-      }
-      this.externalContentAt = Date.now();
+      const app = this.app?.has(name) ? this.app : undefined;
+      const server = app ? undefined : this.mcp.serverFor(name);
+      if (!app && !server) return `Unknown action "${name}".`;
+      const run = (a: Record<string, unknown>) => (app ? app.call(name, a) : server!.call(name, a));
 
       if (this.needsConfirmation(name)) {
         const { [CONFIRM_PARAM]: confirmed, ...rest } = args;
@@ -168,9 +127,9 @@ export class ToolRouterService {
           );
         }
         this.pending.delete(key);
-        return await server.call(name, rest);
+        return await run(rest);
       }
-      return await server.call(name, args);
+      return await run(args);
     } catch (err) {
       return `Error: ${(err as Error).message}`;
     }
@@ -193,7 +152,7 @@ function withConfirmParam(t: ChatCompletionTool): ChatCompletionTool {
           ...(params.properties ?? {}),
           [CONFIRM_PARAM]: {
             type: 'boolean',
-            description: 'Set to true ONLY after reading the details back to the user and hearing them say yes.',
+            description: 'Set to true ONLY after reading the details back and hearing them say yes.',
           },
         },
       },

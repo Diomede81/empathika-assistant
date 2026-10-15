@@ -28,14 +28,12 @@ services:
       PULSE_SERVER: ${PULSE_SERVER:-tcp:host.docker.internal:4713}
       CONTROL_PANEL_HOST: 0.0.0.0
       FACE_HOST: 0.0.0.0
-      # Empathika's Spotify speaker (the "spotify" service below); ignored when it isn't running.
-      SPOTIFY_API_URL: http://spotify:3678
     extra_hosts: ["host.docker.internal:host-gateway"]
     depends_on: [openwakeword, whisper, piper]
-    # Control panel (connect Office 365, WhatsApp...): http://localhost:8099, this computer only
+    # Control panel (resident memory, staff PINs, family news): http://localhost:8099, this computer only
     # Face screen preview: http://localhost:8098 (add ?demo to see every expression)
     ports: ["127.0.0.1:8099:8099", "127.0.0.1:8098:8098"]
-    # empathika-data holds Empathika's memory (facts + conversation notes); kept across restarts/rebuilds.
+    # empathika-data holds Empathika's memory of the resident (encrypted); kept across restarts/rebuilds.
     volumes: ["./config:/app/config:ro", "empathika-data:/app/data"]
 
   openwakeword:
@@ -63,23 +61,10 @@ services:
     logging: *logging
     image: rhasspy/wyoming-piper:latest
     restart: unless-stopped
-    # British male voice; browse others at https://rhasspy.github.io/piper-samples/
+    # British female voice; browse others at https://rhasspy.github.io/piper-samples/
     command: --voice en_GB-jenny_dioco-medium
     volumes: ["./data/piper:/data"]
     ports: ["10200:10200"]
-
-  # Empathika's own Spotify speaker (Spotify Premium). Enable with:  docker compose --profile empathika --profile music up -d
-  # Sign in once from the control panel. Shows up as "Empathika" in the Spotify app. See docs/MUSIC.md.
-  spotify:
-    logging: *logging
-    image: ghcr.io/devgianlu/go-librespot:v0.10.3
-    profiles: ["music"]
-    restart: unless-stopped
-    environment:
-      PULSE_SERVER: ${PULSE_SERVER:-tcp:host.docker.internal:4713}
-    extra_hosts: ["host.docker.internal:host-gateway"]
-    # Settings in ./spotify/config.yml; the sign-in is saved next to it (state.json).
-    volumes: ["./spotify:/config"]
 
   # Natural-sounding local voice (free). Enable with:  docker compose --profile empathika --profile kokoro up -d
   # then set TTS_PROVIDER=openai in .env (see docs/VOICES.md). First start downloads the model (~350 MB).

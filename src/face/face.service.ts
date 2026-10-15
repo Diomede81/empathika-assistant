@@ -1,8 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { PowerAction, requestPower } from './power';
 import { Card, CardHandlers, screen } from './screen';
-import { eventLines, extractEvents } from './events';
-import { extractEmails } from './emails';
 import { EventEmitter } from 'node:events';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,14 +9,13 @@ import { APP_CONFIG, AppConfig } from '../config';
 import { timeZone } from '../actions/clock';
 import { Timer, TimerService, describe as describeTimer } from '../actions/timer.service';
 import { ModesService } from '../memory/modes.service';
-import { MusicService } from '../music/music.service';
 import type { PcmFormat } from '../audio/speaker.service';
 import { analyse, CLOSED, Mouth } from './visemes';
 import { Emotion, emotionFor } from './emotion';
 import { ActivityEvent, ToolRouterService } from '../actions/tool-router.service';
-import { BuiltinActionsService } from '../actions/builtin-actions.service';
 import { ScreenToolsService } from '../actions/screen-tools.service';
 import { LockService } from '../lock/lock.service';
+import { StaffService } from '../staff/staff.service';
 import { AmbientService, Glance } from './ambient.service';
 
 /** What the conversation is doing. "speaking" is worked out from the audio actually playing. */
@@ -40,7 +37,6 @@ export interface FaceInfo {
   /** Countdown timers (shown as a ring). Reminders are separate: no countdown, just the next one. */
   timers: { label: string; endsAt: number; total: number }[];
   reminder?: { text: string; at: number };
-  music?: { title: string; artist: string };
   wifi?: WifiStatus & { qrSvg?: string };
   offline: boolean;
   emotion: Emotion;
@@ -54,13 +50,22 @@ export interface FaceInfo {
   card?: Card & { until: number };
   /** Live captions: what Empathika heard, or what she's saying. */
   caption?: { who: 'you' | 'empathika'; text: string };
-  /** Around the face when idle: weather, next meeting, to-dos; and the evening photo frame. */
+  /** Around the face when idle: the weather; and the evening photo frame. */
   glance?: Glance;
   /** The start-up code hasn't been entered: the keypad shows, and nothing personal. */
   locked?: { pausedUntil?: number; triesLeft: number };
   /** A start-up code is set (the menu offers Lock). */
   canLock?: boolean;
+  /** A staff session is open: who, and until when. */
+  staff?: { name: string; until: number };
+  /** The staff PIN keypad is showing (asked for by voice or from the menu). */
+  staffPad?: { pausedUntil?: number; triesLeft: number };
+  /** Staff are set up: turning off, restarting, WiFi and updates need a staff session. */
+  staffRequired?: boolean;
 }
+
+/** How long the staff keypad stays up if nobody types. */
+const STAFF_PAD_MS = 60_000;
 
 const FRAME_MS = 50;
 /** How long a "couldn't finish" note stays on the face. */
@@ -68,12 +73,9 @@ const NOTICE_MS = 6000;
 /** Each "Checking your email..." stays on the face at least this long. */
 const MIN_ACTIVITY_MS = 3000;
 const INFO_MS = 1000;
-const MUSIC_MS = 5000;
 /** How long cards stay if nobody taps them. */
 const CARD_MS = 20_000;
-const MUSIC_CARD_MS = 12_000;
 const TAP_CARD_MS = 20_000;
-const DAY_CARD_MS = 60_000;
 const ALERT_MS = 5 * 60_000;
 /** Captions stay this long after the last words. */
 const CAPTION_MS = 7000;
@@ -82,7 +84,7 @@ const CAPTION_MS = 7000;
  * Drives the animated face on the box's round screen. Other parts of Empathika report what they
  * are doing (listening, thinking) and every bit of audio that plays; this turns that into a
  * face state plus a mouth level timed to the sound, and gathers the small extras the face
- * shows (mode, timers, music, WiFi setup). The face page subscribes via FaceServer.
+ * shows (mode, timers, WiFi setup). The face page subscribes via FaceServer.
  */
 @Injectable()
 export class FaceService extends EventEmitter implements OnModuleInit, OnModuleDestroy {
@@ -94,7 +96,6 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
   private emotionUntil = 0;
   private audioEndsAt = 0;
   private timers: NodeJS.Timeout[] = [];
-  private music?: { title: string; artist: string };
   private wifi?: WifiStatus & { qrSvg?: string };
   private lastInfo = '';
 
@@ -102,12 +103,11 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
     @Optional() private readonly timerService?: TimerService,
     @Optional() private readonly modes?: ModesService,
-    @Optional() private readonly musicService?: MusicService,
     @Optional() private readonly toolRouter?: ToolRouterService,
     @Optional() private readonly ambient?: AmbientService,
-    @Optional() private readonly actions?: BuiltinActionsService,
     @Optional() private readonly screenTools?: ScreenToolsService,
     @Optional() private readonly lock?: LockService,
+    @Optional() private readonly staffService?: StaffService,
   ) {
     super();
     this.setMaxListeners(50);
@@ -118,16 +118,16 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     this.timers.push(setInterval(() => this.tickLevel(), FRAME_MS));
     this.timers.push(setInterval(() => void this.tickInfo(), INFO_MS));
     this.lock?.on('change', () => void this.tickInfo());
-    this.timers.push(setInterval(() => void this.pollMusic(), MUSIC_MS));
+    this.modes?.on('change', () => {
+      if (this.modes?.staff) this.staffPadUntil = 0; // signed in: the keypad goes
+      void this.tickInfo();
+    });
+    screen.on('staff-pad', (open: boolean) => this.openStaffPad(open));
     // Cards from anywhere in Empathika (showCard in ./screen), and the ones the face makes itself.
     screen.on('card', (card: Card, handlers: CardHandlers) => this.showCard(card, handlers));
     screen.on('dismiss', (id: string) => this.dismissCard(id));
     this.timerService?.on('fired', (t: Timer) => this.timerCard(t));
-    this.toolRouter?.activity.on('result', (r: { name: string; out: string }) => {
-      this.calendarCard(r.name, r.out);
-      this.emailCard(r.name, r.out);
-    });
-    // Show what she's doing while actions run (email, calendar, web, the house...).
+    // Show what she's doing while actions run (the care record, the web...).
     this.toolRouter?.activity.on('start', (e: ActivityEvent) => {
       this.activities.set(e.id, { icon: e.icon, label: e.label });
       this.activityStarted.set(e.id, Date.now());
@@ -282,7 +282,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     const locked = this.lock?.status();
     if (!locked) return info;
     // Locked (start-up code): the clock, timers and the keypad only; nothing personal.
-    return { ...info, locked, reminder: undefined, music: undefined, activity: undefined, card: undefined, caption: undefined, glance: undefined };
+    return { ...info, locked, reminder: undefined, activity: undefined, card: undefined, caption: undefined, glance: undefined, staff: undefined, staffPad: undefined };
   }
 
   private fullInfo(): FaceInfo {
@@ -291,10 +291,9 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     if (state === 'idle' && this.inSleepHours()) state = 'sleeping';
     return {
       state,
-      mode: this.modes?.mode ?? 'personal',
+      mode: this.modes?.mode ?? 'resident',
       timers: (this.timerService?.list() ?? []).filter((t) => !t.reminder).map((t) => ({ label: describeTimer(t), endsAt: t.endsAt, total: t.durationSeconds * 1000 })),
       reminder: this.nextReminder(),
-      music: this.music,
       wifi: this.wifi,
       offline,
       emotion: this.emotion,
@@ -305,7 +304,23 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
       caption: this.ambient?.settings.captions && this.caption && Date.now() < this.caption.until ? { who: this.caption.who, text: this.caption.text } : undefined,
       glance: this.ambient?.glance(),
       canLock: this.lock?.enabled || undefined,
+      staff: this.modes?.staff ? { name: this.modes.staff.name, until: this.modes.staff.until } : undefined,
+      staffPad: Date.now() < this.staffPadUntil && !this.modes?.staff ? (this.staffService?.status() ?? { triesLeft: 5 }) : undefined,
+      staffRequired: Boolean(this.staffService?.count) || undefined,
     };
+  }
+
+  private staffPadUntil = 0;
+
+  /** Shows (or hides) the staff PIN keypad. */
+  openStaffPad(open = true): void {
+    this.staffPadUntil = open && !this.modes?.staff ? Date.now() + STAFF_PAD_MS : 0;
+    void this.tickInfo();
+  }
+
+  /** Turning off, restarting, WiFi setup and updates: anyone until staff are set up, then staff only. */
+  get staffAllowed(): boolean {
+    return !this.staffService?.count || this.modes?.mode === 'staff';
   }
 
   private tickLevel(): void {
@@ -343,14 +358,6 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
       this.lastInfo = key;
       this.emit('info', info);
     }
-  }
-
-  private async pollMusic(): Promise<void> {
-    const before = this.music?.title;
-    this.music = (await this.musicService?.nowPlaying().catch(() => undefined)) ?? undefined;
-    // A new song: show the music card for a moment.
-    if (this.music && this.music.title !== before) await this.musicCard(MUSIC_CARD_MS);
-    else if (this.card?.id === 'music' && Date.now() < this.card.until) await this.musicCard(this.card.until - Date.now());
   }
 
   // ---------- Cards ----------
@@ -391,66 +398,28 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     return true;
   }
 
-  /** A short tap on the face: show what's useful right now (the music if it's playing, otherwise your day). */
+  /** A short tap on the face: today at a glance (the date, the weather and the reminders still to come). */
   async tapped(): Promise<void> {
     if (this.lock?.locked) return;
-    if (this.music || (await this.musicService?.player().catch(() => undefined))) {
-      await this.musicCard(TAP_CARD_MS);
-      return;
-    }
+    const tz = timeZone();
+    const day = (ms: number) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(ms);
+    const hm = (ms: number) => new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ms);
+    const today = day(Date.now());
+    const reminders = (this.timerService?.list() ?? [])
+      .filter((t) => t.reminder && day(t.endsAt) === today)
+      .sort((a, b) => a.endsAt - b.endsAt)
+      .map((t) => ({ time: hm(t.endsAt), text: t.reminder!.charAt(0).toUpperCase() + t.reminder!.slice(1), tag: 'reminder' as const }));
     const w = this.ambient?.weatherNow;
-    const weather = w ? `${w.icon} ${w.temp}°${w.hi !== undefined ? ` (${w.lo}°–${w.hi}°)` : ''}` : undefined;
-    // Visitors (guest mode) see only the weather, not your meetings or to-dos.
-    if (this.modes?.mode === 'guest') {
-      if (w) this.weatherCard();
-      return;
-    }
-    this.actions?.dayCard({ events: eventLines(this.ambient?.todaysEvents() ?? []), weather });
-  }
-
-  /** The weather for the next hours (guest mode's tap). */
-  private weatherCard(): void {
-    const w = this.ambient?.weatherNow;
-    if (!w) return;
+    const date = new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
     this.showCard({
-      id: 'weather',
+      id: 'today',
       kind: 'list',
-      icon: w.icon,
-      title: `${w.temp}° · ${w.text}`,
-      subtitle: [w.place, w.hi !== undefined ? `${w.lo}°–${w.hi}°` : '', w.rain ? `${w.rain}% rain` : ''].filter(Boolean).join(' · '),
-      lines: w.hours.map((h) => ({ time: h.time, text: `${h.icon} ${h.temp}°`, sub: h.rain ? `${h.rain}% rain` : undefined })),
+      icon: '☀',
+      title: date,
+      subtitle: w ? [`${w.icon} ${w.temp}° · ${w.text}`, w.hi !== undefined ? `${w.lo}°–${w.hi}°` : ''].filter(Boolean).join(' · ') : undefined,
+      lines: reminders.length ? reminders : [{ text: 'Nothing else planned today' }],
       ttlMs: TAP_CARD_MS,
     });
-  }
-
-  private async musicCard(ttlMs: number): Promise<void> {
-    const p = await this.musicService?.player().catch(() => undefined);
-    if (!p) {
-      this.dismissCard('music');
-      return;
-    }
-    const press = (a: 'pause' | 'resume' | 'next' | 'previous') => async () => {
-      await this.musicService!.press(a);
-      setTimeout(() => void this.musicCard(Math.max(5000, (this.card?.until ?? 0) - Date.now())), 800);
-    };
-    this.showCard(
-      {
-        id: 'music',
-        kind: 'music',
-        icon: '♪',
-        title: p.title,
-        subtitle: p.artist,
-        image: p.art,
-        progress: p.duration ? { position: p.position ?? 0, duration: p.duration, at: Date.now(), paused: p.paused } : undefined,
-        actions: [
-          { id: 'previous', label: '⏮', style: 'icon' },
-          { id: p.paused ? 'resume' : 'pause', label: p.paused ? '▶' : '⏸', style: 'icon' },
-          { id: 'next', label: '⏭', style: 'icon' },
-        ],
-        ttlMs,
-      },
-      { previous: press('previous'), pause: press('pause'), resume: press('resume'), next: press('next') },
-    );
   }
 
   /** A timer or reminder went off: a card with what it was, and buttons. */
@@ -486,69 +455,6 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
         },
       },
     );
-  }
-
-  /** Empathika read the calendar: show the events (merged into "Your day" if it's on screen). */
-  private calendarCard(tool: string, out: string): void {
-    if (!/CALENDAR|EVENT/i.test(tool) || /(CREATE|UPDATE|DELETE|CANCEL|ACCEPT|DECLINE|RESPOND|MOVE)/i.test(tool)) return;
-    const events = extractEvents(out);
-    if (!events.length) return;
-    this.ambient?.noteEvents(events);
-    const lines = eventLines(events);
-    const day = this.card?.id === 'my-day' && Date.now() < this.card.until ? this.card : undefined;
-    if (day && this.actions) {
-      // Redrawn by its owner, so the to-dos' Done buttons keep working (and what was ticked stays).
-      this.actions.dayCard({ ...this.actions.dayInfo, events: lines }, true);
-      return;
-    }
-    if (day) {
-      const rest = (day.lines ?? []).filter((l) => l.tag !== 'event' && l.tag !== 'done');
-      this.showCard({ ...day, lines: [...lines, ...rest], ttlMs: Math.max(DAY_CARD_MS, day.until - Date.now()) }, this.handlers);
-      return;
-    }
-    this.showCard({ id: 'calendar', kind: 'list', icon: '📅', title: 'Calendar', subtitle: `${events.length} event${events.length === 1 ? '' : 's'}`, lines, ttlMs: DAY_CARD_MS });
-  }
-
-
-  /**
-   * Empathika read your email: show it (one email: who, when, the subject and the start of the text; several:
-   * a list). If the AI then shows its own summary with show_on_screen, that replaces this card.
-   */
-  private emailCard(tool: string, out: string): void {
-    if (!/^(GMAIL|OUTLOOK)_/i.test(tool) || !/(FETCH|LIST|GET|SEARCH|READ|FIND).*(EMAIL|MESSAGE|MAIL)/i.test(tool)) return;
-    if (/(SEND|REPLY|DRAFT|DELETE|MOVE|FORWARD|ATTACHMENT|LABEL|FOLDER)/i.test(tool)) return;
-    const mails = extractEmails(out);
-    if (!mails.length) return;
-    const when = (ms?: number) => {
-      if (!ms) return '';
-      const tz = timeZone();
-      const day = (x: number) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(x);
-      const hm = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ms);
-      return day(ms) === day(Date.now()) ? hm : `${new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' }).format(ms)} ${hm}`;
-    };
-    if (mails.length === 1) {
-      const m = mails[0];
-      this.showCard({
-        id: 'email',
-        kind: 'list',
-        icon: '✉️',
-        title: 'Email',
-        subtitle: [m.from ? `From ${m.from}` : '', when(m.at)].filter(Boolean).join(' · ') || undefined,
-        big: m.subject,
-        body: m.body ?? m.snippet,
-        ttlMs: DAY_CARD_MS * 2,
-      });
-      return;
-    }
-    this.showCard({
-      id: 'email',
-      kind: 'list',
-      icon: '✉️',
-      title: 'Email',
-      subtitle: `${mails.length} messages`,
-      lines: mails.slice(0, 10).map((m) => ({ time: when(m.at).slice(-5) || undefined, text: m.subject, sub: [m.from, m.snippet].filter(Boolean).join(' · ').slice(0, 140) || undefined })),
-      ttlMs: DAY_CARD_MS * 2,
-    });
   }
 
   /** Whether the box's updater is working (/run/empathika/update.json, written by empathika-update.py). */

@@ -11,8 +11,7 @@ interface ConfigFile {
 }
 
 /**
- * Extra MCP servers beyond Home Assistant: from config/mcp-servers.json, plus servers
- * registered at runtime (e.g. the Composio session for Office 365 / WhatsApp).
+ * Extra MCP servers beyond the Empathika care app: from config/mcp-servers.json.
  */
 @Injectable()
 export class McpServersService implements OnModuleInit, OnModuleDestroy {
@@ -50,9 +49,9 @@ export class McpServersService implements OnModuleInit, OnModuleDestroy {
     return [...this.servers.values()];
   }
 
-  /** Actions to leave out right now (set by the action router, e.g. work apps outside work mode). */
+  /** Actions to leave out right now. */
   hide?: (name: string, serverName: string) => boolean;
-  /** Whole servers to leave out right now (e.g. the work accounts in personal mode). */
+  /** Whole servers to leave out right now. */
   serverHidden?: (serverName: string) => boolean;
 
   get tools(): ChatCompletionTool[] {

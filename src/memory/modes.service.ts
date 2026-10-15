@@ -1,141 +1,126 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { EventEmitter } from 'node:events';
 import { APP_CONFIG, AppConfig } from '../config';
 import { timeZone } from '../actions/clock';
 
-export type Mode = 'personal' | 'work' | 'guest';
-export type VaultName = 'personal' | 'household' | 'work';
-export const VAULTS: VaultName[] = ['personal', 'household', 'work'];
+/**
+ * resident: the normal state. Empathika talks with the resident (and their visitors) and can only
+ *           draw on the Resident vault: their life story, family, likes and routines.
+ * staff:    a member of staff has identified themselves (PIN, later an NFC badge). For a few minutes
+ *           she can also read the Care vault and look things up in the resident's care record.
+ */
+export type Mode = 'resident' | 'staff';
+/** resident = who they are and what they enjoy; care = health and wellbeing notes, for staff only. */
+export type VaultName = 'resident' | 'care';
+export const VAULTS: VaultName[] = ['resident', 'care'];
 
-interface Slot {
-  days: Set<number>; // 0 = Sunday
-  from: number; // minutes after midnight
-  to: number;
+export interface StaffSession {
+  staffId: string;
+  name: string;
+  role?: string;
+  since: number;
+  until: number;
 }
 
-const DAY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-const MAX_OVERRIDE_MS = 24 * 3600_000;
-
 /**
- * Which part of Empathika's memory is open right now:
- *  - personal: Personal + Household (Work is locked)
- *  - work:     Work + Household (Personal is locked)
- *  - guest:    Household only
- * Personal and work never see each other's memories; Household is shared home matters.
- * Work mode follows WORK_HOURS automatically; "Empathika, work mode / personal mode / guest mode"
- * overrides it until the schedule next changes (guest mode until switched off, max 24 h).
+ * Who Empathika is talking to, and so which part of her memory is open. Staff sessions are kept in
+ * memory only: a restart always goes back to resident mode. They end on their own after
+ * STAFF_SESSION_MINUTES, when the member of staff says so, or from the screen.
  */
 @Injectable()
-export class ModesService {
-  private readonly log = new Logger('Memory');
-  private readonly slots: Slot[];
-  private override?: { mode: Mode; until: number };
-  private readonly file: string;
+export class ModesService extends EventEmitter implements OnModuleDestroy {
+  private readonly log = new Logger('Access');
+  private session?: StaffSession;
+  private expiry?: NodeJS.Timeout;
   /** Told about every switch (the memory activity log). */
   onChange?: (description: string) => void;
 
   constructor(@Inject(APP_CONFIG) private readonly cfg: AppConfig) {
-    this.slots = parseHours(cfg.memory.workHours);
-    this.file = join(cfg.memory.dir, 'mode.json');
-    try {
-      const o = JSON.parse(readFileSync(this.file, 'utf8')) as { mode: Mode; until: number };
-      if (o && ['personal', 'work', 'guest'].includes(o.mode) && o.until > Date.now()) this.override = o;
-    } catch {
-      // no saved override
-    }
+    super();
+  }
+
+  onModuleDestroy(): void {
+    clearTimeout(this.expiry);
   }
 
   get mode(): Mode {
-    if (this.override && this.override.until > Date.now()) return this.override.mode;
-    this.override = undefined;
-    return this.scheduled();
+    return this.staff ? 'staff' : 'resident';
+  }
+
+  /** The staff session in progress, if any. */
+  get staff(): StaffSession | undefined {
+    if (this.session && this.session.until <= Date.now()) this.finish('expired');
+    return this.session;
   }
 
   /** How the current mode was decided, for the panel and the AI. */
   describe(): string {
-    const m = this.mode;
-    if (this.override) return `${label(m)} (switched by hand until ${this.fmt(this.override.until)})`;
-    return this.slots.length ? `${label(m)} (automatic: work hours ${this.cfg.memory.workHours})` : label(m);
+    const s = this.staff;
+    return s ? `Staff mode: ${s.name}${s.role ? ` (${s.role})` : ''} until ${this.fmt(s.until)}` : 'Resident mode';
   }
 
   readable(mode = this.mode): VaultName[] {
-    return mode === 'guest' ? ['household'] : mode === 'work' ? ['work', 'household'] : ['personal', 'household'];
+    return mode === 'staff' ? [...VAULTS] : ['resident'];
   }
 
-  writable(mode = this.mode): VaultName[] {
-    // New facts can be filed into any vault (a work detail mentioned in the evening, a personal one
-    // at work): filing never reveals what's already in a locked vault.
-    return mode === 'guest' ? ['household'] : [...VAULTS];
+  /**
+   * New facts can always be filed in either vault: something the resident says about their health
+   * ("my knee hurts today") goes to Care for the staff, even though she can't read Care back to them.
+   */
+  writable(): VaultName[] {
+    return [...VAULTS];
   }
 
-  set(mode: Mode | 'auto'): string {
-    if (mode === 'auto') {
-      this.override = undefined;
-    } else {
-      const until = mode === 'guest' ? Date.now() + MAX_OVERRIDE_MS : this.nextChange();
-      this.override = { mode, until };
-    }
-    this.save();
-    this.log.log(`Mode: ${this.describe()}`);
-    this.onChange?.(`Switched to ${this.describe()}`);
-    return this.describe();
-  }
-
-  private scheduled(at = new Date()): Mode {
-    if (!this.slots.length) return 'personal';
-    const { day, minutes } = localParts(at);
-    return this.slots.some((s) => s.days.has(day) && minutes >= s.from && minutes < s.to) ? 'work' : 'personal';
-  }
-
-  /** When the schedule next flips (searched minute by minute in 5-minute steps, up to 24 h). */
-  private nextChange(): number {
+  /** A member of staff identified themselves: staff mode for the configured number of minutes. */
+  startStaff(who: { id: string; name: string; role?: string }, minutes = this.cfg.staff.sessionMinutes): StaffSession {
     const now = Date.now();
-    const cur = this.scheduled(new Date(now));
-    for (let t = now + 5 * 60_000; t <= now + MAX_OVERRIDE_MS; t += 5 * 60_000) {
-      if (this.scheduled(new Date(t)) !== cur) return t;
-    }
-    return now + MAX_OVERRIDE_MS;
+    this.session = { staffId: who.id, name: who.name, role: who.role, since: now, until: now + minutes * 60_000 };
+    this.arm();
+    this.log.log(this.describe());
+    this.onChange?.(`Staff session started: ${who.name}`);
+    this.emit('change', this.mode);
+    return this.session;
   }
 
-  private save(): void {
-    try {
-      mkdirSync(dirname(this.file), { recursive: true });
-      writeFileSync(this.file, JSON.stringify(this.override ?? {}), 'utf8');
-    } catch (err) {
-      this.log.warn(`Could not save the mode: ${(err as Error).message}`);
-    }
+  /** Adds time to the current staff session (up to one more full session). */
+  extendStaff(minutes = this.cfg.staff.sessionMinutes): StaffSession | undefined {
+    const s = this.staff;
+    if (!s) return undefined;
+    s.until = Math.min(Date.now() + 2 * minutes * 60_000, s.until + minutes * 60_000);
+    this.arm();
+    this.emit('change', this.mode);
+    return s;
+  }
+
+  /** Back to resident mode (said, tapped, or timed out). */
+  endStaff(reason: 'ended' | 'expired' = 'ended'): boolean {
+    if (!this.session) return false;
+    this.finish(reason);
+    return true;
+  }
+
+  private finish(reason: 'ended' | 'expired'): void {
+    const s = this.session;
+    if (!s) return;
+    this.session = undefined;
+    clearTimeout(this.expiry);
+    this.log.log(`Staff session ${reason}: ${s.name}`);
+    this.onChange?.(`Staff session ${reason}: ${s.name}`);
+    this.emit('change', this.mode);
+    this.emit('ended', s, reason);
+  }
+
+  private arm(): void {
+    clearTimeout(this.expiry);
+    if (!this.session) return;
+    this.expiry = setTimeout(() => this.finish('expired'), Math.max(0, this.session.until - Date.now()) + 50);
+    this.expiry.unref?.();
   }
 
   private fmt(ms: number): string {
-    return new Intl.DateTimeFormat('en-GB', { timeZone: timeZone(), weekday: 'short', hour: '2-digit', minute: '2-digit' }).format(ms);
+    return new Intl.DateTimeFormat('en-GB', { timeZone: timeZone(), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ms);
   }
 }
 
-export const label = (m: Mode) => ({ personal: 'Personal mode', work: 'Work mode', guest: 'Guest mode' })[m];
-
-/** "Mon-Fri 09:00-17:30; Sat 10:00-12:00" -> slots. "off" or empty -> no schedule. */
-export function parseHours(spec: string): Slot[] {
-  if (!spec || /^off$/i.test(spec.trim())) return [];
-  const slots: Slot[] = [];
-  for (const part of spec.split(/[;,]/).map((p) => p.trim()).filter(Boolean)) {
-    const m = /^([a-z]{3})(?:\s*-\s*([a-z]{3}))?\s+(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/i.exec(part);
-    if (!m) throw new Error(`WORK_HOURS: can't read "${part}" (expected e.g. "Mon-Fri 09:00-17:30")`);
-    const a = DAY.indexOf(m[1].toLowerCase());
-    const b = m[2] ? DAY.indexOf(m[2].toLowerCase()) : a;
-    if (a < 0 || b < 0) throw new Error(`WORK_HOURS: unknown day in "${part}"`);
-    const days = new Set<number>();
-    for (let d = a; ; d = (d + 1) % 7) {
-      days.add(d);
-      if (d === b) break;
-    }
-    slots.push({ days, from: +m[3] * 60 + +m[4], to: +m[5] * 60 + +m[6] });
-  }
-  return slots;
-}
-
-function localParts(at: Date): { day: number; minutes: number } {
-  const p = new Intl.DateTimeFormat('en-GB', { timeZone: timeZone(), weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(at);
-  const get = (t: string) => p.find((x) => x.type === t)?.value ?? '';
-  return { day: DAY.indexOf(get('weekday').toLowerCase().slice(0, 3)), minutes: +get('hour') * 60 + +get('minute') };
-}
+export const label = (m: Mode) => ({ resident: 'Resident mode', staff: 'Staff mode' })[m];
+export const vaultLabel = (v: VaultName) => ({ resident: 'Resident', care: 'Care (staff only)' })[v];

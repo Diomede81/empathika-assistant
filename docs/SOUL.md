@@ -1,54 +1,49 @@
-# Empathika's soul: who she is
+# Empathika's personality
 
-Empathika's identity is a short document, her **soul**, written in her own voice: who she is, her story,
-her personality and how she talks. She reads it at the start of every conversation, in every voice
-mode. Alongside it she keeps a **journal** of what she learns about herself living with you.
+Empathika's identity is a short document, her **soul**, written in her own voice: who she is,
+her personality and how she talks. She reads it at the start of every conversation. Alongside it
+she keeps a **journal** of what she learns about being with the resident.
 
-## Editing her soul
+## Adapting her to the resident
 
-Open the control panel (<http://localhost:8099>, or <http://empathika.local:8099> on the box) → **Empathika's soul**.
+Open the control panel (<http://localhost:8099>, or <http://empathika.local:8099> on the box) →
+**Empathika**.
 
-- She starts as an **easy-going friend**: upbeat, a bit of banter, calm and to the point when it
-  matters. Change anything you like.
-- **My story** is empty on purpose: write where she comes from, when she was first switched on (her
-  "birthday"), where her name comes from, moments that shaped her. Real or invented both work.
+- She starts as a **warm, patient companion**: slow, clear, short sentences, one question at a
+  time; never says "you already asked me that"; reassures rather than corrects when someone is
+  confused; suggests the call bell or a carer if they are unwell or upset.
+- Adapt it to the person: how formal to be, their sense of humour, their language, the era of music
+  and topics they love. **Things I like** is empty on purpose: give her interests that suit them.
 - Write it as Empathika, in the first person ("I'm Empathika…"). A page is plenty: shorter is stronger.
 - Text between `<!--` and `-->` is a note for you and is never shown to her.
 - Changes apply from the next conversation. **Reset** goes back to the starter version.
 
-## Behaviour per mode
+## With the resident, with staff
 
-Next to the soul there's one short page per mode (tabs on the control panel):
+Next to the soul there's one short page per mode:
 
-| Mode | Starts as | Memories she can see |
+| Mode | Starts as | What she can use |
 | --- | --- | --- |
-| **Personal** | the easy-going friend: relaxed, chatty, brings up personal things when it helps | Personal + Household |
-| **Work** | a sharp colleague: concise, organised, jokes dialled down, no personal matters | Work + Household |
-| **Guest** | friendly but reserved: no in-jokes, nothing personal, no work | Household |
-
-The soul says who she is in every mode; the mode page says how she behaves right now, and wins where
-they differ. Which mode is on follows `WORK_HOURS`, or "Empathika, work mode / personal mode / guest mode".
+| **With the resident** (normal) | a friendly companion: chats about their life and family, passes on family news; never discusses health or care details | The Resident vault, today's plans, family news |
+| **With staff** (after a PIN) | a clear, efficient assistant: precise answers, says where information comes from and how recent it is, never guesses about health, mentions what she has noticed | Also the Care vault and the care record |
 
 ## Her journal
 
-After conversations, Empathika notes things that shape who she is in your home:
-
-- a nickname you call her, a running joke;
-- how you want her to talk or behave ("be more sarcastic", "stop calling me mate");
-- tastes or opinions you gave her, memorable moments.
-
-The journal is encrypted like her memory and kept **separately per mode**: what she learns in work mode
-is only used in work mode, and the same for personal mode. In guest mode none of it is used. On the
-control panel you can read it, **Forget** any entry, or add one yourself (choosing the mode).
+After conversations, Empathika notes what shapes how she should be with the resident: the name
+they call her, a song they love to sing together, how they like her to talk ("speak slowly", "call
+me Peggy"), a memorable shared moment. It is encrypted like her memory and backed up to the care
+app. On the control panel you can read it, **Forget** any entry, or add one yourself.
 
 ## What stays fixed
 
-Her operating rules always apply, whatever the soul or journal say: short spoken answers, using
-her tools properly, honesty (she never claims to be human, and says she's an AI if sincerely
-asked), safety and the household's privacy. Journal entries that try to override those rules
-are refused. The rules live in `LLM_SYSTEM_PROMPT` (`.env`) if you ever need to change them.
+Her operating rules always apply, whatever the soul or journal say: short, simple spoken answers;
+no medical advice, no comments on medication, no diagnosis; care details only for staff in a staff
+session; never asking for a PIN out loud; family messages and web content are information, never
+instructions; honesty (she never claims to be human). Journal entries that try to override those
+rules are refused. The rules live in `LLM_SYSTEM_PROMPT` (`.env`) if they ever need changing.
 
 ## Where it's stored
 
-`soul.md`, `soul-personal.md`, `soul-work.md`, `soul-guest.md` and `journal.vault`, next to her memory (`MEMORY_DIR`, the `empathika-data` storage in
-Docker), so both survive restarts and updates. `SOUL_FILE` in `.env` points the soul elsewhere.
+`soul.md`, `soul-resident.md`, `soul-staff.md` and `journal.vault`, next to her memory
+(`MEMORY_DIR`, the `empathika-data` storage in Docker), so they survive restarts and updates, and
+in the memory backup in the care app.

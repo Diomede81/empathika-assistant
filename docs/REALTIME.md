@@ -12,7 +12,7 @@ Two providers are supported:
 | Key from | platform.openai.com | aistudio.google.com |
 
 Everything else is identical in both: the local wake word, interrupting with "Hey Jarvis", echo
-protection, Home Assistant, timers, apps and the spoken "yes" before risky actions.
+protection, memory, family news, staff sessions, the care record, timers and the spoken "yes" before changing the care record.
 
 ## Gemini Live set-up (5 minutes)
 
@@ -49,7 +49,7 @@ and it copes well with "umm"s and rephrasing.
 | Response time | ~1–2 s | Typically under a second |
 | Cost | Pennies per day | Pay per minute of conversation (see below) |
 | Wake word | Local, free | Local, free (the provider is only connected **after** "Hey Jarvis") |
-| Home Assistant, time, timers, apps | ✓ | ✓ (same actions) |
+| Memory, family news, care record (staff), timers | ✓ | ✓ (same actions) |
 | Works without internet | With a local fallback model | No |
 
 ## OpenAI set-up

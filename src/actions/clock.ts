@@ -59,3 +59,12 @@ export function spokenWhen(at: number, now = Date.now()): string {
   const date = new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long' }).format(at);
   return `on ${date} at ${time}`;
 }
+
+/** Today's local date, time and weekday (1 = Monday) in the household time zone. */
+export function local(now = new Date()): { date: string; time: string; weekday: number } {
+  const p = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timeZone(), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short', hourCycle: 'h23',
+  }).formatToParts(now);
+  const g = (k: string) => p.find((x) => x.type === k)?.value ?? '';
+  return { date: `${g('year')}-${g('month')}-${g('day')}`, time: `${g('hour')}:${g('minute')}`, weekday: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(g('weekday')) + 1 };
+}

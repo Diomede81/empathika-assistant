@@ -9,7 +9,7 @@ export type ActivityKind = 'shared' | 'recall' | 'saved' | 'updated' | 'forgot' 
 export interface Activity {
   at: string;
   kind: ActivityKind;
-  /** e.g. "Conversation start (Work mode)", the recall query, the mode switched to. */
+  /** e.g. "Conversation start (Resident mode)", the recall query, a staff session starting. */
   what: string;
   vaults?: string[];
   /** Short previews of the memories involved. */

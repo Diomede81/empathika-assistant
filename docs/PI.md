@@ -44,7 +44,7 @@ This includes your `.env` (keys and settings). Then, on the **box** (over SSH), 
 | `PULSE_SERVER` | **Delete this line** if it's there (it's for the Mac sound bridge) |
 | `PANEL_PASSWORD` | Set one: the control panel will be reachable from your home network |
 | `REALTIME_BARGE_IN=on` | Recommended: the mic board's echo cancellation lets you talk over Empathika |
-| `COMPOSE_PROFILES=empathika,music` | Add `,music` if you use the Spotify speaker |
+| `COMPOSE_PROFILES=empathika` | Starts Empathika with the voice services |
 | `MEMORY_KEY` | Keep the same value as on your Mac |
 
 ## 4. Run the setup
@@ -82,49 +82,35 @@ After the restart, Empathika's face appears on the screen and she's listening fo
 - **Cards on the screen:** when there's something worth seeing, Empathika shrinks to a small face at the top and
   a card fills the screen; tap **Back to Empathika** (or wait) to return.
   - **Timer done / reminder:** with **OK** / **Again**, or **Done** / **Snooze 10 min**.
-  - **Music:** cover, title, a progress bar and ⏮ ⏯ ⏭ buttons, when a song starts, or **tap the face** while
-    music plays.
-  - **Answers worth seeing:** when something is easier to see than hear (a list, a comparison, a forecast,
-    an address), Empathika puts it on screen as well as saying it. Ask for a **recipe** or other instructions
-    ("how do I make...", "how to...", "step by step", "show me...") and they always go on screen: the
-    ingredients first, then one step at a time. Tap **Start** / **Next** / **Back**, or say "next step",
-    "go back" or "step 4". If the AI ever only talks, Empathika builds the steps from what she said and shows them
-    anyway.
-  - **News:** while Empathika reads your briefing, the headlines and their sources are on screen.
-  - **Email:** when Empathika reads your email, it's on screen: one email shows who it's from, when, the subject and
-    a short summary of what it says (or the start of the text); several show as a list.
-- **Notifications:** a card when something needs you, even if you didn't ask:
-  - **News briefing ready**, with a **Headlines** button.
-  - **Important email** (marked important in Gmail, or high importance in Outlook), checked every 10 minutes
-    from 07:00 to 22:00 in the current mode's email. **Read it** reads out who it's from, the subject and the
-    first lines.
-  - **Overdue to-do**, once a day each (from 08:00), with **Done** and **Tomorrow** buttons (several at once: a
-    list with **Done** on each).
-
-  They wait for a good moment: never while you're talking to Empathika, never over a card you're using (a recipe, a
-  timer), never during her sleep hours, and never in guest mode. Each can be switched off in
-  **Settings → Screen** on the control panel.
-  - **"What's going on in my day?"**: your reminders and to-dos (overdue and critical ones marked), with your
-    calendar's events added as soon as Empathika reads the calendar. Asking about the calendar shows its events too.
+  - **Answers worth seeing:** when something is easier to see than hear (a list, a forecast), Empathika puts it
+    on screen as well as saying it.
+  - **Family messages:** when Empathika passes on a message from the family, it is on screen too, for residents
+    who'd rather read it.
+- **Notifications:** a card when a **message from the family** arrives ("💌 Sarah sent you a message"), with
+  **Read it to me** (reads it out exactly as written) and **Later**. It waits for a good moment: never while
+  someone is talking to Empathika, never over a card in use, and never while she is locked.
   - **Captions** (off unless you switch them on in **Settings → Screen** on the control panel): what Empathika
     heard you say and what she's saying, under the face.
-- **Glance (while Empathika is idle):** the weather at the top (for the home location set on the control panel,
-  from Open-Meteo: free, no key), and under the clock your next meeting and a line like "2 critical ·
-  1 overdue". **Tap the face** for "Your day" (meetings, reminders, to-dos and the weather); each to-do
-  has a **Done** button (a ticked one stays struck through, with **Undo**). The next
-  meeting comes from the current mode's calendar app, checked quietly every 20 minutes between 06:00 and
-  23:00. In **guest mode** only the time and weather show, and a tap shows the weather for the next hours.
-- **Evening photo frame:** upload pictures on the control panel (**Settings → Screen**; JPEG, PNG or WebP,
-  kept on the box only) and switch it on. During the hours you choose (19:00–23:00 by default), after two
-  quiet minutes, your pictures fade one into the next with the clock on top. "Hey Empathika" or a touch brings
+- **Glance (while Empathika is idle):** the weather at the top (for the care home's location set on the control
+  panel, from Open-Meteo: free, no key) and the next reminder under the clock. **Tap the face** for today at a
+  glance: the date, the weather and the reminders still to come.
+- **Evening photo frame:** upload the resident's pictures on the control panel (**Settings → Screen**; JPEG, PNG
+  or WebP, kept on the box only) and switch it on; photos the family sends arrive there by themselves. During the
+  hours you choose (19:00–23:00 by default), after two quiet minutes, the pictures fade one into the next with the clock on top. "Hey Empathika" or a touch brings
   her face back. The glance can be switched off there too.
+- **Staff:** hold a finger on the screen for 2 seconds → **Staff**, or say "Empathika, staff mode": a 4-digit PIN
+  keypad. The PIN (each member of staff has their own, set on the control panel's **Staff** tab) opens a staff
+  session for a few minutes, shown at the bottom of the screen with **End**. Once any staff are set up, turning
+  the box off, restarting, WiFi setup and updates from the screen need a staff session; residents only get
+  volume and brightness. After 5 wrong PINs the keypad pauses. Every sign-in and care-record lookup is in the
+  staff activity log.
 - **Volume and brightness:** hold a finger on the screen for 2 seconds: the menu has **Volume** and
   **Brightness** with − and + buttons. Or say "Empathika, louder", "volume to 30%", "dim the screen", or use
   **Settings → Device** on the control panel. Brightness is remembered when Empathika restarts.
 - **Start-up code:** in **Settings → Security** on the control panel, set a 6-digit code. From then on, every
   time the box starts, Empathika shows a keypad and stays locked until the code is typed: she won't answer
   ("I'm locked, please enter my code on the screen"), won't run any action, and her screen shows nothing
-  personal (no meetings, to-dos, emails, notifications or reminders; reminders that come due are said once
+  personal (no family messages, notifications or reminders; reminders that come due are said once
   she's unlocked). Empathika restarting on her own (an update) doesn't lock her again; turning the box off and on
   does. To lock her yourself, hold a finger on the screen for 2 seconds and tap **Lock**.
   - After 5 wrong tries the keypad pauses for 30 seconds, then 1, 2, 4... up to 15 minutes. Turning the box

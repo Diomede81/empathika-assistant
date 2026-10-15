@@ -9,13 +9,11 @@ Empathika uses an AI model in two kinds of places:
 
 | Job | What it does | What it needs |
 | --- | --- | --- |
-| News briefings | Picks the articles that match your interests and writes the summaries | Good writing; runs once a day |
-| Website suggestions | Suggests news websites for your interests | Broad knowledge of the web; runs rarely |
-| Filing conversations | After each conversation, decides what to remember and where | Reliable and cheap; runs often |
+| Filing conversations | After each conversation, decides what to remember about the resident, and what is a care note | Reliable, careful with health details; runs often |
 | Memory tidy-up | Rolls old notes into weekly and monthly digests | Cheap; runs in the background |
 
-By default every job uses the main model. Typically you'd pick a stronger model for website suggestions
-and news summaries, and keep a cheap fast one for filing.
+By default every job uses the main model. Filing decides what Empathika will remember about the
+resident, so a more careful model is worth it there.
 
 ## Setting up a provider
 

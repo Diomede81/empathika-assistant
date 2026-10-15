@@ -104,7 +104,7 @@ export class TimerService extends EventEmitter implements OnModuleInit, OnModule
     return victims;
   }
 
-  /** Says something out loud like a reminder (e.g. a project task falling due). */
+  /** Says something out loud like a reminder (e.g. a message from family). */
   announce(text: string): void {
     this.emit('fired', { id: 0, say: text, durationSeconds: 0, endsAt: Date.now() } as Timer);
   }

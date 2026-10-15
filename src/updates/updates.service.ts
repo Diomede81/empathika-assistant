@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { ChatCompletionTool } from 'openai/resources/chat/completions';
 import { APP_CONFIG, AppConfig } from '../config';
 import { SealedStore } from '../memory/sealed-store';
-import { local } from '../routines/routines.service';
+import { local } from '../actions/clock';
 
 /** What's installed on the box (written by empathika-update.py at every start and after updates). */
 export interface Version {

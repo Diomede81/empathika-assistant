@@ -72,18 +72,14 @@ export class LocationService implements OnModuleInit {
     return `Saved: ${describe(this.saved)}. Empathika uses it from the next question.`;
   }
 
-  /**
-   * For the start of each conversation. In guest mode only the town (no postcode): visitors
-   * don't need the household's exact address read out.
-   */
-  promptLine(guest = false): string {
+  /** For the start of each conversation: the town only (the postcode is used for searches, never said out loud). */
+  promptLine(): string {
     const h = this.home;
     if (!h) return '';
-    const where = `${h.place}${h.postcode && !guest ? ` (postcode ${h.postcode})` : ''}, ${COUNTRIES[h.country] ?? h.country}`;
+    const where = `${h.place}, ${COUNTRIES[h.country] ?? h.country}`;
     return (
-      `Home is in ${where}. For anything local (weather, opening hours, shops and restaurants nearby, events, ` +
-      'local news, travel, "near me") assume this place unless the user names another, and include it in web ' +
-      'searches (e.g. "pharmacy open now Clapham").'
+      `The care home is in ${where}. For anything local (weather, events, local news) assume this place unless ` +
+      'someone names another, and include it in web searches.'
     );
   }
 

@@ -1,4 +1,7 @@
-# Technology research: low-latency voice assistant for Home Assistant
+# Technology research: low-latency voice assistant
+
+> Written for Max, the home assistant Empathika started from: the voice pipeline choices still apply;
+> the Home Assistant parts no longer do (Empathika connects to the Empathika care app instead).
 
 *Web check: October 2026. Prices and model names change monthly, and many published
 benchmarks are vendor-run and disagree, so measure on your own setup (Empathika logs

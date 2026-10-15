@@ -1,35 +1,67 @@
 # Empathika
 
-**Empathika** is a private, low-latency voice assistant for **Home Assistant**, written in
-**TypeScript / NestJS**. Say *"Hey Empathika"*, ask for something, and Empathika controls your home
-through Home Assistant's built-in **MCP server**.
+**Empathika** is a voice companion that lives in a care-home resident's room. She talks with the
+resident, gets to know them (their life story, family, likes and routines), passes on news and
+photos from their family, and helps the care team: a nurse can sign in with a PIN and ask about the
+resident's care record. She runs on a small box with a round animated face, written in
+**TypeScript / NestJS**, and connects to the **Empathika care app** over **MCP**.
 
 ```
-Mic → Wake word → End-of-speech → Speech-to-text → LLM ⇄ Home Assistant (MCP) → Text-to-speech → Speaker
-       local         local           local*           cloud or local                local*
+Mic → Wake word → End-of-speech → Speech-to-text → AI model ⇄ memory, Empathika app (MCP) → Text-to-speech → Speaker
+       local         local           local*           cloud or local                                       local*
 ```
 \* swappable for cloud services. See [docs/RESEARCH.md](docs/RESEARCH.md) for the options and trade-offs.
 
-## Why it feels fast
+## What Empathika does
 
-- **Everything streams.** Audio goes to speech-to-text *while you talk*; Empathika starts speaking
-  after the **first sentence** of the answer, not the whole answer.
-- **Fast-first-token LLMs** (Groq / Cerebras by default), with a **local fallback**
-  (Ollama + Qwen3) if the internet or the provider is slow.
-- **Follow-up window:** after replying, Empathika listens for 5 seconds without needing the wake word.
-- **You can see what she's doing:** while she checks email, the calendar, the web or the house, her face
-  shows it ("📧 Checking your email..."); if it takes more than a second she says so; and if an action
-  fails, the face shows "Couldn't finish" with what it was.
-- **Stopping her:** say **"stop"**, "that's all", "never mind" or "I'm not talking to you" and she goes quiet
-  and back to sleep at once. While she's talking, **"Hey Empathika"** cuts her off (then "stop", or a new
-  question). If she hears people talking to each other during a follow-up, she ends the conversation
-  quietly instead of answering.
-- **Every turn logs a latency breakdown**, so you can tune with numbers.
+- **Company and conversation.** Warm, patient and simple: short sentences, one question at a time,
+  never "you already asked me that". She reassures rather than corrects when someone is confused. Her
+  personality is adapted to each resident on the control panel. See **[docs/SOUL.md](docs/SOUL.md)**.
+- **Memory of the resident.** Two encrypted vaults: **Resident** (life story, family and friends,
+  likes, routines, important dates) and **Care** (health and wellbeing observations, for staff only).
+  What staff, family and the control panel enter is **checked** and is never overwritten by what a
+  resident living with dementia says; contradictions become care notes for staff instead. See
+  **[docs/MEMORY.md](docs/MEMORY.md)**.
+- **News from the family.** Relatives send WhatsApp messages and photos to the care home; the
+  Empathika app passes them to the box. Empathika shows "💌 Sarah sent you a message", reads it out,
+  remembers it ("any news from Sarah?"), and adds the photos to the evening photo frame. Sensitive
+  news is held back for staff to deliver.
+- **Staff access.** Each member of staff has a 4-digit PIN (NFC badges later). The PIN, typed on her
+  screen, opens a **staff session** for a few minutes: Empathika can then read the care notes and look
+  things up in the care record ("what medication is she on?", "how has her blood sugar been?"). Every
+  sign-in and lookup is in an audit log. Outside a staff session she never discusses health details.
+- **Safety.** She never gives medical advice. If the resident is in pain, unwell, has fallen or is
+  upset, she stays calm, asks them to press their call bell or call a carer, and files a care note.
+- **Backup.** The resident's memories are backed up to the Empathika app; a new or repaired box
+  restores them by itself.
+- **The everyday things:** the date and time, reminders ("remind me Sarah is visiting at 4"),
+  today's activities from the care app, the weather, an evening photo frame, captions on screen for
+  residents who are hard of hearing.
 
-## No Ubuntu machine yet? Use Docker
+## The Empathika care app
 
-Run everything in containers on Mac, Windows or Linux, including a **typing mode** to test
-Home Assistant control without any audio setup. See **[docs/DOCKER.md](docs/DOCKER.md)**.
+Empathika needs the care app for the care record, family news and the memory backup. The
+specification for the app team is **[docs/CARE-APP-MCP.md](docs/CARE-APP-MCP.md)**. Until the real
+app exists, a **practice app** with one made-up resident runs locally:
+
+```bash
+npm install
+npm run mock-app      # http://localhost:8090: send "WhatsApp" messages from the family
+```
+and in `.env`: `EMPATHIKA_APP_MCP_URL=http://localhost:8090/mcp`, `EMPATHIKA_APP_TOKEN=practice`,
+`RESIDENT_ID=res-001`.
+
+## Try it without audio
+
+```bash
+cp .env.example .env    # set LLM_API_KEY (free Groq key: https://console.groq.com) and the care app settings above
+npm install
+npm run chat
+```
+Type to Empathika. `/staff 4826` signs in as staff with that PIN (add staff first on the control
+panel at http://localhost:8099, Staff tab), `/end` ends the staff session.
+
+No Ubuntu machine? Everything also runs in Docker: **[docs/DOCKER.md](docs/DOCKER.md)**.
 
 ## Quick start (Ubuntu)
 
@@ -40,25 +72,22 @@ sudo apt install -y alsa-utils docker.io docker-compose-v2 nodejs npm   # Node 2
 # 2. Local voice services: wake word, speech-to-text, text-to-speech
 docker compose up -d
 
-# 3. Home Assistant: Settings > Devices & services > Add integration >
-#    "Model Context Protocol Server". Expose only the devices you want voice control over
-#    (Settings > Voice assistants > Expose). Create a long-lived access token in your profile.
+# 3. Configure
+cp .env.example .env    # LLM_API_KEY, the care app (EMPATHIKA_APP_*, RESIDENT_ID), MEMORY_KEY, PANEL_PASSWORD
 
-# 4. Configure
-cp .env.example .env    # set HA_TOKEN, LLM_API_KEY (free Groq key: https://console.groq.com)
-
-# 5. Wake word: train "hey empathika" once (about 1 hour, free) - see training/README.md
-#    Until then, set WAKEWORD_NAMES=hey_jarvis in .env (built in) to try everything else.
+# 4. Wake word: train "hey empathika" once (about 1 hour, free) - see training/README.md
+#    Until then, the built-in "Hey Jarvis" works (WAKEWORD_NAMES=hey_jarvis).
 npm install
 npm run mic-check       # live mic levels + wake word detections, for tuning
 
-# 6. Run
+# 5. Run
 npm run dev
 ```
 
-Say **"Hey Empathika… turn on the kitchen lights."**
+Then open the control panel (http://localhost:8099): add the staff and their PINs, what you know
+about the resident (from their life-story form), their photos, and adapt Empathika's personality.
 
-### Optional: local LLM fallback (or fully offline)
+### Optional: local AI model (fallback, or fully offline)
 
 ```bash
 docker compose --profile local-llm up -d
@@ -67,97 +96,55 @@ docker compose exec ollama ollama pull qwen3:8b     # qwen3:4b on CPU-only machi
 Then set `LLM_FALLBACK_BASE_URL=http://127.0.0.1:11434/v1` and `LLM_FALLBACK_MODEL=qwen3:8b`
 (or point the *primary* at Ollama to run with no cloud at all).
 
-### Run on boot
-See [`deploy/empathika.service`](deploy/empathika.service).
+## Data protection
 
-## What Empathika can do
+Empathika handles health information (special category data under UK/EU GDPR). On the box,
+memories, staff list and audit log are encrypted; the control panel needs `PANEL_PASSWORD`. Before
+going live, the care home should agree:
 
-- **Control your home** through Home Assistant: anything you expose to Assist (lights, heating, media, covers…)
-- **Date and time**: "What's the date?", "What time is it?"
-- **Timers and reminders**: "Set a pasta timer for 10 minutes", "Remind me in 20 minutes to call Mum",
-  "How long is left?", "Cancel the pasta timer". Empathika chimes and announces them out loud when they
-  finish (no wake word needed). Timers are kept in memory, so they don't survive a restart.
+- **Where the AI model runs**: conversations (and, in staff sessions, care-record answers) go to the
+  AI service in `LLM_BASE_URL`. Choose a provider with a UK/EU data processing agreement and no
+  training on your data, or run a local model.
+- **Consent and transparency**: residents (or their representatives) and families should know what
+  Empathika remembers and who can see it; the Resident tab on the control panel is the full record.
+- **The care app's side**: how WhatsApp messages are received (WhatsApp Business Platform) and how
+  backups are stored and protected.
 
-- **Knows where home is**: set your town (and optionally postcode) on the control panel; local questions and
-  web searches use it.
-- **Search the web and read pages** with Firecrawl, built in: add `FIRECRAWL_API_KEY` to `.env`. See **[docs/APPS.md](docs/APPS.md#web-search-and-reading-pages-firecrawl-built-in)**.
-- **Email, calendar and other apps** (Office 365, and more) via Composio: connect them from the control
-  panel at http://localhost:8099. Sending, deleting and similar actions always need your spoken "yes".
-  See **[docs/APPS.md](docs/APPS.md)**.
+## Voice and screen
 
-- **Her own identity**: a "soul" you write (her story, personality, how she talks; she starts as an
-  easy-going friend) plus a journal of what she learns about herself living with you. Edit both on the
-  control panel. See **[docs/SOUL.md](docs/SOUL.md)**.
-
-- **Memory**: Empathika remembers people, preferences, routines, dates and work projects, filed in three
-  encrypted vaults (Personal, Household, Work). Work memory is locked outside your work hours, guest mode
-  hides personal details, and she searches by meaning, so knowledge scales without slowing her down.
-  "Remember that…", "What do you know about…", "Forget…", "Work mode". See **[docs/MEMORY.md](docs/MEMORY.md)**.
-
-- **Projects**: people, tasks with due dates and spoken reminders, and a dedicated memory per project.
-  "Create a work project called Milan launch with Marco and Anna", "Add a task to Milan: send the budget
-  by Wednesday", "What's due this week?". See **[docs/MEMORY.md](docs/MEMORY.md#projects)**.
-
-- **My Day**: one to-do list where every item has a priority (high, medium, low: how soon) and a
-  criticality (critical, important, routine: what's at stake), optionally tied to a project.
-  "Add to my to-do list: renew the car insurance, high priority, critical", "Move the insurance to the
-  Home admin project", "What's going on in my day?": Empathika runs through today's calendar events (when a
-  calendar app is connected), reminders and to-dos, and calls out what's critical or overdue. Also on the
-  control panel's My Day tab.
-
-- **Routines: your news briefing**: give Empathika a list of websites and your interests; every morning she
-  gathers the news, picks the 5–6 articles that suit you and prepares a short summary of each, ready when
-  you ask "What's the news?". She can also suggest websites for your interests and find their news feeds.
-  See **[docs/ROUTINES.md](docs/ROUTINES.md)**.
-
-- **Bring your own AI model**: add keys for OpenAI, Anthropic, Gemini, OpenRouter, Groq, DeepSeek,
-  Mistral, a local Ollama or any compatible service, then choose which model does each background job
-  (news, suggestions, memory) on the control panel. See **[docs/MODELS.md](docs/MODELS.md)**.
-
-Set `TZ` in `.env` (e.g. `TZ=Europe/London`) so the time is right inside Docker.
-
-## Real-time voice (demo mode)
-
-Set `VOICE_MODE=realtime` to talk to Empathika through OpenAI's speech-to-speech model: the most natural
-conversation, typically under a second to respond, paid per minute. See **[docs/REALTIME.md](docs/REALTIME.md)**.
-
-## Voice
-
-The default voice (Piper) is fast but robotic. For a natural voice, switch to **Kokoro**
-(free, runs locally) or **OpenAI voices** (paid, most expressive). See **[docs/VOICES.md](docs/VOICES.md)**.
-
-## Music
-
-The Empathika box can be a Spotify speaker: "Hey Empathika, play my running playlist", "skip", "louder". It also
-appears as **Empathika** in the Spotify app on any phone, and the music turns down while Empathika talks (needs
-Spotify Premium). See **[docs/MUSIC.md](docs/MUSIC.md)**.
+The default voice (Piper, British female) is fast but robotic. For a natural voice, switch to
+**Kokoro** (free, runs locally) or **OpenAI voices** (paid, most expressive). See
+**[docs/VOICES.md](docs/VOICES.md)**. `VOICE_MODE=realtime` gives the most natural conversation
+through OpenAI Realtime or Gemini Live: **[docs/REALTIME.md](docs/REALTIME.md)**.
 
 ## The Empathika box
 
 A Raspberry Pi 5 with a round screen showing Empathika's animated face, a 4-microphone array with echo
 cancellation, and a proper speaker, in a 3D-printed case. If it ever loses WiFi, it shows a QR code to
-set it up from your phone. See **[docs/PI.md](docs/PI.md)** for the setup (and `hardware/enclosure/`
-for the case, once added).
+set it up from a phone. See **[docs/PI.md](docs/PI.md)** for the setup and `hardware/enclosure/` for the
+case. In a care home with several boxes, give each its own name during setup (e.g. `EMPATHIKA_HOSTNAME=room12`).
 
 ## Project layout
 
 | Module | Responsibility |
 |---|---|
 | `audio/` | Microphone capture (`arecord`), playback (`aplay`), end-of-speech detection |
-| `wyoming/` | Client for Home Assistant's Wyoming voice protocol |
+| `wyoming/` | Client for the Wyoming voice protocol (wake word, speech-to-text, text-to-speech services) |
 | `wake-word/` | openWakeWord with the custom "hey empathika" model ([training guide](training/README.md)) |
-| `tools/` | `npm run mic-check`: live mic levels and wake word detections · `npm run chat`: type to Empathika instead of talking |
-| `stt/` | Speech-to-text (Whisper via Wyoming) |
-| `llm/` | Any OpenAI-compatible LLM, streaming + tool calls + fallback |
-| `ha-mcp/` | Home Assistant MCP client (`/api/mcp`, Streamable HTTP) |
-| `tts/` | Text-to-speech (Piper via Wyoming), sentence-by-sentence pipelining |
+| `stt/`, `tts/` | Speech-to-text (Whisper) and text-to-speech (Piper, Kokoro, OpenAI), sentence by sentence |
+| `llm/`, `realtime/` | Any OpenAI-compatible AI model with tools and fallback; speech-to-speech mode |
 | `conversation/` | The flow: wake → listen → think/act → speak → follow-up |
+| `memory/` | The Resident and Care vaults, the conversation filer, digests, resident/staff modes |
+| `care-app/` | The Empathika app connection (care record gating), memory backup, family news |
+| `staff/` | Staff PINs (NFC badges later), lockout and the audit log |
+| `soul/` | Empathika's personality and journal |
+| `face/`, `control-panel/` | The round screen (face, cards, PIN pad) and the care team's web panel |
+| `tools/` | `npm run chat` (type instead of talk), `npm run mic-check`, `npm run mock-app` (practice care app) |
 
 ## Roadmap
 
-- [ ] Barge-in: say "stop" / interrupt Empathika while it is speaking (needs echo cancellation)
-- [ ] Silero VAD for noisy rooms
-- [ ] Cloud streaming STT/TTS providers (Deepgram, ElevenLabs Flash, Cartesia)
-- [ ] Native Anthropic (Claude) provider alongside the OpenAI-compatible one
-- [ ] Speech-to-speech mode (OpenAI Realtime / Gemini Live) for the lowest latency
-- [ ] Multiple rooms via ESP32 satellites
+- [ ] NFC badge reader on the box (staff badges already have a place on the control panel)
+- [ ] Staff accounts managed centrally in the Empathika app (one PIN for every box)
+- [ ] Call-bell / alert integration when a resident says they've fallen or feel unwell
+- [ ] Replying to family by voice ("tell Sarah I loved the photo")
+- [ ] Reminiscence sessions built from the life story and family photos

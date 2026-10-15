@@ -5,7 +5,7 @@ import type {
   ChatCompletionMessageToolCall,
 } from 'openai/resources/chat/completions';
 import { APP_CONFIG, AppConfig } from '../config';
-import { describeCapabilities } from '../actions/capabilities';
+import { CARE_APP_OFFLINE, describeCapabilities } from '../actions/capabilities';
 import { ToolRouterService } from '../actions/tool-router.service';
 import { describeNow } from '../actions/clock';
 import { wantsScreen } from '../actions/screen-tools.service';
@@ -13,10 +13,6 @@ import { MemoryService } from '../memory/memory.service';
 import { SoulService } from '../soul/soul.service';
 
 const MAX_TOOL_ROUNDS = 4;
-const NO_HA_NOTE =
-  'Home Assistant is currently NOT connected, so you cannot control or read any device. ' +
-  'If asked to, say briefly that you cannot reach Home Assistant right now. ' +
-  'You can still tell the date and time and manage timers and reminders.';
 
 /**
  * Talks to any OpenAI-compatible endpoint, which covers Groq, Cerebras, Gemini,
@@ -56,7 +52,7 @@ export class LlmService {
       { role: 'system', content: `${this.soul.systemPrompt()}\nCurrent local time: ${describeNow()}.` },
       ...(core ? [{ role: 'system' as const, content: core }] : []),
       ...(related ? [{ role: 'system' as const, content: related }] : []),
-      ...(this.tools.homeAssistantConnected ? [] : [{ role: 'system' as const, content: NO_HA_NOTE }]),
+      ...(this.cfg.app.mcpUrl && !this.tools.careAppConnected ? [{ role: 'system' as const, content: CARE_APP_OFFLINE }] : []),
       ...this.capabilities(),
       ...history,
     ];
@@ -69,12 +65,6 @@ export class LlmService {
       try {
         stream = await this.openStream(messages, round === 0 && forceScreen);
       } catch (err) {
-        // Some models try to call a device action even when Home Assistant is offline
-        // (no tools sent); the provider then rejects the request. Say so plainly.
-        if (!this.tools.homeAssistantConnected && /tool/i.test((err as Error).message)) {
-          yield "I can't reach Home Assistant right now, so I can't control your devices.";
-          return;
-        }
         throw err;
       }
       let text = '';

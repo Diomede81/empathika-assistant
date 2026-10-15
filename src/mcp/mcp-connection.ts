@@ -9,7 +9,7 @@ import { compactResult } from './compact';
 const RESULT_CHARS = 16_000;
 
 export interface McpServerConfig {
-  /** Short name shown in logs and the control panel, e.g. "composio". */
+  /** Short name shown in logs and the control panel, e.g. "empathika-app". */
   name: string;
   url: string;
   headers?: Record<string, string>;
@@ -25,6 +25,8 @@ export class McpConnection {
   private client?: Client;
   private tools: ChatCompletionTool[] = [];
   private totalTools = 0;
+  /** Every tool the server has, filtered or not (for actions Empathika runs herself). */
+  private allNames = new Set<string>();
   lastError?: string;
 
   constructor(readonly config: McpServerConfig) {
@@ -65,6 +67,7 @@ export class McpConnection {
     if (!this.client) return;
     const { tools } = await this.client.listTools();
     this.totalTools = tools.length;
+    this.allNames = new Set(tools.map((t) => t.name));
     const allowed = this.config.allowedTools;
     const kept = allowed?.length ? tools.filter((t) => matchesAny(t.name, allowed)) : tools;
     this.tools = kept.map((t) => ({
@@ -76,7 +79,7 @@ export class McpConnection {
       },
     }));
     this.log.log(
-      `${this.tools.length} of ${tools.length} tools offered to Empathika` +
+      `${this.tools.length} of ${tools.length} tools available` +
         (this.tools.length ? `: ${this.tools.map((t) => (t.type === 'function' ? t.function.name : '')).join(', ')}` : ''),
     );
     if (allowed?.length && !this.tools.length && tools.length && !allowed.includes('__none__')) {
@@ -92,6 +95,21 @@ export class McpConnection {
 
   has(name: string): boolean {
     return this.tools.some((t) => t.type === 'function' && t.function.name === name);
+  }
+
+  /** The server has this tool, offered to the AI or not. */
+  hasAny(name: string): boolean {
+    return this.allNames.has(name);
+  }
+
+  /** Calls any of the server's tools and returns its full text answer (no tidying): for Empathika's own jobs. */
+  async rawCall(name: string, args: Record<string, unknown>): Promise<string> {
+    if (!this.client) throw new Error(`${this.config.name} is not connected`);
+    const result = await this.client.callTool({ name, arguments: args });
+    const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
+    const text = content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
+    if (result.isError) throw new Error(text || `${name} failed`);
+    return text;
   }
 
   async call(name: string, args: Record<string, unknown>): Promise<string> {
