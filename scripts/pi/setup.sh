@@ -84,6 +84,16 @@ sleep 2
 "${USER_SYSTEMCTL[@]}" enable --now pipewire pipewire-pulse wireplumber || warn "Could not start PipeWire yet; it starts after a reboot."
 "${USER_SYSTEMCTL[@]}" enable empathika-audio-defaults.service || true
 
+# Speaker sound: the tuning chosen on the control panel (flat, warm or voice), applied by a small
+# equaliser between Empathika and the mic board.
+install -m 755 "$REPO/scripts/pi/empathika-sound.sh" /usr/local/bin/empathika-sound
+for u in empathika-sound.service empathika-sound-config.path empathika-sound-reload.service; do
+  install -D -m 644 "$REPO/scripts/pi/systemd/$u" "/etc/systemd/user/$u"
+done
+"${USER_SYSTEMCTL[@]}" daemon-reload || true
+"${USER_SYSTEMCTL[@]}" enable empathika-sound.service empathika-sound-config.path || true
+"${USER_SYSTEMCTL[@]}" restart empathika-sound-config.path empathika-sound.service || true
+
 # ---------------------------------------------------------------- 4. screen + face
 say "Setting up the screen ($SCREEN)"
 sed -i '/# empathika-box screen/,+1d' "$CONFIG_TXT"
@@ -170,14 +180,38 @@ say "Installing turn off / restart and screen brightness (screen menu, voice, co
 install -D -m 755 "$REPO/scripts/pi/empathika-power.sh" /usr/local/lib/empathika/empathika-power.sh
 install -m 644 "$REPO/scripts/pi/systemd/empathika-power.path" /etc/systemd/system/empathika-power.path
 install -m 644 "$REPO/scripts/pi/systemd/empathika-power.service" /etc/systemd/system/empathika-power.service
-# The Pi 5's own power button: a short press turns the box off safely (pressed again, it starts).
+# The Pi 5's own power button: empathika-power-button.service asks on the screen for a short press and turns
+# the box off when it's held for 5 s. While it runs it holds the button (systemd-inhibit); if it ever
+# stops, the system's own setting below applies: a short press turns the box off safely.
 mkdir -p /etc/systemd/logind.conf.d
 printf '[Login]\nHandlePowerKey=poweroff\nHandlePowerKeyLongPress=poweroff\n' > /etc/systemd/logind.conf.d/empathika-power-key.conf
+# An earlier pin-5 power button set this; the power button now uses the Pi's own power key (J2).
+sed -i '/^dtoverlay=gpio-shutdown/d' "$CONFIG_TXT"
+install -D -m 755 "$REPO/scripts/pi/empathika-power-button.py" /usr/local/lib/empathika/empathika-power-button.py
+install -m 644 "$REPO/scripts/pi/systemd/empathika-power-button.service" /etc/systemd/system/empathika-power-button.service
 install -D -m 755 "$REPO/scripts/pi/empathika-brightness.sh" /usr/local/lib/empathika/empathika-brightness.sh
 install -m 644 "$REPO/scripts/pi/systemd/empathika-brightness.path" /etc/systemd/system/empathika-brightness.path
 install -m 644 "$REPO/scripts/pi/systemd/empathika-brightness.service" /etc/systemd/system/empathika-brightness.service
 systemctl daemon-reload
-systemctl enable --now empathika-power.path empathika-brightness.path
+# The mic board's lights (ReSpeaker XVF3800): off at night or from the control panel. Needs the board maker's
+# control tool, which you install yourself (docs/PI.md, "Microphone lights"); without it the lights just stay on.
+install -D -m 755 "$REPO/scripts/pi/empathika-mic-light.sh" /usr/local/lib/empathika/empathika-mic-light.sh
+install -m 644 "$REPO/scripts/pi/systemd/empathika-mic-light.path" /etc/systemd/system/empathika-mic-light.path
+install -m 644 "$REPO/scripts/pi/systemd/empathika-mic-light.service" /etc/systemd/system/empathika-mic-light.service
+[ -x /usr/local/lib/empathika/xvf_host/xvf_host ] || say "Microphone lights: the board's control tool is not installed, so they stay on (docs/PI.md explains how to install it)"
+systemctl enable --now empathika-power.path empathika-brightness.path empathika-mic-light.path
+systemctl enable empathika-power-button.service
+systemctl restart empathika-power-button.service || true
+
+# ---------------------------------------------------------------- 5c. mute button
+# The button on top of the box (GPIO 17 and ground) turns the microphone off and on.
+say "Installing the mute button"
+python3 -c 'import gpiozero' 2>/dev/null || apt-get install -y -q python3-gpiozero python3-lgpio
+install -D -m 755 "$REPO/scripts/pi/empathika-mute-button.py" /usr/local/lib/empathika/empathika-mute-button.py
+install -m 644 "$REPO/scripts/pi/systemd/empathika-mute-button.service" /etc/systemd/system/empathika-mute-button.service
+systemctl daemon-reload
+systemctl enable empathika-mute-button.service
+systemctl restart empathika-mute-button.service || warn "The mute button service didn't start; see: journalctl -u empathika-mute-button"
 
 # ---------------------------------------------------------------- SD card care
 mkdir -p /etc/systemd/journald.conf.d
@@ -193,6 +227,9 @@ if [ ! -f .env ]; then
   EMPATHIKA_SKIP_START=1
 fi
 set_env() { grep -q "^$1=" .env && sed -i "s|^$1=.*|$1=$2|" .env || echo "$1=$2" >> .env; }
+# .env holds every API key and password: readable by its owner only.
+chown "$USER_NAME:$USER_NAME" .env
+chmod 600 .env
 set_env EMPATHIKA_UID "$USER_ID"
 set_env EMPATHIKA_GID "$USER_GID"
 grep -q '^CONTROL_PANEL_URL=' .env || set_env CONTROL_PANEL_URL "http://$NAME.local:8099"
@@ -207,7 +244,7 @@ if [ "$(last VOICE_MODE)" = realtime ] && [ "$(last REALTIME_PROVIDER)" = gemini
   warn "Real-time voice with Gemini is on, but there is no GEMINI_API_KEY in .env: she won't be able to talk."
 fi
 [ -n "$(last EMPATHIKA_APP_MCP_URL)" ] || warn "EMPATHIKA_APP_MCP_URL is empty in .env: no care record, family messages or memory backup until it is set."
-grep -q '^PANEL_PASSWORD=.\+' .env || warn "PANEL_PASSWORD is not set in .env. On the box the control panel is reachable from your home network, so set one."
+grep -q '^PANEL_PASSWORD=.\+' .env || say "The control panel asks you to choose a password on your first visit (with a code shown on Empathika's screen)."
 # A .env copied from Max starts the "max" profile: here it is "empathika" (and there is no Spotify "music" profile).
 PROFILES="$(sed -n 's/^COMPOSE_PROFILES=//p' .env | tail -1 | tr ',' '\n' | sed 's/^max$/empathika/' | grep -v '^music$' | grep -v '^$' | sort -u | paste -sd, - || true)"
 case ",$PROFILES," in *,empathika,*) ;; *) PROFILES="empathika${PROFILES:+,$PROFILES}" ;; esac
@@ -245,7 +282,7 @@ say "Done."
 echo "  Control panel: http://$NAME.local:8099   Face (on the box): http://localhost:8098"
 echo "  Logs: cd $REPO && docker compose logs -f empathika"
 echo "  Hold the screen for 2 seconds for the menu: volume, brightness, Turn off, Restart, WiFi setup."
-echo "  Turn on: the Pi's power button."
+echo "  Turn on: the Pi's power button. Mute: the button on top (the face shows \"Microphone off\")."
 echo "  WiFi setup also starts by itself if the box is offline for a minute."
 [ "$SCREEN" = dsi ] && echo "  Reboot now to activate the screen: sudo reboot"
 exit 0

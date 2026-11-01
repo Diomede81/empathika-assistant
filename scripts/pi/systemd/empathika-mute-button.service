@@ -1,0 +1,12 @@
+[Unit]
+Description=Empathika mute button (turns the microphone off and on)
+After=local-fs.target
+
+[Service]
+Environment=EMPATHIKA_RUN_DIR=/run/empathika
+ExecStart=/usr/bin/python3 /usr/local/lib/empathika/empathika-mute-button.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

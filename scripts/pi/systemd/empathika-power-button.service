@@ -1,0 +1,13 @@
+[Unit]
+Description=Empathika: power button (press = ask on the screen, hold 5 s = turn off)
+After=systemd-logind.service
+
+[Service]
+Environment=EMPATHIKA_RUN_DIR=/run/empathika
+# While this runs, the system leaves the power button to it (if it stops, a press turns the box off safely).
+ExecStart=/usr/bin/systemd-inhibit --what=handle-power-key --who=Empathika --why="Empathika asks on the screen first" --mode=block /usr/bin/python3 /usr/local/lib/empathika/empathika-power-button.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

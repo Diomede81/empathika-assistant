@@ -13,6 +13,20 @@ export interface Glance {
   frame?: { photos: string[]; everySec: number };
 }
 
+/** The faces to choose from on the control panel (the 3D ones are drawn in robot3d.ts). */
+export const FACE_STYLES = {
+  robot: 'Empathika: the white 3D robot',
+  astro: 'Astro droid: silver dome, blue panels (Star Wars style)',
+  golden: 'Golden droid: polished gold (Star Wars style)',
+  rolling: 'Rolling droid: white and orange (Star Wars style)',
+  alien: 'Blue alien: big ears (Disney style)',
+  classic: 'Classic: the flat face (lightest for the box)',
+  dracula: 'Dracula: pale, slicked black hair, cape and fangs (Halloween)',
+  frankenstein: "Frankenstein's monster: green, flat head, bolts and stitches (Halloween)",
+  jekyll: 'Dr Jekyll and Mr Hyde: half gentleman in a top hat, half monster (Halloween)',
+} as const;
+export type FaceStyle = keyof typeof FACE_STYLES;
+
 export interface AmbientSettings {
   glance: boolean;
   frame: boolean;
@@ -21,6 +35,9 @@ export interface AmbientSettings {
   frameEverySec: number;
   /** Live captions under the face: what Empathika heard and what she says. Off unless switched on. */
   captions: boolean;
+  /** Dim the screen after this many quiet seconds (0 = never), down to this brightness (%). */
+  dimAfterSec: number;
+  dimLevel: number;
 }
 
 const PHOTO_MAX = 15 * 1024 * 1024;
@@ -35,7 +52,7 @@ const PHOTO_EXT: Record<string, string> = { ffd8ff: 'jpg', '89504e': 'png', '524
 export class AmbientService implements OnModuleInit {
   private readonly log = new Logger('Ambient');
   private readonly store: SealedStore<AmbientSettings>;
-  settings: AmbientSettings = { glance: true, frame: false, frameFrom: '19:00', frameTo: '23:00', frameEverySec: 20, captions: false };
+  settings: AmbientSettings = { glance: true, frame: false, frameFrom: '19:00', frameTo: '23:00', frameEverySec: 20, captions: false, dimAfterSec: 10, dimLevel: 20 };
   private readonly photoDir: string;
   private photoList: { names: string[]; at: number } = { names: [], at: 0 };
 
@@ -59,6 +76,8 @@ export class AmbientService implements OnModuleInit {
     const t = /^([01]\d|2[0-3]):[0-5]\d$/;
     if (changes.frameFrom !== undefined && !t.test(changes.frameFrom)) return 'Times must be like 19:00.';
     if (changes.frameTo !== undefined && !t.test(changes.frameTo)) return 'Times must be like 23:00.';
+    if (changes.dimAfterSec !== undefined) changes.dimAfterSec = Math.max(0, Math.min(3600, Math.round(changes.dimAfterSec) || 0));
+    if (changes.dimLevel !== undefined) changes.dimLevel = Math.max(5, Math.min(80, Math.round(changes.dimLevel) || 20));
     if (changes.frameEverySec !== undefined) changes.frameEverySec = Math.max(5, Math.min(600, Math.round(changes.frameEverySec) || 20));
     this.settings = { ...this.settings, ...changes };
     this.store.save(this.settings).catch((err) => this.log.warn(`Could not save the screen settings: ${(err as Error).message}`));

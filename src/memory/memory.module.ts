@@ -4,9 +4,10 @@ import { MemoryLearnerService } from './memory-learner.service';
 import { ModesService } from './modes.service';
 import { EmbedderService } from './embedder.service';
 import { MemoryDigestService } from './memory-digest.service';
+import { CorrectionsService } from './corrections.service';
 
 @Module({
-  providers: [ModesService, EmbedderService, MemoryService, MemoryLearnerService, MemoryDigestService],
-  exports: [ModesService, MemoryService, MemoryLearnerService, MemoryDigestService],
+  providers: [ModesService, EmbedderService, MemoryService, MemoryLearnerService, MemoryDigestService, CorrectionsService],
+  exports: [ModesService, MemoryService, MemoryLearnerService, MemoryDigestService, CorrectionsService],
 })
 export class MemoryModule {}

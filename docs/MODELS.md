@@ -11,9 +11,26 @@ Empathika uses an AI model in two kinds of places:
 | --- | --- | --- |
 | Filing conversations | After each conversation, decides what to remember about the resident, and what is a care note | Reliable, careful with health details; runs often |
 | Memory tidy-up | Rolls old notes into weekly and monthly digests | Cheap; runs in the background |
+| Complex tasks | Travel planning, calendar questions and other jobs with several steps, handed over by the conversation | A strong, careful model (e.g. DeepSeek); a task takes up to a minute |
+| Scheduled tasks | The tasks you schedule under Routines, unless a task names its own model | A strong, careful model; each task can also pick its own |
+| Health plans | Exercise routines and meal plans from the websites you chose | Good writing and care with dietary rules |
+| Long web pages | When a page is too long to read whole (a cinema programme, a long listing), copies out what a task asked for, part by part | Fast and cheap: a 60k-character page is 5 short calls |
 
 By default every job uses the main model. Filing decides what Empathika will remember about the
 resident, so a more careful model is worth it there.
+
+## Complex tasks: a stronger model for real work
+
+The conversation's model is chosen for speed, so it's weak at travel planning, calendar questions and
+anything with several steps. Once you pick a model for **Complex tasks**, the conversation hands those
+over: Empathika says "give me a moment", the stronger model works the task out with Empathika's own actions
+(trains, calendar, web search, memory, the screen), checking what it finds, and Empathika tells you the
+answer (details on the screen). It takes up to a minute.
+
+- It finds things out and shows them, but never sends, deletes, books or changes anything: it says what
+  should be done, and the conversation does it with you, asking for your "yes" as usual.
+- Until a model is chosen for it, nothing changes: the conversation does everything itself.
+- If the chosen model fails, that step uses Empathika's main model instead.
 
 ## Setting up a provider
 
@@ -28,8 +45,19 @@ Add its key to `.env` and restart Empathika. Keys only go in `.env`, never on th
 | Groq | `GROQ_API_KEY` | Very fast open models |
 | DeepSeek | `DEEPSEEK_API_KEY` | |
 | Mistral | `MISTRAL_API_KEY` | |
+| xAI (Grok) | `XAI_API_KEY` | |
+| Perplexity | `PERPLEXITY_API_KEY` | Models that search the web as they answer: good for scheduled research tasks |
+| Moonshot (Kimi) | `MOONSHOT_API_KEY` | |
+| Alibaba (Qwen) | `DASHSCOPE_API_KEY` | |
+| Z.ai (GLM) | `ZAI_API_KEY` | |
+| Together AI | `TOGETHER_API_KEY` | Open models (Llama, Qwen, DeepSeek…) hosted by Together |
+| Fireworks AI | `FIREWORKS_API_KEY` | Open models hosted by Fireworks |
+| Cerebras | `CEREBRAS_API_KEY` | Very fast open models |
+| Cohere | `COHERE_API_KEY` | |
+| Hugging Face | `HF_TOKEN` | Inference providers through the Hugging Face router |
 | Ollama | `OLLAMA_BASE_URL` | Models running on your own computer, e.g. `http://192.168.1.20:11434/v1`. Free and private |
 | Anything else | `CUSTOM_LLM_BASE_URL` (+ `CUSTOM_LLM_API_KEY`) | Any OpenAI-compatible service |
+| More of them | `CUSTOM_LLM_2_BASE_URL`, `_API_KEY` and `_NAME` (up to `_5`) | Up to four more OpenAI-compatible endpoints, shown by the name you give |
 
 Then on the control panel, for each job: pick the provider, pick the model (the list comes live from the
 provider, so it's always current; you can also type a name) and press **Save**. **Test** sends a tiny

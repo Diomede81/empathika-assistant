@@ -3,6 +3,7 @@
 #   docker compose --profile empathika up -d --build voice services + Empathika in a container
 #   docker compose run --rm empathika node dist/tools/chat.js     type to Empathika (no audio needed)
 #   add --profile local-llm for Ollama
+#   add --profile home (and HA_LOCAL=1 in .env) to try Empathika's own Home Assistant and her Devices tab
 # Running Empathika in Docker on a Mac/Windows laptop needs a sound bridge: see docs/DOCKER.md.
 # Keep container logs small: on a Raspberry Pi running from an SD card, endless log writes are
 # what wears the card out. 3 files x 5 MB per service is plenty for troubleshooting.
@@ -12,6 +13,9 @@ x-logging: &logging
     max-size: "5m"
     max-file: "3"
 
+# The voice services (and Kokoro / Ollama) only answer on this computer by default: Empathika reaches them inside
+# Docker by name. To let another machine use them (e.g. Home Assistant using this Whisper/Piper), set
+# VOICE_SERVICES_BIND=0.0.0.0 in .env: anyone on your network can then use them.
 services:
   empathika:
     logging: *logging
@@ -41,21 +45,24 @@ services:
     image: rhasspy/wyoming-openwakeword:latest
     restart: unless-stopped
     # Custom models (e.g. hey_empathika.tflite) go in ./wakewords - see training/README.md.
-    # Tuning (in .env): WAKEWORD_THRESHOLD (0-1, default 0.5): raise it if Empathika wakes up by
-    # mistake, lower it if she misses you; ./scripts/wake-coach.sh suggests a value.
-    # WAKEWORD_TRIGGER_LEVEL=2 needs two hits in a row: fewer false wakes, slightly slower.
-    command: --custom-model-dir /custom --threshold ${WAKEWORD_THRESHOLD:-0.5} --trigger-level ${WAKEWORD_TRIGGER_LEVEL:-1}
+    # Tuning (in .env): WAKEWORD_THRESHOLD (0-1, default 0.4: the double-check in Empathika catches false alarms, so
+    # this can be fairly keen): raise it if Empathika wakes up by mistake, lower it if she misses you;
+    # ./scripts/wake-coach.sh suggests a value. WAKEWORD_TRIGGER_LEVEL=2 needs two hits in a row: fewer false
+    # wakes, slightly slower.
+    command: --custom-model-dir /custom --threshold ${WAKEWORD_THRESHOLD:-0.4} --trigger-level ${WAKEWORD_TRIGGER_LEVEL:-1}
     volumes: ["./wakewords:/custom"]
-    ports: ["10400:10400"]
+    ports: ["${VOICE_SERVICES_BIND:-127.0.0.1}:10400:10400"]
 
   whisper:
     logging: *logging
     image: rhasspy/wyoming-whisper:latest
     restart: unless-stopped
-    # base-int8 is a good CPU default; use small-int8 for accuracy, tiny-int8 for speed.
-    command: --model base-int8 --language en
+    # WHISPER_MODEL (in .env): base-int8 is a good CPU default; small-int8 hears better through background noise
+    # (a Pi 5 copes, about 1 s more per check); tiny-int8 for speed. WHISPER_INITIAL_PROMPT nudges it towards the
+    # wake word's spelling ("Hey Empathika", not "hay mats") when it double-checks a wake-up.
+    command: --model ${WHISPER_MODEL:-base-int8} --language en --initial-prompt "${WHISPER_INITIAL_PROMPT:-Hey Empathika.}"
     volumes: ["./data/whisper:/data"]
-    ports: ["10300:10300"]
+    ports: ["${VOICE_SERVICES_BIND:-127.0.0.1}:10300:10300"]
 
   piper:
     logging: *logging
@@ -64,7 +71,7 @@ services:
     # British female voice; browse others at https://rhasspy.github.io/piper-samples/
     command: --voice en_GB-jenny_dioco-medium
     volumes: ["./data/piper:/data"]
-    ports: ["10200:10200"]
+    ports: ["${VOICE_SERVICES_BIND:-127.0.0.1}:10200:10200"]
 
   # Natural-sounding local voice (free). Enable with:  docker compose --profile empathika --profile kokoro up -d
   # then set TTS_PROVIDER=openai in .env (see docs/VOICES.md). First start downloads the model (~350 MB).
@@ -73,7 +80,7 @@ services:
     image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
     profiles: ["kokoro"]
     restart: unless-stopped
-    ports: ["8880:8880"]
+    ports: ["${VOICE_SERVICES_BIND:-127.0.0.1}:8880:8880"]
 
   ollama:
     logging: *logging
@@ -81,7 +88,7 @@ services:
     profiles: ["local-llm"]
     restart: unless-stopped
     volumes: ["./data/ollama:/root/.ollama"]
-    ports: ["11434:11434"]
+    ports: ["${VOICE_SERVICES_BIND:-127.0.0.1}:11434:11434"]
     # Uncomment for an NVIDIA GPU (needs nvidia-container-toolkit):
     # deploy:
     #   resources:

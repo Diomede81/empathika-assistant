@@ -85,8 +85,8 @@ export class BuiltinActionsService {
       tool(
         'device_power',
         'Turn this device (the Empathika box) off, or restart it: staff only, in a staff session. ONLY when a member of staff ' +
-          'clearly asks to turn you off or restart. Ask "Are you sure?" first and call with confirmed=true only after they ' +
-          'say yes. Not for "stop" or "go to sleep" (that is end_conversation).',
+          'clearly asks to turn you off or restart. Call it without confirmed first: you are then told to ask; call again ' +
+          'with confirmed=true only after they answer yes. Not for "stop" or "go to sleep" (that is end_conversation).',
         {
           action: { type: 'string', enum: ['off', 'restart'] },
           confirmed: { type: 'boolean', description: 'True only after the user confirmed' },
@@ -114,9 +114,11 @@ export class BuiltinActionsService {
         ? [
             tool(
               'remember',
-              'Save a lasting fact about the resident to long-term memory: their life story, family and friends (with the ' +
-                'relationship), likes and dislikes, routines, important dates; in care: health and wellbeing observations. ' +
-                'One short self-contained sentence with real names and dates, e.g. "Margaret worked as a nurse in Leeds in the 1960s".',
+              'Save something to long-term memory ONLY when someone explicitly asks ("remember that…", "don\'t forget…", ' +
+                '"make a note…"): about the resident\'s life, family (with the relationship), likes, routines, dates; in care: health ' +
+                'and wellbeing observations. Details mentioned in passing are filed automatically after the conversation: never ' +
+                'call this for them, nor for questions. One short self-contained sentence with real names and dates, e.g. ' +
+                '"Margaret worked as a nurse in Leeds in the 1960s".',
               {
                 fact: { type: 'string', description: 'The fact to remember' },
                 vault: {

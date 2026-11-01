@@ -8,6 +8,7 @@ import { ModesService, label } from '../memory/modes.service';
 import { memorySecret, SealedStore } from '../memory/sealed-store';
 import { LocationService } from '../location/location.service';
 import { DEFAULT_MODE_BEHAVIOUR, DEFAULT_SOUL, SoulDoc } from './default-soul';
+import { said } from '../log-content';
 
 export type { SoulDoc } from './default-soul';
 export const SOUL_DOCS: SoulDoc[] = ['soul', 'resident', 'staff'];
@@ -53,6 +54,7 @@ export class SoulService implements OnModuleInit {
   private store?: SealedStore<JournalEntry[]>;
   /** Where home is, for local answers. */
   @Optional() @Inject(LocationService) private readonly location?: LocationService;
+  /** The person Empathika supports (About you). */
 
   constructor(
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
@@ -73,7 +75,10 @@ export class SoulService implements OnModuleInit {
     if (!this.memory.enabled) return;
     this.store = new SealedStore(this.cfg.memory.dir, 'journal', memorySecret(this.cfg));
     try {
-      this.journal = (this.store.load() ?? []).filter((e) => e && typeof e.text === 'string');
+      const loaded = this.store.load() as unknown;
+      // Only a list is Empathika's journal: the life journal (JournalService) once shared this file name and left its own shape.
+      if (Array.isArray(loaded)) this.journal = loaded.filter((e) => e && typeof e.text === 'string');
+      else if (loaded) this.log.warn("Empathika's journal file held something else (the life journal's data); starting Empathika's journal afresh");
     } catch (err) {
       this.log.error(`Could not read Empathika's journal (${(err as Error).message}); starting a new one`);
     }
@@ -122,7 +127,7 @@ export class SoulService implements OnModuleInit {
     if (!t || !this.store) return undefined;
     // Journal entries shape who Empathika is: refuse obvious attempts to rewrite her rules through it.
     if (source === 'conversation' && OVERRIDE.test(t)) {
-      this.log.warn(`Journal entry refused (looks like an instruction to override her rules): ${t}`);
+      this.log.warn(`Journal entry refused (looks like an instruction to override her rules): ${said(t)}`);
       return undefined;
     }
     const key = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -135,7 +140,7 @@ export class SoulService implements OnModuleInit {
       this.journal.splice(own >= 0 ? own : 0, 1);
     }
     this.persist();
-    this.log.log(`Journal: ${t}`);
+    this.log.log(`Journal: ${said(t)}`);
     return entry;
   }
 
@@ -188,7 +193,7 @@ export class SoulService implements OnModuleInit {
 
   private write(doc: SoulDoc, text: string): void {
     mkdirSync(dirname(this.file(doc)), { recursive: true });
-    writeFileSync(this.file(doc), text, 'utf8');
+    writeFileSync(this.file(doc), text, { encoding: 'utf8', mode: 0o600 });
     this.cache.delete(doc);
   }
 

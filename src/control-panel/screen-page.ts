@@ -1,3 +1,4 @@
+import { FACE_STYLES, FaceStyle } from '../face/ambient.service';
 /** The "Screen" section of the Settings tab: what the round screen shows when Empathika is idle, and the evening photo frame. */
 export interface PanelScreen {
   glance: boolean;
@@ -6,6 +7,9 @@ export interface PanelScreen {
   frameTo: string;
   frameEverySec: number;
   captions: boolean;
+  /** Dim the screen after this many quiet seconds (0 = never), down to this brightness (%). */
+  dimAfterSec: number;
+  dimLevel: number;
   photos: { name: string; size: number }[];
   /** The home location's name (the weather is for it), if set. */
   place?: string;
@@ -35,6 +39,7 @@ export function screenSection(s: PanelScreen, esc: Esc): string {
 <label class="meta tick"><input type="checkbox" name="captions" value="on" ${s.captions ? 'checked' : ''}> <b>Captions</b>: show the words on screen, what Empathika heard and what she's answering (helpful for residents who are hard of hearing)</label>
 <label class="meta tick"><input type="checkbox" name="glance" value="on" ${s.glance ? 'checked' : ''}> <b>Glance</b>: the weather${s.place ? ` in ${esc(s.place)}` : ' (set the care home location above)'} and the next reminder, around her face</label>
 <label class="meta tick"><input type="checkbox" name="frame" value="on" ${s.frame ? 'checked' : ''}> <b>Evening photo frame</b>: the resident's pictures (family, places, memories), one fading into the next, with the clock (after 2 minutes of quiet; "Hey Empathika" or a touch brings her back)</label>
+<div class="addfact"><label class="meta" for="dimA">Dim the screen after</label><input id="dimA" type="number" name="dimAfterSec" min="0" max="3600" value="${s.dimAfterSec}" style="width:5em"><span class="meta">seconds of quiet (0 = never), down to</span><input type="number" name="dimLevel" min="5" max="80" value="${s.dimLevel}" style="width:4.5em" aria-label="Dimmed brightness"><span class="meta">% (it lights up again for "Hey Empathika", a card, a timer or a touch)</span></div>
 <div class="addfact"><label class="meta" for="ff">From</label><input id="ff" type="time" name="frameFrom" value="${esc(s.frameFrom)}" required>
 <label class="meta" for="ft">to</label><input id="ft" type="time" name="frameTo" value="${esc(s.frameTo)}" required>
 <label class="meta" for="fe">next picture every</label><input id="fe" type="number" name="frameEverySec" min="5" max="600" value="${s.frameEverySec}" style="width:5em"><span class="meta">seconds</span></div>

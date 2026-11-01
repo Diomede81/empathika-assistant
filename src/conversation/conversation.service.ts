@@ -14,10 +14,14 @@ import { RealtimeConversationService } from '../realtime/realtime-conversation.s
 import { MemoryLearnerService, TranscriptLine } from '../memory/memory-learner.service';
 import { Mode, ModesService } from '../memory/modes.service';
 import { heardWakeWord } from '../wake-word/verify';
+import { amendLast, markReady, recordWake } from '../wake-word/wake-log';
 import { LockService } from '../lock/lock.service';
+import { DeviceService } from '../device/device.service';
+import { LiveVoiceService } from '../realtime/live-voice.service';
 import { isStopRequest } from './stop';
 import { ConversationControl } from '../actions/conversation-control';
 import { ActivityEvent, ToolRouterService } from '../actions/tool-router.service';
+import { said } from '../log-content';
 
 type State = 'idle' | 'wake' | 'listen' | 'respond';
 
@@ -25,18 +29,30 @@ const HISTORY_LIMIT = 16;
 const HISTORY_RESET_MS = 2 * 60 * 1000;
 const FOLLOW_UP_WINDOW_MS = 5000;
 const CHIME_GRACE_MS = 400;
-/** Only the wake word and then a pause this long: Empathika greets ("Hi, how can I help?"). */
-const GREET_AFTER_MS = 800;
+/** The start-up jingle waits a moment for the sound system to be ready. */
+const START_SOUND_DELAY_MS = 1500;
+/** A short pause after the greeting before listening (the mic board cancels most of her own voice). */
+const AFTER_GREETING_MS = 250;
 const STT_TIMEOUT_MS = 20_000;
 /** Wake-up double-check: how much sound before the detection, and how long to wait for the words. */
 const VERIFY_SECONDS = 2.5;
-const VERIFY_TIMEOUT_MS = 2500;
+/**
+ * Generous: in a noisy room the recogniser takes longer, and nothing waits on it (Empathika listens meanwhile). While her
+ * own music plays the recogniser is slower still (the box is busier), so it gets longer.
+ */
+const VERIFY_TIMEOUT_MS = 4000;
+const VERIFY_TIMEOUT_MUSIC_MS = 8000;
+/**
+ * How long after the wake word Empathika waits for the double-check before listening anyway: it carries on in the
+ * background, and a late "false alarm" ends the conversation quietly if nobody has started talking.
+ */
+const VERIFY_WAIT_MS = 1200;
 /** After being interrupted, start listening again this soon (her voice has been cut). */
 const INTERRUPT_REOPEN_MS = 300;
 /** Say what she's doing when an action is still running after this long and she hasn't spoken yet. */
 const SPOKEN_CUE_MS = 1000;
 /** A second wake word this soon after an ignored one always wakes Empathika up. */
-const REPEAT_WAKE_MS = 10_000;
+const REPEAT_WAKE_MS = 15_000;
 
 function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
   return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms))]);
@@ -70,17 +86,33 @@ export class ConversationService implements OnApplicationBootstrap {
 
   /** Resident / staff: the conversation context never carries over a mode switch (care details stay in the staff session). */
   @Optional() @Inject(ModesService) private readonly modes?: ModesService;
+  /** Empathika has no music player: kept empty so this voice flow stays the same as Max's (easy to bring his fixes across). */
+  private readonly music?: { playingNow(): Promise<boolean>; duckStart(): Promise<void>; duckEnd(): Promise<void> } = undefined;
   /** The start-up code: while locked, Empathika doesn't answer or announce anything. */
   @Optional() @Inject(LockService) private readonly lock?: LockService;
+  /** The greeting ("Hello, how can I help?") and the start-up jingle, set on the control panel. */
+  @Optional() @Inject(DeviceService) private readonly device?: DeviceService;
+  /** Real-time mode: the greeting recorded in Empathika's live voice, so it sounds like the rest of the conversation. */
+  @Optional() @Inject(LiveVoiceService) private readonly liveVoice?: LiveVoiceService;
   private historyMode?: Mode;
   private lastIgnoredWakeAt = 0;
+  /** She greeted (rather than beeped) at the last wake-up. */
+  private greeted = false;
+  /** A short beep instead of the greeting this time. */
+  private chimed = false;
+  /** When the last conversation ended: the greeting isn't repeated soon after. */
+  private lastTalkEnd = 0;
+  /** When the user last spoke in a pipeline-mode conversation. */
+  private lastUserSpeechAt = 0;
+  /** A late false-wake-up verdict: the conversation that started meanwhile ends at its first chance. */
+  private cancelled = false;
   /** end_conversation: the AI decided the conversation is over. */
   @Optional() @Inject(ConversationControl) private readonly control?: ConversationControl;
   @Optional() @Inject(ToolRouterService) private readonly toolRouter?: ToolRouterService;
   /** The box's screen: idle / listening / thinking (speaking follows the audio). */
   @Optional() @Inject(FaceService) private readonly face?: FaceService;
 
-  private readonly pendingAnnouncements: { text: string; timer: boolean }[] = [];
+  private readonly pendingAnnouncements: { text: string; timer: boolean; system?: boolean }[] = [];
   private announcing = false;
 
   onApplicationBootstrap(): void {
@@ -90,30 +122,59 @@ export class ConversationService implements OnApplicationBootstrap {
     }
     this.mic.on('chunk', (c: Buffer) => this.onChunk(c));
     this.mic.start();
+    // A jingle when Empathika starts, so you know she's ready; and the greeting prepared so it plays instantly.
+    setTimeout(() => {
+      if (this.device?.startSound ?? true) void this.tts.jingle().catch((err) => this.log.warn(`Start-up sound: ${(err as Error).message}`));
+      if (this.device?.greeting) {
+        void this.tts.prepare(this.device.greeting); // the stand-in until the live voice has recorded it
+        void this.liveVoice?.ensure(this.device.greeting);
+      }
+    }, START_SOUND_DELAY_MS);
     // Timers/reminders are announced straight away when Empathika is idle, otherwise as soon as
     // the current conversation ends (never in the middle of an answer).
     this.timers.on('fired', (t) => {
-      this.pendingAnnouncements.push({ text: announcement(t), timer: !t.say });
+      this.pendingAnnouncements.push({ text: announcement(t), timer: !t.say, system: t.system });
       if (this.state === 'wake') void this.flushAnnouncements();
     });
     // Reminders that came due while she was locked are said once she's unlocked.
     this.lock?.on('change', (locked: boolean) => {
       if (!locked && this.state === 'wake') void this.flushAnnouncements();
     });
+    // Night mode over: say what waited.
+    setInterval(() => {
+      if (this.device && !this.device.nightNow && this.pendingAnnouncements.length && this.state === 'wake') void this.flushAnnouncements();
+    }, 60_000).unref();
     void this.wake.checkConfiguredNames().then(() => this.waitForWakeWord());
   }
 
   private async flushAnnouncements(): Promise<void> {
-    if (this.announcing || this.lock?.locked) return; // reminders can be personal: not until unlocked
+    // Reminders can be personal: not until unlocked. Messages about the box itself (no WiFi) are said anyway.
+    // At night, nothing is said either (only the box's own messages): what's waiting is said in the morning.
+    const next = () => (this.lock?.locked || this.device?.nightNow ? this.pendingAnnouncements.findIndex((a) => a.system) : this.pendingAnnouncements.length ? 0 : -1);
+    if (this.announcing || next() < 0) return;
     this.announcing = true;
     try {
-      while (this.pendingAnnouncements.length) {
-        const { text, timer } = this.pendingAnnouncements.shift()!;
+      for (let i = next(); i >= 0; i = next()) {
+        const { text, timer, system } = this.pendingAnnouncements.splice(i, 1)[0];
+        if (system) {
+          // The connection may be what's wrong: the box's own voice, no waiting for the online one.
+          this.log.log(`Announcing: ${said(text)}`);
+          await this.tts.chime().catch(() => undefined);
+          await this.tts.sayLocal(text).catch((err) => this.log.warn(`Announcement: ${(err as Error).message}`));
+          continue;
+        }
         if (timer) this.face?.setEmotion('surprised', 5000);
         else this.face?.said(text);
-        this.log.log(`Announcing: "${text}"`);
+        this.log.log(`Announcing: ${said(text)}`);
+        // In real-time mode it's said in Empathika's live voice: recorded while the chimes play.
+        const live = this.liveVoice?.active ? this.liveVoice.line(text) : undefined;
         await this.tts.chime().catch(() => undefined);
         await this.tts.chime().catch(() => undefined);
+        const pcm = await live;
+        if (pcm) {
+          await this.liveVoice!.play(pcm).catch((err) => this.log.warn(`Announcement: ${(err as Error).message}`));
+          continue;
+        }
         const speech = this.tts.session();
         speech.say(text);
         await speech.done();
@@ -131,25 +192,36 @@ export class ConversationService implements OnApplicationBootstrap {
   private async confirmWake(audio: Buffer, fmt: { rate: number; width: number; channels: number }): Promise<boolean> {
     const started = Date.now();
     let session: Awaited<ReturnType<SttService['open']>> | undefined;
+    // Her own radio or music can sound like "Hey Empathika": while it plays, only the word itself counts, saying it
+    // again isn't enough on its own, and a check that didn't finish doesn't wake her.
+    const ownAudio = this.music ? await this.music.playingNow() : false;
+    const tag = ownAudio ? ' [music playing]' : '';
+    const timeoutMs = ownAudio ? VERIFY_TIMEOUT_MUSIC_MS : VERIFY_TIMEOUT_MS;
     try {
-      session = await withTimeout(this.stt.open(fmt), VERIFY_TIMEOUT_MS, 'took too long');
+      session = await withTimeout(this.stt.open(fmt), timeoutMs, 'took too long');
       session.write(audio);
-      const text = await withTimeout(session.finish(), VERIFY_TIMEOUT_MS, 'took too long');
-      if (heardWakeWord(text, this.cfg.wakeWord.names)) {
-        this.log.log(`Wake word confirmed ("${text}", ${Date.now() - started} ms)`);
+      const text = await withTimeout(session.finish(), timeoutMs, 'took too long');
+      if (heardWakeWord(text, this.wake.names, ownAudio)) {
+        this.log.log(`Wake word confirmed (${said(text)}, ${Date.now() - started} ms)${tag}`);
+        recordWake('woke', text + tag, Date.now() - started);
         return true;
       }
-      // Said it again straight after being ignored: that's a person calling, not noise.
-      if (Date.now() - this.lastIgnoredWakeAt < REPEAT_WAKE_MS) {
-        this.log.log(`Wake word heard twice in a row: waking up (heard ${text ? `"${text}"` : 'no words'})`);
+      // Said it again straight after being ignored: that's a person calling, not noise (unless the radio is on).
+      if (!ownAudio && Date.now() - this.lastIgnoredWakeAt < REPEAT_WAKE_MS) {
+        this.log.log(`Wake word heard twice in a row: waking up (heard ${text ? said(text) : 'no words'})`);
+        recordWake('repeat', text, Date.now() - started);
         return true;
       }
       this.lastIgnoredWakeAt = Date.now();
-      this.log.log(`Ignored a possible false wake-up: heard ${text ? `"${text}"` : 'no words'} (WAKEWORD_VERIFY=off disables this check)`);
+      this.log.log(`Ignored a possible false wake-up: heard ${text ? said(text) : 'no words'}${tag} (WAKEWORD_VERIFY=off disables this check)`);
+      recordWake('ignored', (text || '') + tag, Date.now() - started);
       return false;
     } catch (err) {
       session?.abort();
-      this.log.warn(`Could not double-check the wake word (${(err as Error).message}); waking up anyway`);
+      // No verdict (the recogniser was too slow): not a false alarm, so Empathika keeps listening; with nothing said
+      // the conversation ends by itself in a few seconds.
+      this.log.warn(`Could not double-check the wake word (${(err as Error).message})${tag}; listening anyway`);
+      recordWake('unchecked', ownAudio ? `check didn't finish${tag}` : undefined, Date.now() - started);
       return true;
     }
   }
@@ -172,7 +244,7 @@ export class ConversationService implements OnApplicationBootstrap {
         recentBytes += c.length;
         while (recentBytes - recent[0].length >= keepBytes) recentBytes -= recent.shift()!.length;
       };
-      this.log.log(`Listening for wake word: ${this.cfg.wakeWord.names.join(', ')}`);
+      this.log.log(`Listening for wake word: ${this.wake.names.join(', ')}`);
       name = await detected;
       this.wake.disarm();
     } catch (err) {
@@ -183,12 +255,13 @@ export class ConversationService implements OnApplicationBootstrap {
       return;
     }
 
-    if (this.cfg.wakeWord.verify && !(await this.confirmWake(Buffer.concat(recent), fmt))) {
-      void this.waitForWakeWord();
-      return;
-    }
-
+    // The double-check runs while Empathika already answers, so it adds no delay; a false wake-up cuts
+    // the greeting short and she goes back to sleep.
+    const heardAt = Date.now();
+    if (!this.cfg.wakeWord.verify) recordWake('unchecked');
+    const verified = this.cfg.wakeWord.verify ? this.confirmWake(Buffer.concat(recent), fmt) : Promise.resolve(true);
     if (this.lock?.locked) {
+      if (!(await verified)) return this.waitForWakeWord();
       this.log.log(`Wake word "${name}" detected, but Empathika is locked (start-up code)`);
       const speech = this.tts.session();
       speech.say("I'm locked. Please enter my code on the screen.");
@@ -196,20 +269,94 @@ export class ConversationService implements OnApplicationBootstrap {
       return this.waitForWakeWord();
     }
 
-    this.log.log(`Wake word "${name}" detected - listening for your request`);
+    if (this.device?.nightNow) {
+      // Night mode: not a word. (Switched off on the control panel; the microphone button on the box still mutes as before.)
+      if (!(await verified)) return this.waitForWakeWord();
+      this.log.log(`Wake word "${name}" detected, but it's night mode (muted until ${this.device.night.to})`);
+      return this.waitForWakeWord();
+    }
+    this.log.log(`Wake word "${name}" detected - answering`);
+    // Turn any music down while we talk (in parallel with the greeting, so no added delay).
+    const ducked = this.music?.duckStart();
+    // "Hello, how can I help?" (set on the control panel), or the short beep if there's no greeting. Not again so soon
+    // after the last conversation (within the minutes set on the panel): then just the beep, so it doesn't get tiring.
+    const again = (this.device?.greetAgainMin ?? 0) * 60_000;
+    const recently = again > 0 && this.lastTalkEnd > 0 && heardAt - this.lastTalkEnd < again;
+    const greeting = recently ? undefined : this.device?.greeting;
+    this.greeted = Boolean(greeting);
+    this.chimed = !greeting && (this.cfg.audio.wakeChime || recently);
+    let answering: Promise<unknown> = Promise.resolve();
+    let falseAlarm = false;
+    if (greeting) {
+      const live = this.liveVoice?.active ? this.liveVoice.recorded(greeting) : undefined;
+      if (live) answering = this.liveVoice!.play(live).catch((err) => this.log.warn(`Greeting: ${(err as Error).message}`));
+      else {
+        answering = (async () => {
+          await this.tts.prepare(greeting); // normally ready since start-up
+          if (!falseAlarm) await this.tts.sayReady(greeting);
+        })().catch((err) => this.log.warn(`Greeting: ${(err as Error).message}`));
+        void this.liveVoice?.ensure(greeting); // in the live voice from next time
+      }
+    } else if (this.chimed) void this.tts.chime().catch(() => undefined);
+    // The double-check gets the greeting plus a moment; after that Empathika listens anyway and it finishes in the
+    // background (waiting for it was what made her slow to listen). A false alarm meanwhile cuts the greeting short.
+    const budget = answering.then(() => new Promise<undefined>((r) => setTimeout(r, Math.max(0, heardAt + VERIFY_WAIT_MS - Date.now()))));
+    const verdict = await Promise.race([verified, budget]);
+    if (verdict === false) {
+      falseAlarm = true;
+      this.tts.stopPlayback();
+      await answering;
+      await ducked;
+      await this.music?.duckEnd();
+      return this.waitForWakeWord();
+    }
+    await answering;
+    this.cancelled = false;
+    if (verdict === undefined) {
+      void verified.then((ok) => {
+        if (ok || this.state === 'wake') return;
+        if (this.realtime.userSpokeAt > heardAt || this.lastUserSpeechAt > heardAt) {
+          this.log.log('The double-check came back late as a false alarm, but you were already talking: carrying on');
+          amendLast('woke', '(late check: you were already talking, so she carried on)');
+          return;
+        }
+        this.log.log('The double-check came back late as a false alarm: going quiet');
+        amendLast('ignored', '(nobody had spoken: went quiet)');
+        this.cancelled = true;
+        this.realtime.stop('a false wake-up (double-check)');
+      });
+    }
+    if (greeting) await new Promise((r) => setTimeout(r, AFTER_GREETING_MS));
+    this.log.log(`Ready for your request ${Date.now() - heardAt} ms after the wake word`);
+    markReady(Date.now() - heardAt);
     this.face?.setState('listening');
-    if (this.cfg.audio.wakeChime) void this.tts.chime().catch(() => undefined);
-    await this.talk();
+    try {
+      await this.talk();
+    } finally {
+      this.lastTalkEnd = Date.now();
+      await ducked;
+      await this.music?.duckEnd();
+    }
     return this.waitForWakeWord();
   }
 
   private async talk(): Promise<void> {
     if (this.cfg.voiceMode === 'realtime') {
       this.state = 'respond';
-      await this.realtime
-        .run((h) => (this.onChunk = h), this.mic.format.rate, this.cfg.audio.wakeChime)
-        .catch((err) => this.log.error(`Realtime conversation failed: ${(err as Error).message}`));
-      this.onChunk = () => undefined;
+      let chimed = this.chimed;
+      // Switching mode starts a fresh conversation in the new mode (only its memories, nothing carried over) and
+      // carries straight on: no need to say "Hey Empathika" again. A short beep says she's listening.
+      for (let i = 0; i < 4; i++) {
+        const again = await this.realtime
+          .run((h) => (this.onChunk = h), this.mic.format.rate, chimed)
+          .catch((err) => this.log.error(`Realtime conversation failed: ${(err as Error).message}`));
+        this.onChunk = () => undefined;
+        if (again !== true) break;
+        this.log.log(`New mode: carrying on listening (${this.modes?.mode} mode)`);
+        chimed = true;
+        void this.tts.chime().catch(() => undefined);
+        this.face?.setState('listening');
+      }
     } else {
       await this.conversation();
     }
@@ -218,7 +365,7 @@ export class ConversationService implements OnApplicationBootstrap {
   /** One request, then follow-ups without the wake word, until nobody speaks. */
   private async conversation(): Promise<void> {
     this.transcript = [];
-    this.control?.consumeEnd(); // nothing left over from a previous conversation
+    this.control?.reset(); // nothing left over from a previous conversation
     try {
       await this.conversationTurns();
     } finally {
@@ -229,32 +376,25 @@ export class ConversationService implements OnApplicationBootstrap {
 
   private async conversationTurns(): Promise<void> {
     let noSpeechMs = 5000;
-    let first = true;
     for (;;) {
       try {
-        let text: Awaited<ReturnType<ConversationService['listen']>>;
-        if (first && this.cfg.audio.wakeGreeting) {
-          // "Hey Empathika" and then a pause: she says hello and waits. If they carried straight on
-          // ("Hey Empathika, what time is it?"), that question is heard as usual, without a greeting.
-          text = await this.listen(GREET_AFTER_MS, false, true);
-          if (!text) {
-            await this.greet();
-            text = await this.listen(noSpeechMs);
-          }
-        } else {
-          text = await this.listen(noSpeechMs, noSpeechMs === FOLLOW_UP_WINDOW_MS);
-        }
-        first = false;
-        if (!text) return;
+        const text = await this.listen(noSpeechMs, noSpeechMs === FOLLOW_UP_WINDOW_MS);
+        if (!text || this.cancelled) return;
         // "Stop", "that's all", "not talking to you": go quiet straight away, no AI involved.
         if (isStopRequest(text.value)) {
-          this.log.log(`Stopping: you said "${text.value}"`);
+          this.log.log(`Stopping: you said ${said(text.value)}`);
           this.control?.consumeEnd();
+          this.face?.conversationEnded();
           return;
         }
         const outcome = await this.respond(text.value, text.endOfSpeech);
         if (outcome === 'ended') {
           this.log.log('Conversation ended by Empathika (told to stop, or the speech was not meant for her)');
+          this.face?.conversationEnded();
+          return;
+        }
+        if (outcome === 'music') {
+          this.log.log('Music started: conversation ended so you can listen');
           return;
         }
         if (outcome === 'interrupted') {
@@ -309,6 +449,7 @@ export class ConversationService implements OnApplicationBootstrap {
       };
     });
 
+    if (outcome === 'end') this.lastUserSpeechAt = Date.now();
     if (outcome === 'timeout') {
       session.abort();
       if (quiet) return undefined;
@@ -337,22 +478,11 @@ export class ConversationService implements OnApplicationBootstrap {
       this.log.log('Heard sound but could not make out any words. Try speaking a little closer to the microphone.');
       return undefined;
     }
-    this.log.log(`You: "${text}"  (stt ${Date.now() - tEnd} ms)`);
+    this.log.log(`You: ${said(text)}  (stt ${Date.now() - tEnd} ms)`);
     return { value: text, endOfSpeech: tEnd };
   }
 
-  /** "Hi, how can I help?" after a lone "Hey Empathika", then a moment for her voice to clear the speaker. */
-  private async greet(): Promise<void> {
-    const greeting = this.cfg.audio.wakeGreeting;
-    this.log.log(`Only the wake word: "${greeting}"`);
-    this.face?.said(greeting);
-    const speech = this.tts.session();
-    speech.say(greeting);
-    await speech.done().catch(() => undefined);
-    await new Promise((r) => setTimeout(r, this.cfg.audio.echoTailMs));
-  }
-
-  private async respond(text: string, tEndOfSpeech: number): Promise<'done' | 'ended' | 'interrupted'> {
+  private async respond(text: string, tEndOfSpeech: number): Promise<'done' | 'ended' | 'music' | 'interrupted'> {
     this.state = 'respond';
     this.face?.setState('thinking');
     if (Date.now() - this.lastTurnAt > HISTORY_RESET_MS) this.history = [];
@@ -367,6 +497,7 @@ export class ConversationService implements OnApplicationBootstrap {
     this.historyMode = mode;
     this.history.push({ role: 'user', content: text });
     this.transcript.push({ who: 'user', text });
+    this.toolRouter?.heard(text); // the answer to any "Shall I go ahead?"
     this.face?.heard(text);
     const historyStart = this.history.length;
 
@@ -415,7 +546,7 @@ export class ConversationService implements OnApplicationBootstrap {
       speech.say(sentence);
     }
     if (firstSpoken) {
-      this.log.log(`Empathika: "${reply.trim()}"  (end-of-speech -> first sentence ${firstSpoken - tEndOfSpeech} ms)`);
+      this.log.log(`Empathika: ${said(reply.trim())}  (end-of-speech -> first sentence ${firstSpoken - tEndOfSpeech} ms)`);
     }
     for (const m of this.history.slice(historyStart)) {
       if (m.role === 'assistant' && 'tool_calls' in m && m.tool_calls) {
@@ -430,6 +561,8 @@ export class ConversationService implements OnApplicationBootstrap {
     this.lastTurnAt = Date.now();
     this.trimHistory();
     if (this.control?.consumeEnd()) return 'ended';
+    // Music just started: she's said so, now quiet so you can listen.
+    if (this.control?.consumeEndAfterReply() && !interrupted) return 'music';
     return interrupted ? 'interrupted' : 'done';
   }
 

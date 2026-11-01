@@ -7,13 +7,17 @@ import { McpServersService } from '../mcp/mcp-servers.service';
 import { KINDS, Kind, MemoryService } from '../memory/memory.service';
 import { ModesService, VaultName, VAULTS } from '../memory/modes.service';
 import { PanelAuth } from './panel-auth';
+import { dismissCard, screen, showCard } from '../face/screen';
 import { CareAppService } from '../care-app/care-app.service';
 import { MemoryBackupService } from '../care-app/memory-backup.service';
 import { FamilyUpdatesService } from '../care-app/family-updates.service';
 import { StaffService } from '../staff/staff.service';
 import { ModelsService, Task, TASKS } from '../models/models.service';
 import { requestPower } from '../face/power';
-import { DeviceService } from '../device/device.service';
+import { DeviceService, SPEAKER_TONES } from '../device/device.service';
+import { LIVE_VOICES, LiveVoiceService } from '../realtime/live-voice.service';
+import { MicrophoneService } from '../audio/microphone.service';
+import { WakeWordService } from '../wake-word/wake-word.service';
 import { UpdatesService } from '../updates/updates.service';
 import { AmbientService } from '../face/ambient.service';
 import { LockService } from '../lock/lock.service';
@@ -33,6 +37,9 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
   @Optional() @Inject(LocationService) private readonly location?: LocationService;
   @Optional() @Inject(SoulService) private readonly soul?: SoulService;
   @Optional() @Inject(StaffService) private readonly staff?: StaffService;
+  @Optional() @Inject(LiveVoiceService) private readonly liveVoice?: LiveVoiceService;
+  @Optional() @Inject(MicrophoneService) private readonly mic?: MicrophoneService;
+  @Optional() @Inject(WakeWordService) private readonly wakeWords?: WakeWordService;
   @Optional() @Inject(MemoryBackupService) private readonly backup?: MemoryBackupService;
   @Optional() @Inject(FamilyUpdatesService) private readonly family?: FamilyUpdatesService;
   @Optional() @Inject(ModelsService) private readonly models?: ModelsService;
@@ -48,7 +55,52 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
     private readonly memory: MemoryService,
     private readonly modes: ModesService,
   ) {
-    this.auth = new PanelAuth(cfg.controlPanel.password);
+    this.auth = new PanelAuth({
+      envPassword: cfg.controlPanel.password,
+      // On the box the panel is reachable from the care home's network: it always has a password.
+      required: cfg.face.onBox,
+      dir: cfg.memory.dir,
+      showCode: (code, ttlMs) =>
+        showCard({
+          id: 'panel-code',
+          kind: 'notice',
+          icon: '🔐',
+          title: 'Control panel',
+          big: `${code.slice(0, 3)} ${code.slice(3)}`,
+          body: "Someone is choosing the control panel's password: type this code there. If that isn't you, ignore it.",
+          ttlMs,
+        }),
+      // On the box, a new device signs in with the password and then Allow on Empathika's screen. In a resident's
+      // room only staff may allow it: once staff are set up, Allow first asks for a staff PIN.
+      askOnScreen: cfg.face.onBox
+        ? (device, ttlMs, answer) => {
+            const done = (allowed: boolean) => () => {
+              if (allowed && this.staff?.count && this.modes.mode !== 'staff') {
+                screen.emit('staff-pad', true); // a member of staff signs in, then taps Allow again
+                return;
+              }
+              answer(allowed);
+              dismissCard('panel-signin');
+            };
+            showCard(
+              {
+                id: 'panel-signin',
+                kind: 'notice',
+                icon: '🔐',
+                title: 'Control panel sign-in',
+                big: device,
+                body: 'wants to open the control panel (the password was right). Staff only: allow it only if it is you.',
+                actions: [
+                  { id: 'allow', label: 'Allow', style: 'primary' },
+                  { id: 'deny', label: 'Deny', style: 'danger' },
+                ],
+                ttlMs,
+              },
+              { allow: done(true), deny: done(false) },
+            );
+          }
+        : undefined,
+    });
   }
 
   private readonly auth: PanelAuth;
@@ -73,14 +125,14 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     // Password (PANEL_PASSWORD): everything except the login page needs a signed-in session.
-    if (url.pathname === '/login') return this.auth.handleLogin(req, res, readForm);
+    if (url.pathname === '/login' || url.pathname === '/login/wait') return this.auth.handleLogin(req, res, readForm);
     if (url.pathname === '/logout' && req.method === 'POST') return this.auth.logout(req, res);
     if (!this.auth.allowed(req)) {
       if (req.method === 'GET' && !url.pathname.startsWith('/api/')) return this.redirect(res, '/login');
       res.writeHead(401, { 'Content-Type': 'text/plain' }).end('Sign in first');
       return;
     }
-    if (req.method === 'GET' && url.pathname === '/') return this.page(res, url);
+    if (req.method === 'GET' && url.pathname === '/') return this.page(req, res, url);
     if (req.method === 'GET' && url.pathname === '/api/status') return this.json(res, await this.data());
     if (req.method === 'POST' && url.pathname === '/refresh') {
       await Promise.all([this.mcp.refreshAll(), this.web?.check()]);
@@ -115,6 +167,46 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       const what = f.has('volume') ? 'Volume' : 'Brightness';
       return this.redirect(res, `/?${typeof out === 'number' ? `ok=${encodeURIComponent(`${what} ${out}%.`)}` : `error=${encodeURIComponent(out)}`}#device`);
     }
+    if (req.method === 'POST' && url.pathname === '/device/voice' && this.device) {
+      const f = await readForm(req);
+      const msg = this.device.setVoice({ greeting: f.get('greeting') ?? '', greetAgainMin: f.has('greetAgain') ? Number(f.get('greetAgain')) : undefined, startSound: f.get('startSound') === 'on' });
+      void this.liveVoice?.ensure(this.device.greeting); // recorded in the live voice, ready for the next "Hey Empathika"
+      return this.redirect(res, `/?ok=${encodeURIComponent(msg)}#voice`);
+    }
+    if (req.method === 'POST' && url.pathname === '/device/night' && this.device) {
+      const f = await readForm(req);
+      const msg = this.device.setNight({ on: f.get('on') === 'yes', from: f.get('from') ?? undefined, to: f.get('to') ?? undefined });
+      return this.redirect(res, `/?${/^The /.test(msg) ? 'error' : 'ok'}=${encodeURIComponent(msg)}#voice`);
+    }
+    if (req.method === 'POST' && url.pathname === '/device/mic-light' && this.device) {
+      const msg = this.device.setMicLight((await readForm(req)).get('micLight') ?? '');
+      return this.redirect(res, `/?${/^Choose/.test(msg) ? 'error' : 'ok'}=${encodeURIComponent(msg)}#voice`);
+    }
+    if (req.method === 'POST' && url.pathname === '/device/sound' && this.device) {
+      const msg = this.device.setTone((await readForm(req)).get('tone') ?? '');
+      return this.redirect(res, `/?${msg.startsWith('Speaker sound:') ? 'ok' : 'error'}=${encodeURIComponent(msg)}#voice`);
+    }
+    if (req.method === 'POST' && url.pathname === '/device/mute' && this.mic) {
+      const msg = await this.mic.setMuted((await readForm(req)).get('on') === '1');
+      return this.redirect(res, `/?${/^Microphone (off|on)|already/.test(msg) ? 'ok' : 'error'}=${encodeURIComponent(msg)}#voice`);
+    }
+    if (req.method === 'POST' && url.pathname === '/device/wake-words' && this.wakeWords) {
+      const f = await readForm(req);
+      const msg = await this.wakeWords.setNames(f.getAll('names')).catch((err: Error) => `Couldn't change the wake words: ${err.message}`);
+      return this.redirect(res, `/?${/^Empathika now/.test(msg) ? 'ok' : 'error'}=${encodeURIComponent(msg)}#voice`);
+    }
+    if (req.method === 'POST' && (url.pathname === '/voice/save' || url.pathname === '/voice/try') && this.liveVoice) {
+      const f = await readForm(req);
+      const voice = f.get('voice') ?? '';
+      const style = f.get('style') ?? '';
+      if (url.pathname === '/voice/try') {
+        const msg = await this.liveVoice.preview(voice, style);
+        return this.redirect(res, `/?${msg.startsWith('That was') ? 'ok' : 'error'}=${encodeURIComponent(msg)}#voice`);
+      }
+      const msg = this.liveVoice.save({ voice, style });
+      if (msg.startsWith('Saved') && this.device?.greeting) void this.liveVoice.ensure(this.device.greeting);
+      return this.redirect(res, `/?${msg.startsWith('Saved') ? 'ok' : 'error'}=${encodeURIComponent(msg)}#voice`);
+    }
     if (req.method === 'POST' && url.pathname === '/device/power') {
       const f = await readForm(req);
       const action = f.get('action') === 'reboot' ? 'reboot' : 'poweroff';
@@ -136,6 +228,15 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       const msg = url.pathname === '/models/test' ? await this.models.test(task) : this.models.assign(task, f.get('provider') ?? 'default', f.get('model') ?? '');
       const ok = !/failed|isn't set up|Choose|Unknown/.test(msg);
       return this.redirect(res, `/?${ok ? 'ok' : 'error'}=${encodeURIComponent(msg)}#models`);
+    }
+    if (req.method === 'POST' && url.pathname === '/security/device-remove') {
+      const msg = this.auth.removeDevice(req, (await readForm(req)).get('id') ?? '');
+      return this.redirect(res, `/?ok=${encodeURIComponent(msg)}#security`);
+    }
+    if (req.method === 'POST' && url.pathname === '/security/password') {
+      const f = await readForm(req);
+      const out = this.auth.change(req, f.get('current') ?? '', f.get('password') ?? '', f.get('again') ?? '');
+      return this.redirect(res, `/?${out.ok ? 'ok' : 'error'}=${encodeURIComponent(out.message)}#security`);
     }
     if (req.method === 'POST' && url.pathname.startsWith('/staff/') && this.staff) return this.staffAction(req, res, url.pathname.slice('/staff/'.length));
     if (req.method === 'POST' && url.pathname === '/backup/now' && this.backup) {
@@ -318,6 +419,18 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       models: this.models && (await this.modelsData(this.models)),
       onBox: this.cfg.face.onBox,
       device: await this.device?.status(),
+      voice2: this.device && {
+        ...(await this.device.status()),
+        greeting: this.device.greeting,
+        greetAgainMin: this.device.greetAgainMin,
+        startSound: this.device.startSound,
+        tones: SPEAKER_TONES,
+        muted: this.mic?.muted,
+        canMute: this.mic?.canMute,
+        wakeNames: this.wakeWords?.names ?? [],
+        wakeAvailable: this.wakeWords ? await this.wakeWords.availableNames().catch(() => []) : [],
+        live: this.liveVoice?.active ? { provider: this.liveVoice.provider, voice: this.liveVoice.voice, style: this.liveVoice.style, voices: LIVE_VOICES[this.liveVoice.provider] } : undefined,
+      },
       lock: this.lock && this.cfg.face.enabled ? { enabled: this.lock.enabled, locked: this.lock.locked, canReset: this.auth.enabled } : undefined,
       screen: this.ambient && this.cfg.face.enabled
         ? { ...this.ambient.settings, photos: this.ambient.photos(), place: this.location?.home?.place || undefined }
@@ -362,8 +475,12 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async page(res: ServerResponse, url: URL): Promise<void> {
+  private async page(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const d = await this.data();
+    if (this.auth.enabled) {
+      d.devices = this.auth.listDevices(req);
+      d.passwordFromEnv = this.auth.fromEnv;
+    }
     if (url.searchParams.has('refreshed')) d.notice = { kind: 'ok', text: 'Refreshed.' };
     else if (url.searchParams.get('ok')) d.notice = { kind: 'ok', text: url.searchParams.get('ok')! };
     else if (url.searchParams.get('error')) d.notice = { kind: 'error', text: url.searchParams.get('error')! };

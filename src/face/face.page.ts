@@ -46,7 +46,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
 #cardEl .cbig { font-size: 6vmin; font-weight: 800; line-height: 1.2; margin: 1vmin 0; }
 #cardEl .cbody { flex: 0 1 auto; min-height: 0; overflow-y: auto; touch-action: pan-y; scrollbar-width: none; font-size: 3.5vmin; line-height: 1.4; color: #cfeee6; text-align: left; margin: 0 2vmin; }
 #cardEl .cbody::-webkit-scrollbar { display: none; }
-#cardEl .cimg { width: 26vmin; height: 26vmin; border-radius: 2.4vmin; object-fit: cover; margin: 0 auto; box-shadow: 0 1vmin 4vmin rgba(0,0,0,.5); }
+#cardEl .cimg { flex-shrink: 0; width: 26vmin; height: 26vmin; border-radius: 2.4vmin; object-fit: cover; margin: 0 auto; box-shadow: 0 1vmin 4vmin rgba(0,0,0,.5); }
 #cardEl .clines { flex: 0 1 auto; min-height: 0; overflow-y: auto; touch-action: pan-y; scrollbar-width: none; text-align: left; display: grid; align-content: start; gap: 1.1vmin; margin: .6vmin 1vmin 0; }
 #cardEl .clines::-webkit-scrollbar { display: none; }
 #cardEl .cl { display: grid; grid-template-columns: 11vmin 1fr; gap: 1.6vmin; align-items: baseline; }
@@ -69,7 +69,10 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
 #cardEl .cacts button.primary { background: #1d5d52; border-color: #2f8a7a; }
 #cardEl .cacts button.icon { font-size: 5vmin; padding: 1.4vmin 3.4vmin; line-height: 1; }
 #cardEl .cacts button:active, #cardEl .cback:active { transform: scale(.96); }
-#cardEl .cback { font: inherit; font-size: 3vmin; font-weight: 700; background: transparent; border: 0; color: var(--dim); padding: 1vmin; }
+/* "Back to Empathika" is a real button (outlined, with an arrow): lighter than the main choice, but clearly tappable. */
+#cardEl .cback { font: inherit; font-size: 3.3vmin; font-weight: 700; background: transparent; border: .5vmin solid #4a6b65; border-radius: 99vmin;
+  color: #e9fff8; padding: 1.4vmin 5vmin; margin-top: 1.2vmin; }
+#cardEl .cback::before, #menu button.quiet::before, .back::before { content: '← '; }
 /* Live captions under the face. */
 #caption { position: fixed; left: 50%; bottom: 13vh; transform: translateX(-50%); width: 66vmin; text-align: center; font-size: 3.6vmin; line-height: 1.3;
   color: #dff7f0; max-height: 15vh; overflow: hidden; transition: opacity .3s; }
@@ -108,6 +111,9 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
 #staffBar { position: fixed; left: 50%; bottom: 3.5vh; transform: translateX(-50%); display: flex; gap: 2vmin; align-items: center; padding: 1.2vmin 1.2vmin 1.2vmin 3vmin;
   border-radius: 99vmin; background: #10233f; border: .4vmin solid #3d6fb6; color: #dce9ff; font-size: 2.8vmin; font-weight: 700; white-space: nowrap; }
 #staffBar[hidden] { display: none; }
+/* Dims after a quiet spell (on the box the backlight dims too; this darkens screens without one). */
+#dim { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .25s ease; }
+#dim.on { transition: opacity 1.5s ease; }
 #staffBar button { font: inherit; font-size: 2.6vmin; border-radius: 99vmin; border: 0; background: #3d6fb6; color: #fff; padding: .9vmin 2.6vmin; }
 #menu { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(4, 7, 10, .96); text-align: center; color: #e9fff8; }
 #menu[hidden] { display: none; }
@@ -117,7 +123,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
 #menu button { font: inherit; font-size: 4.2vmin; font-weight: 700; padding: 2.6vmin 0; border-radius: 99vmin; border: .5vmin solid #2b4a45; background: #0f1b1a; color: #e9fff8; }
 #menu button:active { transform: scale(.97); }
 #menu button.off { background: #4a1714; border-color: #7a2a24; color: #ffd9d3; }
-#menu button.quiet { background: transparent; border-color: transparent; color: var(--dim); }
+#menu button.quiet { background: transparent; border-color: #4a6b65; color: #e9fff8; }
 #menu .list.main { gap: 1.8vmin; }
 #menu .list.main button { font-size: 3.6vmin; padding: 1.9vmin 0; }
 #menu .ctl { display: grid; grid-template-columns: 11vmin 1fr 11vmin; align-items: center; gap: 1.6vmin; }
@@ -140,6 +146,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
 <div id="lock" hidden><div class="lk"><div class="lt" id="lkTitle">🔒 Enter your code</div><div class="dots" id="lkDots"></div><div class="lmsg" id="lkMsg"></div><div class="pad" id="lkPad"></div><button class="lcancel" id="lkCancel" hidden>Cancel</button></div></div>
 <div id="staffBar" hidden><span id="staffText"></span><button id="staffEnd">End</button></div>
 <div id="frame" hidden><img id="fa" alt=""><img id="fb" alt=""><div class="fshade"></div><div class="fclock" id="fclock"></div></div>
+<div id="dim"></div>
 <div id="menu" hidden><div class="list" id="menuList"></div></div>
 <script>
 (() => {
@@ -170,7 +177,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     // Empathika restarted with a new version: load the new face (the old page would keep running).
     const BOOT = ${JSON.stringify(bootId)};
     es.addEventListener('hello', (e) => { const b = JSON.parse(e.data).boot; if (BOOT && b && b !== BOOT) location.reload(); });
-    es.addEventListener('info', (e) => { info = JSON.parse(e.data); connected = true; lastMsg = Date.now(); renderSetup(); renderCard(); renderCaption(); renderFrame(); renderLock(); });
+    es.addEventListener('info', (e) => { info = JSON.parse(e.data); checkPowerAsk(); connectedOnce = true; connected = true; lastMsg = Date.now(); setTimeout(checkDim, 0); renderSetup(); renderCard(); renderCaption(); renderFrame(); renderLock(); });
     es.addEventListener('level', (e) => {
       const d = JSON.parse(e.data);
       mouth = typeof d === 'number' ? { o: d, w: 0, r: 0, s: 0 } : d;
@@ -206,6 +213,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     { time: 'Sun', text: '🌧️ 14° / 8°', sub: 'Rain from midday, 80%' },
     { time: 'Mon', text: '⛅ 15° / 7°', sub: 'Cloudy spells' }] };
   SCENES.push(['speaking', 'neutral', 'Card answer']);
+  SCENES.push(['idle', 'neutral', 'Muted']);
   SCENES.push(['idle', 'neutral', 'Logo']);
   const slug = (t) => t.toLowerCase().replace(/[^a-z]+/g, '-');
   let demoLabel = '';
@@ -224,6 +232,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
         notice: label === 'Could not finish' ? "Couldn't finish: checking the care record" : undefined,
         staff: label === 'Staff session' || label === 'Checking the care record' ? { name: 'Nurse Jane', until: Date.now() + 4 * 60000 } : undefined,
         staffPad: label === 'Staff PIN' ? { triesLeft: 5 } : undefined,
+        muted: label === 'Muted' || undefined,
         wifi: state === 'setup' ? { state: 'setup', ssid: 'Empathika-Setup', password: '48213097', qrSvg: demoQr() } : undefined,
         card: DEMO_CARDS[label],
         caption: label === 'Captions' ? { who: 'you', text: 'Has Sarah sent any news?' } : undefined,
@@ -269,7 +278,8 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   let wifiBackUntil = 0;
   function renderSetup() {
     const w = info.wifi;
-    const show = info.state === 'setup' && w && Date.now() > wifiBackUntil;
+    // Locked: the keypad comes first; the network's password and QR code show once the code is entered.
+    const show = info.state === 'setup' && w && Date.now() > wifiBackUntil && !info.locked;
     setupEl.hidden = !show;
     if (!show) return;
     const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -296,12 +306,13 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   // ---------- cards (Empathika's face shrinks to the top while one shows) ----------
   const cardEl = document.getElementById('card' + 'El');
   const captionEl = document.getElementById('caption');
-  let cardKey = '', cardGone = '';
+  let cardKey = '', cardGone = -1;
   const escC = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-  function cardShown() { return info.card && info.card.id !== cardGone && info.card.until > Date.now() && info.state !== 'setup'; }
+  // cardGone: the card closed with Back to Empathika (its number: a later card with the same id still shows).
+  function cardShown() { return info.card && (info.card.seq ?? info.card.id) !== cardGone && info.card.until > Date.now() && info.state !== 'setup'; }
   function renderCard() {
     const c = cardShown() ? info.card : undefined;
-    const key = c ? JSON.stringify(Object.assign({}, c, { until: 0 })) : '';
+    const key = c ? JSON.stringify(Object.assign({}, c, { until: 0, seq: 0 })) : '';
     if (key === cardKey) return;
     const fresh = !cardKey || (c && JSON.parse(cardKey || '{}').id !== c.id);
     cardKey = key;
@@ -333,7 +344,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       b.onclick = (e) => {
         e.stopPropagation();
         const a = b.getAttribute('data-a');
-        if (a === 'dismiss') { cardGone = c.id; renderCard(); renderCaption(); }
+        if (a === 'dismiss') { cardGone = c.seq ?? c.id; renderCard(); renderCaption(); }
         fetch('/card?id=' + encodeURIComponent(c.id) + '&action=' + encodeURIComponent(a), { method: 'POST' }).catch(() => undefined);
       };
     }
@@ -397,6 +408,37 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   }
   setInterval(renderFrame, 1000);
 
+  // ---------- dim after a quiet spell; anything happening lights the screen up again ----------
+  const dimEl = document.getElementById('dim');
+  let dimOn = false, dimLastActive = Date.now(), dimBacklight = false;
+  function busyForDim() {
+    // Talking, thinking, a card, the menu, captions, the photo frame or WiFi setup: stay bright.
+    return (info.state !== 'idle' && info.state !== 'sleeping') || cardShown() || !menuEl.hidden || !captionEl.hidden || !frameEl.hidden;
+  }
+  function dimNow() {
+    dimOn = true;
+    dimEl.classList.add('on');
+    dimEl.style.opacity = '0.72'; // until the box confirms its backlight is dimming
+    if (demo) return;
+    fetch('/dim?on=1', { method: 'POST' }).then((r) => r.json()).then((j) => {
+      dimBacklight = Boolean(j.backlight);
+      if (dimOn) dimEl.style.opacity = dimBacklight ? '0.25' : '0.72';
+    }).catch(() => undefined);
+  }
+  function undim() {
+    if (!dimOn) return;
+    dimOn = false;
+    dimEl.classList.remove('on');
+    dimEl.style.opacity = '0';
+    if (!demo) fetch('/dim?on=0', { method: 'POST' }).catch(() => undefined);
+  }
+  function checkDim() {
+    const after = Number(params.get('dim') || (info.dimAfterSec === undefined ? 10 : info.dimAfterSec));
+    if (busyForDim()) { dimLastActive = Date.now(); undim(); return; }
+    if (!dimOn && after > 0 && Date.now() - dimLastActive > after * 1000) dimNow();
+  }
+  setInterval(checkDim, 500);
+
   // ---------- keypads: the start-up code (6 digits; until it is entered, Empathika shows nothing personal)
   // and the staff PIN (4 digits; opens a staff session) ----------
   const lockEl = document.getElementById('lock');
@@ -404,8 +446,9 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   const lkTitle = document.getElementById('lkTitle'), lkCancel = document.getElementById('lkCancel');
   /** Which keypad is showing, if any. */
   function pad() {
-    if (info.state === 'setup') return null;
+    // Locked: the keypad comes first, even during WiFi setup (the network's password shows once the code is entered).
     if (info.locked) return { kind: 'lock', len: 6, url: '/unlock', title: '🔒 Enter your code', pausedUntil: info.locked.pausedUntil, triesLeft: info.locked.triesLeft };
+    if (info.state === 'setup') return null;
     if (info.staffPad) return { kind: 'staff', len: 4, url: '/staff', title: 'Staff PIN', pausedUntil: info.staffPad.pausedUntil, triesLeft: info.staffPad.triesLeft };
     return null;
   }
@@ -494,6 +537,8 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   let pressAt = 0, pressFired = false, toast = '', toastUntil = 0, menuIdle = 0, countdown = 0;
   let frameTouch = false;
   addEventListener('pointerdown', () => {
+    dimLastActive = Date.now();
+    if (dimOn) { frameTouch = true; undim(); return; } // a touch on a dimmed screen only wakes it
     if (!frameEl.hidden) { frameTouch = true; idleSince = Date.now() + (demo ? 15000 : 0); renderFrame(); return; }
     if (!menuEl.hidden) return;
     pressAt = performance.now(); pressFired = false;
@@ -612,6 +657,20 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       });
     }).catch(() => menu('<h1>Updates</h1><p>Could not check for updates.</p>' + BACK, { uBack: closeMenu }));
   }
+  // The box's power button was pressed: ask what to do (holding it for 5 s turns the box off anyway).
+  let powerAsked = 0;
+  function checkPowerAsk() {
+    if (!info.powerAsk || info.powerAsk === powerAsked) return;
+    const first = powerAsked === 0 && !connectedOnce;
+    powerAsked = info.powerAsk;
+    if (first && Date.now() - info.powerAsk > 3000) return; // a press from before this page opened
+    clearInterval(countdown);
+    menu('<h1>Power button</h1><p>Turn Empathika off, or restart her?</p><button class="off" id="mOff">Turn off</button><button id="mRestart">Restart</button>' +
+      '<button class="quiet" id="mCancel">Back to Empathika</button><p>Holding the button for 5 seconds turns her off straight away.</p>', {
+      mOff: () => confirmPower('poweroff'), mRestart: () => confirmPower('reboot'), mCancel: closeMenu,
+    });
+  }
+  let connectedOnce = false;
   // A few seconds to change your mind, then the box is asked to turn off / restart.
   function confirmPower(action) {
     const off = action === 'poweroff';
@@ -626,7 +685,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       fetch('/power?action=' + action, { method: 'POST' }).then((r) => {
         if (!r.ok) throw new Error();
         menu(off
-          ? '<h1>Goodbye for now</h1><p>When the screen goes dark it is safe to unplug.</p><p>To turn Empathika on again, press the power button on the Raspberry Pi.</p>'
+          ? '<h1>Goodbye for now</h1><p>When the screen goes dark it is safe to unplug.</p><p>To turn Empathika on again, unplug the power and plug it back in.</p>'
           : '<h1>Restarting…</h1><p>Back in about a minute.</p>', {});
         clearTimeout(menuIdle);
         // If the box hasn't gone down after 30 s, something stopped it: offer the way back.
@@ -1060,6 +1119,24 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       g.textAlign = 'center';
       if (sub) { g.font = '500 ' + Math.round(22 * s) + 'px system-ui, sans-serif'; g.fillStyle = rgb(0.5); g.fillText(fit(sub, 300 * s), cx, cy + 274 * s); }
       if (sub2) { g.font = '600 ' + Math.round(20 * s) + 'px system-ui, sans-serif'; g.fillStyle = sub2Warn ? '#ffb36b' : rgb(0.5); g.fillText(fit(sub2, 250 * s), cx, cy + (sub ? 304 : 274) * s); }
+    }
+    if (info.muted && state !== 'setup') {
+      // The mute button is on: a red "Microphone off" at the top, so it's clear Empathika can't hear.
+      const label = 'Microphone off';
+      g.font = '600 ' + Math.round(22 * s) + 'px system-ui, sans-serif';
+      const w = g.measureText(label).width + 64 * s, h = 42 * s, y = cy - 300 * s, x0 = cx - w / 2;
+      g.fillStyle = 'rgba(190, 45, 35, 0.92)';
+      g.beginPath(); g.roundRect(x0, y - h / 2, w, h, h / 2); g.fill();
+      // A small microphone with a line through it.
+      const mx = x0 + 26 * s;
+      g.strokeStyle = '#ffffff'; g.lineWidth = 2.5 * s; g.lineCap = 'round';
+      g.beginPath(); g.roundRect(mx - 5 * s, y - 12 * s, 10 * s, 16 * s, 5 * s); g.stroke();
+      g.beginPath(); g.arc(mx, y - 2 * s, 9 * s, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+      g.beginPath(); g.moveTo(mx, y + 7 * s); g.lineTo(mx, y + 12 * s); g.stroke();
+      g.beginPath(); g.moveTo(mx - 11 * s, y - 13 * s); g.lineTo(mx + 11 * s, y + 13 * s); g.stroke();
+      g.fillStyle = '#ffffff'; g.textAlign = 'left';
+      g.fillText(label, mx + 18 * s, y + 8 * s);
+      g.textAlign = 'center';
     }
     if (demo && demoLabel && state !== 'setup') {
       g.font = '600 ' + Math.round(18 * s) + 'px system-ui, sans-serif'; g.fillStyle = 'rgba(255,255,255,0.35)';

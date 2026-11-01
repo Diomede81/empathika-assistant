@@ -28,22 +28,38 @@ export function keyWords(names: string[]): string[] {
   return [...new Set(names.flatMap((n) => n.toLowerCase().split(/[_\s-]+/).filter((w) => w && !FILLER.has(w))))];
 }
 
-/** Does this transcript contain the wake word (allowing for small mishearings)? */
-export function heardWakeWord(transcript: string, names: string[]): boolean {
+/**
+ * Does this transcript contain the wake word (allowing for small mishearings)? `strict`: only the word itself or
+ * a known sound-alike counts, no near misses: used while Empathika's own speaker plays (a presenter saying "man",
+ * "map" or "may" would otherwise pass as "max").
+ */
+export function heardWakeWord(transcript: string, names: string[], strict = false): boolean {
   const tokens = transcript
     .toLowerCase()
     .replace(/\[[^\]]*\]|\([^)]*\)/g, ' ') // "[music]", "(background noise)"
     .split(/[^a-z']+/)
     .map((t) => t.replace(/'s$|'/g, ''))
     .filter(Boolean);
+  if (strict) {
+    // The whole phrase, "hey" (or another lead-in) right before the name, and the name itself or something that
+    // plainly is it with an accent ("mex", "macks"): a song or a presenter saying "man", "may" or "marks" doesn't
+    // pass, and neither does the name on its own.
+    return keyWords(names).some((kw) =>
+      tokens.some((t, i) => i > 0 && FILLER.has(tokens[i - 1]) && (t === kw || (SOUND_ALIKES[kw] ?? []).includes(t) || (kw === 'empathika' && /^m[aeiu][xkc]{1,2}s?$/.test(t)))),
+    );
+  }
+  // A near miss ("mats", "mex", "marx") only counts right after a lead-in ("hey", "okay"...): on its own, a short
+  // word one letter away from the name is far too common in ordinary talk ("may", "man", "map"), and the engine
+  // firing on those is exactly the false wake-up to catch.
+  const near = (t: string, kw: string) => editDistance(t, kw) <= 1 || (t[0] === kw[0] && t.length >= 2 && editDistance(t, kw) <= (kw.length >= 6 ? 3 : 2));
   return keyWords(names).some((kw) =>
     tokens.some(
-      (t) =>
+      (t, i) =>
         t === kw ||
         (SOUND_ALIKES[kw] ?? []).includes(t) ||
         (t.startsWith(kw) && t.length <= kw.length + 2) ||
-        editDistance(t, kw) <= 1 ||
-        (t[0] === kw[0] && t.length >= 2 && editDistance(t, kw) <= (kw.length >= 6 ? 3 : 2)),
+        (kw.length >= 5 && near(t, kw)) ||
+        (i > 0 && FILLER.has(tokens[i - 1]) && near(t, kw)),
     ),
   );
 }

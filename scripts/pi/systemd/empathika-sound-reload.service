@@ -1,0 +1,6 @@
+[Unit]
+Description=Empathika: restart the speaker sound with the new choice
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl --user restart empathika-sound.service

@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import OpenAI from 'openai';
+import type { ChatCompletionMessageParam, ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources/chat/completions';
 import { APP_CONFIG, AppConfig } from '../config';
 import { SealedStore } from '../memory/sealed-store';
 
@@ -7,6 +8,13 @@ import { SealedStore } from '../memory/sealed-store';
 export const TASKS = {
   memory: { label: 'Filing conversations', help: 'After each conversation, decides what is worth remembering about the resident, and what is a care note.' },
   digest: { label: 'Memory tidy-up', help: 'Rolls old conversation notes up into weekly and monthly digests.' },
+  meetings: { label: 'Meeting answers', help: 'Answers you out loud in online meetings: a fast model keeps the wait short.' },
+  tasks: { label: 'Complex tasks', help: 'Travel planning, calendar questions and other jobs with several steps: the conversation hands them to this model, which works them out with Empathika\'s actions. Pick a strong model (e.g. DeepSeek); until you do, the conversation does them itself.' },
+  health: { label: 'Health plans', help: 'Writes your exercise routines and meal plans from the websites you chose: a strong model gives better plans.' },
+  home: { label: 'Home automations', help: 'Turns an automation you describe ("when I\'m out and the alarm is on…") into one for Home Assistant.' },
+  jobs: { label: 'Scheduled tasks', help: 'Runs the tasks you schedule (Routines → Scheduled tasks) with Empathika\'s actions, unless a task names its own model. A strong, careful model does them best.' },
+  sift: { label: 'Long web pages', help: 'When a page is too long to read whole (a cinema programme, a long list), picks out what the task asked for, part by part. A fast, cheap model suits it.' },
+  journal: { label: 'Life reviews', help: 'Writes your weekly and monthly reviews from the journal (and reads your calendar for it in the evening). A thoughtful, well-writing model suits it.' },
 } as const;
 export type Task = keyof typeof TASKS;
 
@@ -28,6 +36,16 @@ const KNOWN: Provider[] = [
   { id: 'groq', label: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', setting: 'GROQ_API_KEY', where: 'https://console.groq.com/keys' },
   { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com', setting: 'DEEPSEEK_API_KEY', where: 'https://platform.deepseek.com/api_keys' },
   { id: 'mistral', label: 'Mistral', baseUrl: 'https://api.mistral.ai/v1', setting: 'MISTRAL_API_KEY', where: 'https://console.mistral.ai/api-keys' },
+  { id: 'xai', label: 'xAI (Grok)', baseUrl: 'https://api.x.ai/v1', setting: 'XAI_API_KEY', where: 'https://console.x.ai' },
+  { id: 'perplexity', label: 'Perplexity (web-searching models)', baseUrl: 'https://api.perplexity.ai', setting: 'PERPLEXITY_API_KEY', where: 'https://www.perplexity.ai/settings/api' },
+  { id: 'moonshot', label: 'Moonshot (Kimi)', baseUrl: 'https://api.moonshot.ai/v1', setting: 'MOONSHOT_API_KEY', where: 'https://platform.moonshot.ai' },
+  { id: 'qwen', label: 'Alibaba (Qwen)', baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', setting: 'DASHSCOPE_API_KEY', where: 'https://modelstudio.console.alibabacloud.com' },
+  { id: 'zhipu', label: 'Z.ai (GLM)', baseUrl: 'https://api.z.ai/api/paas/v4', setting: 'ZAI_API_KEY', where: 'https://z.ai/manage-apikey/apikey-list' },
+  { id: 'together', label: 'Together AI (open models)', baseUrl: 'https://api.together.xyz/v1', setting: 'TOGETHER_API_KEY', where: 'https://api.together.ai/settings/api-keys' },
+  { id: 'fireworks', label: 'Fireworks AI (open models)', baseUrl: 'https://api.fireworks.ai/inference/v1', setting: 'FIREWORKS_API_KEY', where: 'https://fireworks.ai/account/api-keys' },
+  { id: 'cerebras', label: 'Cerebras (very fast open models)', baseUrl: 'https://api.cerebras.ai/v1', setting: 'CEREBRAS_API_KEY', where: 'https://cloud.cerebras.ai' },
+  { id: 'cohere', label: 'Cohere', baseUrl: 'https://api.cohere.ai/compatibility/v1', setting: 'COHERE_API_KEY', where: 'https://dashboard.cohere.com/api-keys' },
+  { id: 'huggingface', label: 'Hugging Face (inference providers)', baseUrl: 'https://router.huggingface.co/v1', setting: 'HF_TOKEN', where: 'https://huggingface.co/settings/tokens' },
 ];
 
 export interface Assignment {
@@ -42,6 +60,8 @@ export interface ChatRequest {
   maxTokens: number;
   temperature?: number;
   timeoutMs?: number;
+  /** A retry after the model spent its room thinking: ask it to think less. */
+  lessThinking?: boolean;
 }
 
 const LIST_CACHE_MS = 10 * 60_000;
@@ -85,6 +105,7 @@ export class ModelsService implements OnModuleInit {
       ...KNOWN.map((p) => ({ ...p, configured: Boolean(m.keys[p.id]) })),
       { id: 'ollama', label: 'Ollama (on your own computer)', baseUrl: m.ollamaUrl || 'http://127.0.0.1:11434/v1', setting: 'OLLAMA_BASE_URL', configured: Boolean(m.ollamaUrl), where: 'https://ollama.com' },
       { id: 'custom', label: 'Your own endpoint (OpenAI-compatible)', baseUrl: m.customUrl, setting: 'CUSTOM_LLM_BASE_URL', configured: Boolean(m.customUrl) },
+      ...m.extra.map((x, i) => ({ id: `custom${i + 2}`, label: `${x.name || `Endpoint ${i + 2}`} (OpenAI-compatible)`, baseUrl: x.url, setting: `CUSTOM_LLM_${i + 2}_BASE_URL`, configured: Boolean(x.url) })),
     ];
   }
 
@@ -96,7 +117,8 @@ export class ModelsService implements OnModuleInit {
     let c = this.clients.get(id);
     if (!c) {
       const p = this.provider(id)!;
-      const key = id === 'default' ? this.cfg.llm.apiKey : this.cfg.models.keys[id];
+      const extra = /^custom(\d+)$/.exec(id);
+      const key = id === 'default' ? this.cfg.llm.apiKey : extra ? this.cfg.models.extra[Number(extra[1]) - 2]?.key : this.cfg.models.keys[id];
       c = new OpenAI({ baseURL: p.baseUrl, apiKey: key || 'none' });
       this.clients.set(id, c);
     }
@@ -136,9 +158,15 @@ export class ModelsService implements OnModuleInit {
 
   // ---------- Jobs ----------
 
-  assignment(task: Task): Assignment {
-    const a = this.assignments[task];
+  assignment(task: Task, override?: Assignment): Assignment {
+    const a = override?.provider && override.provider !== 'default' && override.model && this.provider(override.provider)?.configured ? override : this.assignments[task];
     return a && this.provider(a.provider)?.configured ? a : { provider: 'default', model: '' };
+  }
+
+  /** "DeepSeek · deepseek-chat" for any assignment (a scheduled task's own model). */
+  describeAssignment(a: Assignment): string {
+    if (a.provider === 'default') return `Main model (${this.cfg.llm.model})`;
+    return `${this.provider(a.provider)?.label.replace(/ \(.*\)$/, '') ?? a.provider} · ${a.model}`;
   }
 
   /** "OpenAI · gpt-…" for the control panel and the logs. */
@@ -167,8 +195,27 @@ export class ModelsService implements OnModuleInit {
    */
   async complete(task: Task, req: ChatRequest): Promise<string> {
     const a = this.assignment(task);
+    const tooLong = (m: string) => /max[_ ]?(completion[_ ])?tokens|maximum.*tokens|too (large|many)/i.test(m);
     try {
-      return await this.call(a, req);
+      try {
+        return await this.call(a, req);
+      } catch (err) {
+        const m = (err as Error).message;
+        // a long answer asked of a model that allows less (many cap answers at 8192 tokens): same model, its limit
+        if (req.maxTokens > 8192 && tooLong(m)) return await this.call(a, { ...req, maxTokens: 8192 });
+        // a thinking model that spent all its room thinking: once more with three times the room and less thinking
+        if (/used all its room/.test(m)) {
+          const more = Math.min(32_000, req.maxTokens * 3);
+          this.log.warn(`${TASKS[task].label}: ${this.describe(task)} ran out of room thinking (${req.maxTokens} tokens); trying again with ${more} and less thinking`);
+          try {
+            return await this.call(a, { ...req, maxTokens: more, lessThinking: true });
+          } catch (err2) {
+            if (more > 8192 && tooLong((err2 as Error).message)) return await this.call(a, { ...req, maxTokens: 8192, lessThinking: true });
+            throw err2;
+          }
+        }
+        throw err;
+      }
     } catch (err) {
       if (a.provider === 'default') throw err;
       this.log.warn(`${TASKS[task].label}: ${this.describe(task)} failed (${(err as Error).message}); using the main model this time`);
@@ -176,11 +223,53 @@ export class ModelsService implements OnModuleInit {
     }
   }
 
+  /** Whether a job has its own model (not the main one). */
+  hasOwnModel(task: Task): boolean {
+    return this.assignment(task).provider !== 'default';
+  }
+
+  /**
+   * One step of a job that uses Empathika's actions: the model answers or asks for actions (tool calls).
+   * Falls back to the main model for this step if the chosen one fails.
+   */
+  async step(task: Task, messages: ChatCompletionMessageParam[], tools: ChatCompletionTool[], opts: { maxTokens: number; timeoutMs: number; assignment?: Assignment }): Promise<{ content: string; toolCalls: ChatCompletionMessageToolCall[]; reasoning?: string; /** The answer hit the token limit and stops mid-sentence. */ cut?: boolean }> {
+    const run = async (a: Assignment) => {
+      const main = a.provider === 'default';
+      const res = await this.client(a.provider).chat.completions.create(
+        {
+          model: main ? this.cfg.llm.model : a.model,
+          temperature: 0.2,
+          max_tokens: opts.maxTokens,
+          messages,
+          ...(tools.length ? { tools, tool_choice: 'auto' as const } : {}),
+          ...(main && this.cfg.llm.reasoningEffort ? { reasoning_effort: this.cfg.llm.reasoningEffort as 'low' } : {}),
+        },
+        { timeout: opts.timeoutMs, maxRetries: 1 },
+      );
+      const m = res.choices[0]?.message;
+      return {
+        content: m?.content ?? '',
+        cut: res.choices[0]?.finish_reason === 'length' || undefined,
+        toolCalls: (m?.tool_calls ?? []) as ChatCompletionMessageToolCall[],
+        // DeepSeek's thinking: sent back with the next request, or it refuses to carry on
+        reasoning: (m as { reasoning_content?: string } | undefined)?.reasoning_content,
+      };
+    };
+    const a = this.assignment(task, opts.assignment);
+    try {
+      return await run(a);
+    } catch (err) {
+      if (a.provider === 'default') throw err;
+      this.log.warn(`${TASKS[task].label}: ${this.describeAssignment(a)} failed (${(err as Error).message}); using the main model for this step`);
+      return run({ provider: 'default', model: '' });
+    }
+  }
+
   /** A tiny request to check a model answers, for the Test button. */
   async test(task: Task): Promise<string> {
     const started = Date.now();
     try {
-      const out = await this.call(this.assignment(task), { system: 'Reply with the single word OK.', user: 'Test', maxTokens: 20, timeoutMs: 30_000 });
+      const out = await this.call(this.assignment(task), { system: 'Reply with the single word OK.', user: 'Test', maxTokens: 2000, timeoutMs: 60_000 });
       return `${this.describe(task)} answered in ${((Date.now() - started) / 1000).toFixed(1)}s ("${out.slice(0, 30)}").`;
     } catch (err) {
       return `${this.describe(task)} failed: ${(err as Error).message}`;
@@ -194,8 +283,8 @@ export class ModelsService implements OnModuleInit {
         model: main ? this.cfg.llm.model : a.model,
         temperature: req.temperature ?? 0.2,
         max_tokens: req.maxTokens,
-        // Only Empathika's main model has a configured thinking setting (LLM_REASONING_EFFORT).
-        ...(main && this.cfg.llm.reasoningEffort ? { reasoning_effort: this.cfg.llm.reasoningEffort as 'low' } : {}),
+        // Only Empathika's main model has a configured thinking setting (LLM_REASONING_EFFORT); a retry after running out of room asks for less.
+        ...(req.lessThinking ? { reasoning_effort: 'low' as const } : main && this.cfg.llm.reasoningEffort ? { reasoning_effort: this.cfg.llm.reasoningEffort as 'low' } : {}),
         messages: [
           { role: 'system', content: req.system },
           { role: 'user', content: req.user },
@@ -203,6 +292,17 @@ export class ModelsService implements OnModuleInit {
       },
       { timeout: req.timeoutMs ?? 60_000, maxRetries: 1 },
     );
-    return res.choices[0]?.message?.content ?? '';
+    const choice = res.choices[0];
+    const text = choice?.message?.content ?? '';
+    // An empty answer is a failure (so the main model can step in): typically a thinking model that
+    // spent all its room thinking, or a provider that filtered the reply.
+    if (!text.trim()) {
+      throw new Error(
+        choice?.finish_reason === 'length'
+          ? `it used all its room (${req.maxTokens} tokens) before answering: a thinking model needs more, or pick a non-thinking one`
+          : `it returned an empty answer${choice?.finish_reason ? ` (${choice.finish_reason})` : ''}`,
+      );
+    }
+    return text;
   }
 }

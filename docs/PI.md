@@ -42,7 +42,7 @@ This includes your `.env` (keys and settings). Then, on the **box** (over SSH), 
 | Setting | On the box |
 | --- | --- |
 | `PULSE_SERVER` | **Delete this line** if it's there (it's for the Mac sound bridge) |
-| `PANEL_PASSWORD` | Set one: the control panel will be reachable from your home network |
+| `PANEL_PASSWORD` | Optional: on your first visit the control panel asks you to choose a password (with a code shown on Empathika's screen); this sets it instead |
 | `REALTIME_BARGE_IN=on` | Recommended: the mic board's echo cancellation lets you talk over Empathika |
 | `COMPOSE_PROFILES=empathika` | Starts Empathika with the voice services |
 | `MEMORY_KEY` | Keep the same value as on your Mac |
@@ -88,7 +88,30 @@ After the restart, Empathika's face appears on the screen and she's listening fo
 
 ## Using the box
 
-- **Control panel:** <http://empathika.local:8099> from any phone or computer on your WiFi.
+- **Microphone lights** (Settings → Device): the ring of lights on the mic board can be on, always off, or
+  off at night (night mode, and the hours the face sleeps: `FACE_SLEEP`). Switching it needs the board
+  maker's own control tool, `xvf_host`, which Empathika's setup does not download for you: it is a prebuilt
+  program from a third party that would run with full rights on your box, so installing it is your call.
+  To install it, on the box:
+  ```bash
+  sudo install -d -m 755 /usr/local/lib/empathika/xvf_host && cd /usr/local/lib/empathika/xvf_host
+  for f in xvf_host libcommand_map.so libdevice_usb.so libdevice_i2c.so transport_config.yaml dfu_cmds.yaml; do
+    sudo curl -fsSL -o "$f" "https://raw.githubusercontent.com/respeaker/reSpeaker_XVF3800_USB_4MIC_ARRAY/master/host_control/rpi_64bit/$f"
+  done
+  sudo chmod 755 xvf_host && sudo ./xvf_host VERSION     # should print the board's firmware version
+  ```
+  Then pick the setting on the control panel. Without the tool the lights simply stay on. The setting's row
+  shows what the box answered ("off now", or "not working" with the reason); on the box, `journalctl -t
+  empathika-mic-light` has the same, and `sudo ./xvf_host LED_EFFECT 0` run by hand in the tool's folder should
+  turn the ring off at once.
+- **Night mode** (Settings → Device): a time range, e.g. 23:00 to 07:00, in which Empathika is muted: she doesn't
+  answer "Hey Empathika", says nothing (a reminder that falls due waits for the morning) and shows no notices on
+  her screen; her face sleeps. Family messages still arrive (she shows them in the morning) and the control panel still works. Switch it off there at any time;
+  the Home page shows "Night mode · muted until 07:00" while it's on.
+
+- **Control panel:** <http://empathika.local:8099> from any phone or computer on your WiFi. The first time, it asks you to
+  choose a password and to type the code Empathika shows on her screen. On other devices: the password, then tap **Allow**
+  on Empathika's screen; each device then stays signed in for 30 days.
 - **Boot screen:** while the box starts (and shuts down) it shows Empathika's face on a dark screen instead of
   raspberries and scrolling text. To use **your own logo**:
   1. Make a **PNG** picture, ideally square, about **400 × 400 pixels**, with the important part inside a
@@ -100,6 +123,9 @@ After the restart, Empathika's face appears on the screen and she's listening fo
   To go back to Empathika's face, delete `boot-logo.png` from the folder on the Mac **and** on the box
   (`rm ~/empathika-assistant/boot-logo.png`), then run the setup again. `EMPATHIKA_BOOT_LOGO=off sudo ./scripts/pi/setup.sh`
   leaves the boot screen alone.
+- **Dimming:** after 10 seconds of quiet the screen fades down (on the box, the backlight dims to 20%). It lights
+  up again at once for "Hey Empathika", a card, a timer, a notification or a touch (a touch on a dimmed screen only
+  wakes it). Change the delay (0 = never) and how dark it gets in **Settings → Screen**.
 - **Cards on the screen:** when there's something worth seeing, Empathika shrinks to a small face at the top and
   a card fills the screen; tap **Back to Empathika** (or wait) to return.
   - **Timer done / reminder:** with **OK** / **Again**, or **Done** / **Snooze 10 min**.
@@ -125,9 +151,20 @@ After the restart, Empathika's face appears on the screen and she's listening fo
   the box off, restarting, WiFi setup and updates from the screen need a staff session; residents only get
   volume and brightness. After 5 wrong PINs the keypad pauses. Every sign-in and care-record lookup is in the
   staff activity log.
+- **Talking to Empathika:** say "Hey Empathika" and she answers **"Hello, how can I help?"**, then listens. To end the
+  conversation, say "stop", "that's all" or **"thank you"**, on its own or in a sentence ("that was
+  really helpful, thank you"); a request after it still goes through ("thanks, and what time is lunch?").
+  When the box starts or Empathika restarts (an update), a short **jingle** tells you she's ready. The greeting
+  (empty = a short beep) and the jingle are set in **Settings → Voice & night** on the control panel.
+- **Microphone off (privacy):** press the button on top of the box, or use **Mute the microphone** on the control
+  panel's Home tab (also in **Settings → Device**). Empathika then hears nothing; her face and the panel show
+  "Microphone off", and the button's light is on. Turn it back on the same way, from either. It stays as you left it
+  after a restart.
 - **Volume and brightness:** hold a finger on the screen for 2 seconds: the menu has **Volume** and
   **Brightness** with − and + buttons. Or say "Empathika, louder", "volume to 30%", "dim the screen", or use
   **Settings → Device** on the control panel. Brightness is remembered when Empathika restarts.
+- **Speaker sound:** **Settings → Device → Speaker sound**: Flat, Warm (fuller, for music) or Voice (clearer
+  speech). For a louder, richer speaker, seal its chamber airtight and fill it loosely with speaker wadding.
 - **Start-up code:** in **Settings → Security** on the control panel, set a 6-digit code. From then on, every
   time the box starts, Empathika shows a keypad and stays locked until the code is typed: she won't answer
   ("I'm locked, please enter my code on the screen"), won't run any action, and her screen shows nothing
@@ -136,9 +173,8 @@ After the restart, Empathika's face appears on the screen and she's listening fo
   does. To lock her yourself, hold a finger on the screen for 2 seconds and tap **Lock**.
   - After 5 wrong tries the keypad pauses for 30 seconds, then 1, 2, 4... up to 15 minutes. Turning the box
     off and on doesn't reset this, and the control panel's "current code" boxes count towards the same tries.
-  - Changing or turning off the code needs the current code. **Forgot it?** If the control panel has a
-    password (`PANEL_PASSWORD`), sign in and use **Remove code**; otherwise delete `data/startup-code.json`
-    in the `empathika-assistant` folder on the box and restart Empathika.
+  - Changing or turning off the code needs the current code. **Forgot it?** Sign in to the control panel and
+    use **Remove code** (or delete `data/startup-code.json` in the `empathika-assistant` folder on the box and restart Empathika).
   - Only a scrambled fingerprint of the code is stored, never the code itself.
 - **Turning off and on:** never just pull the plug (it can damage the SD card). Instead:
   - **Hold a finger on the screen for 2 seconds** for the menu: **Turn off**, **Restart**, **WiFi setup**
@@ -146,13 +182,16 @@ After the restart, Empathika's face appears on the screen and she's listening fo
     After choosing, you have 5 seconds to cancel. When the screen goes dark it's safe to unplug.
   - Or say **"Empathika, turn off"** / **"Empathika, restart"** (she asks you to confirm), or use **Settings → Device**
     on the control panel.
-  - Or press the **power button on the Raspberry Pi** once.
+  - Or press the **power button on the Raspberry Pi** once: the screen asks **Turn off**, **Restart** or **Back to
+    Empathika** (then the usual 5 seconds to cancel). **Hold the button for 5 seconds** to turn the box off straight away
+    (still a clean shutdown), e.g. if the screen isn't responding.
   - **To turn it on again:** press the Pi's power button (or unplug and plug the power back in).
 - **Changing WiFi:** if the box can't reach a known WiFi network for a minute, or you choose **WiFi
   setup** in the screen's menu, Empathika says so and shows a QR code. Scan it with your phone: it joins Empathika's temporary
   "Empathika-Setup" network and opens a page where you choose your WiFi and type its password. Empathika tells you
   when she's connected. If nobody uses the setup network for 10 minutes, it switches itself off and the
-  box tries your known networks again.
+  box tries your known networks again. If Empathika is locked (start-up code), she asks for the code first: the QR
+  code and the setup network's password (12 random letters and digits) only show once it's entered.
   To leave setup mode (e.g. you opened it by mistake), tap **Back to Empathika** under the QR code: the box goes
   back to your usual WiFi straight away. Every screen in the menu has a **Back to Empathika** button.
 - **The face:**
@@ -212,10 +251,20 @@ By hand, on the box: `sudo python3 /usr/local/lib/empathika/empathika-update.py`
 The very first time (to install this updater) it's the old way: copy the new version from your Mac with the
 `rsync` command, then run `cd ~/empathika-assistant && sudo ./scripts/pi/setup.sh`.
 
+## When something goes wrong with a conversation
+
+Settings → Log keeps a step-by-step trace of every live-voice conversation, with the seconds since it
+started: the settings in force, when you started and stopped speaking, when your words arrived, each of
+Empathika's answers, and the exact reason it ended ("nothing more said for 8s", "no request heard", "past the
+session limit: ending at the next quiet moment"). No words are logged, only counts and timings. When Empathika
+cuts you off or won't answer, Settings → Log → **Download a support report** right after and send it: the
+trace says which rule ended it.
+
 ## Troubleshooting
 
 | Problem | What to do |
 | --- | --- |
+| The logs say `You: (8 words)` instead of what you said | On purpose: what you say, emails, memory facts and reminders are kept out of the logs. To see them while troubleshooting, add `LOG_CONTENT=on` to `.env` and run `docker compose up -d`; remove it afterwards. |
 | Screen stays black | On a Pi 5, use the cable with **one narrow end** (22-pin, into the Pi) and one wide end (15-pin, into the screen); the cable with two equal ends is for older Pis. Check both ends are fully in with the latches closed. Then run the setup again and make sure you picked the connector the cable is really in (`CAM/DISP 0` or `1`, printed on the Pi): `sudo EMPATHIKA_DSI_PORT=0 ./scripts/pi/setup.sh` (or `=1`). |
 | The desktop appears instead of Empathika's face | The card has Raspberry Pi OS **with desktop**. Run the setup again (it now switches the desktop off at boot), or by hand: `sudo systemctl disable lightdm && sudo systemctl enable empathika-face && sudo reboot`. To get the desktop back: `sudo systemctl enable lightdm && sudo reboot`. |
 | Control panel won't open from the laptop | On the box, `docker compose ps` must show `0.0.0.0:8099->8099` for `empathika`; if it shows `127.0.0.1:8099`, run `docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d` (the setup now makes this the default). On a Mac, if `curl http://<box address>:8099` works in Terminal but the browser doesn't, allow the browser in System Settings → Privacy & Security → Local Network. |
@@ -223,7 +272,7 @@ The very first time (to install this updater) it's the old way: copy the new ver
 | Face shows "Reconnecting…" | Empathika isn't running: `cd ~/empathika-assistant && docker compose logs --tail 50 empathika` |
 | No sound, or Empathika can't hear | `pactl list short sinks` and `pactl list short sources` should list the mic board (XVF3800). If not, check its USB cable, then run `systemctl --user restart empathika-audio-defaults`. |
 | Empathika wakes up by herself (TV, music, noise) | Set `WAKEWORD_TRIGGER_LEVEL=2` in `.env` and run `docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d`. The log line `Ignored a false wake-up` shows the double-check catching others. More: `training/README.md`, "Waking up by itself". |
-| Empathika doesn't wake reliably | Run `./scripts/wake-coach.sh` from where you usually sit: it measures how well she recognises you and tells you what to change. |
+| Empathika doesn't wake reliably | **Settings → Voice & night → Wake-ups** on the control panel shows each time the box heard something like "Hey Empathika" and what happened: *Ignored* means she heard it but the double-check didn't make out the words (noise): say it again within 15 s and she wakes anyway. Then, in order: (1) `WHISPER_MODEL=small-int8` in `.env` (the double-check hears better through noise); (2) `AUDIO_INPUT_CHANNEL=1`, then `0` (the mic board's two channels are processed differently; `npm run mic-check` shows each one's level); (3) `./scripts/wake-coach.sh` from where you usually sit, which suggests `WAKEWORD_THRESHOLD`; (4) retrain "Hey Empathika" with your own voice and your home's background noise: `training/README.md`. After each change: `docker compose up -d`. |
 | Face service | `journalctl -u empathika-face -n 50` |
 | WiFi setup service | `journalctl -u empathika-wifi -n 50` |
 | Start WiFi setup without the screen | `echo 1 \| sudo tee /run/empathika/wifi-request` |

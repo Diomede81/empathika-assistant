@@ -21,6 +21,22 @@ export interface PanelData {
   /** Running on the Empathika box: the Device section can turn it off or restart it. */
   onBox?: boolean;
   device?: { volume?: number; brightness: number; brightnessSupported?: boolean };
+  /** Voice & night: the greeting, night mode, microphone lights and mute, speaker sound, wake words, live voice. */
+  voice2?: {
+    greeting: string;
+    greetAgainMin: number;
+    startSound: boolean;
+    night?: { on: boolean; from: string; to: string; now: boolean };
+    micLight?: string;
+    micLightNow?: string;
+    tone?: string;
+    tones: Record<string, string>;
+    muted?: boolean;
+    canMute?: boolean;
+    wakeNames: string[];
+    wakeAvailable: string[];
+    live?: { provider: string; voice: string; style: string; voices: { id: string; label: string }[] };
+  };
   updates?: {
     onBox: boolean;
     version?: { sha: string; date: string; subject: string; repo: string };
@@ -36,6 +52,9 @@ export interface PanelData {
   /** The tab to open first (overview, resident, family, staff, empathika, connections, settings). */
   tab?: string;
   notice?: { kind: 'ok' | 'error'; text: string };
+  /** Phones and computers signed in to this panel (each allowed on Empathika's screen), and whether the password is in .env. */
+  devices?: { id: string; label: string; created: number; lastUsed: number; expires: number; current: boolean }[];
+  passwordFromEnv?: boolean;
   careApp: {
     configured: boolean;
     connected: boolean;
@@ -304,6 +323,46 @@ function careAppSection(a: PanelData['careApp']): string {
 <div class="acts">${b.available ? post('/backup/now', {}, 'Back up now', 'btn') : ''}${a.connected ? `<form method="post" action="/backup/restore" onsubmit="return confirm('Add any memories from the app backup that are missing here? Nothing here is overwritten.')"><button class="btn secondary" type="submit">Restore from the app</button></form>` : ''}</div></li></ul></section>`;
 }
 
+function voiceSection(v: NonNullable<PanelData['voice2']>, onBox: boolean): string {
+  const opt = (val: string, label: string, cur?: string) => `<option value="${esc(val)}" ${val === cur ? 'selected' : ''}>${esc(label)}</option>`;
+  const n = v.night ?? { on: false, from: '22:00', to: '07:00', now: false };
+  const wake = v.wakeAvailable.length
+    ? `<form class="stack" method="post" action="/device/wake-words"><p class="meta"><b>Wake words</b> (she answers to any ticked):</p>${v.wakeAvailable
+        .map((w) => `<label class="meta tick"><input type="checkbox" name="names" value="${esc(w)}" ${v.wakeNames.includes(w) ? 'checked' : ''}> "${esc(w.replace(/_/g, ' '))}"</label>`)
+        .join('')}<div><button class="btn secondary" type="submit">Save wake words</button></div></form>`
+    : '';
+  const live = v.live
+    ? `<form class="stack" method="post" action="/voice/save"><p class="meta"><b>Live voice</b> (${esc(v.live.provider === 'gemini' ? 'Gemini Live' : 'OpenAI Realtime')}):</p>
+<div class="addfact"><select name="voice" aria-label="Voice">${v.live.voices.map((x) => opt(x.id, x.label, v.live!.voice)).join('')}</select></div>
+<div class="addfact"><input name="style" maxlength="400" value="${esc(v.live.style)}" placeholder="How she speaks"></div>
+<div class="acts"><button class="btn" type="submit">Save</button><button class="btn secondary" type="submit" formaction="/voice/try">Hear it on the box</button></div></form>`
+    : '';
+  return `<section id="voice"><h2>Voice &amp; night</h2>
+<form class="stack" method="post" action="/device/voice">
+<p class="meta"><b>Greeting</b>: what she says when someone says "Hey Empathika" (empty: just a short beep). Not repeated within the minutes below of the last conversation.</p>
+<div class="addfact"><input name="greeting" maxlength="120" value="${esc(v.greeting)}" placeholder="e.g. Hello, how can I help?"><input type="number" name="greetAgain" min="0" max="240" value="${v.greetAgainMin}" style="width:5em" aria-label="Minutes"><span class="meta">min</span></div>
+<label class="meta tick"><input type="checkbox" name="startSound" value="on" ${v.startSound ? 'checked' : ''}> A short tune when she starts up</label>
+<div><button class="btn secondary" type="submit">Save</button></div></form>
+<form class="addfact wrap" method="post" action="/device/night"><label class="meta"><input type="checkbox" name="on" value="yes" ${n.on ? 'checked' : ''}> <b>Night mode</b>: muted, no notifications, from</label><input type="time" name="from" value="${esc(n.from)}"><span class="meta">to</span><input type="time" name="to" value="${esc(n.to)}"><button class="btn secondary" type="submit">Save</button>${n.now ? ' <span class="badge warn">on now</span>' : ''}</form>
+${onBox ? `<form class="addfact" method="post" action="/device/mic-light"><label class="meta" for="ml">Microphone lights</label><select id="ml" name="micLight">${opt('on', 'On', v.micLight)}${opt('night', 'Off at night', v.micLight)}${opt('off', 'Always off', v.micLight)}</select><button class="btn secondary" type="submit">Save</button></form>
+<form class="addfact" method="post" action="/device/sound"><label class="meta" for="sp">Speaker sound</label><select id="sp" name="tone">${Object.entries(v.tones).map(([k, l]) => opt(k, l, v.tone)).join('')}</select><button class="btn secondary" type="submit">Save</button></form>` : ''}
+${v.canMute ? `<form class="addfact" method="post" action="/device/mute"><input type="hidden" name="on" value="${v.muted ? '0' : '1'}"><span class="meta">Microphone: <b>${v.muted ? 'off' : 'on'}</b></span><button class="btn secondary" type="submit">${v.muted ? 'Turn it on' : 'Turn it off'}</button></form>` : ''}
+${wake}
+${live}
+</section>`;
+}
+
+function devicesRows(list: NonNullable<PanelData['devices']>, fromEnv: boolean): string {
+  const rows = list.length
+    ? list.map((x) => `<li class="row"><div><div>${esc(x.label)}${x.current ? ' <span class="badge ok">this one</span>' : ''}</div><div class="meta">Signed in ${esc(day(new Date(x.created).toISOString()))} · last used ${esc(when(new Date(x.lastUsed).toISOString()))} · until ${esc(day(new Date(x.expires).toISOString()))}</div></div>${post('/security/device-remove', { id: x.id }, 'Remove')}</li>`).join('')
+    : '<li class="empty">No devices signed in.</li>';
+  return `<li class="row"><div style="width:100%"><div class="name">Signed-in devices</div>
+<div class="meta">A new phone or computer needs the password, then Allow on Empathika's screen (a member of staff enters their PIN first). It stays signed in for 30 days.</div>
+<ul>${rows}</ul>
+${fromEnv ? '<p class="meta">The password is set in <code>.env</code> (PANEL_PASSWORD): change it there.</p>' : `<form class="addfact wrap" method="post" action="/security/password"><input name="current" type="password" required placeholder="Current password" autocomplete="current-password"><input name="password" type="password" required minlength="8" placeholder="New password (8+ characters)" autocomplete="new-password"><input name="again" type="password" required minlength="8" placeholder="New password again" autocomplete="new-password"><button class="btn secondary" type="submit">Change password</button></form>`}
+</div></li>`;
+}
+
 const esc = (s: unknown) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -424,6 +483,7 @@ ${servers ? `<section id="servers"><h2>Other MCP servers</h2><ul>${servers}</ul>
 
 <div class="pane" id="tab-settings">${d.location ? locationSection(d.location) : ''}
 ${d.screen ? screenSection(d.screen, esc) : ''}
+${d.voice2 ? voiceSection(d.voice2, Boolean(d.onBox)) : ''}
 ${d.models ? modelsSection(d.models, esc) : ''}
 <section id="device"><h2>Device</h2>
 ${d.device ? `<form class="addfact level" method="post" action="/device/level"><label class="meta" for="vol">Volume</label><input id="vol" type="range" name="volume" min="0" max="100" step="5" value="${d.device.volume ?? 50}" ${d.device.volume === undefined ? 'disabled' : ''} oninput="this.nextElementSibling.textContent=this.value+'%'" onchange="this.form.submit()"><span class="meta">${d.device.volume ?? '–'}%</span></form>
@@ -438,6 +498,7 @@ ${d.onBox
 ${d.updates ? updatesSection(d.updates) : ''}
 <section id="security"><h2>Security</h2><ul><li class="row"><div><div class="name">Panel password ${badge(Boolean(d.memory?.passwordSet), 'On', 'Off')}</div>
 <div class="meta">${d.memory?.passwordSet ? 'This page asks for a password.' : 'Anyone on the network can open this page, including the care notes. Set <code>PANEL_PASSWORD</code> in <code>.env</code> and restart Empathika.'}</div></div></li>
+${d.devices ? devicesRows(d.devices, Boolean(d.passwordFromEnv)) : ''}
 ${d.lock ? lockRow(d.lock) : ''}
 <li class="row"><div><div class="name">Voice</div><div class="meta">${esc(d.voice)}</div></div></li></ul></section></div>
 </main>

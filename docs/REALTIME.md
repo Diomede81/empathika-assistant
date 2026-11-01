@@ -75,17 +75,38 @@ and it copes well with "umm"s and rephrasing.
 
 ## Make it yours
 
+**Easiest:** on the control panel, **Settings → Voice & night**: pick a voice, optionally describe how she
+speaks, press **▶ Try it on Empathika** to hear a sample on the box, then **Save**. That overrides `REALTIME_VOICE` /
+`REALTIME_STYLE`. The "Hey Empathika" greeting is recorded once in the chosen voice (a few seconds after starting or
+saving) and replayed instantly from then on; until then the standard voice says it. Reminders, timers and
+other announcements are also said in the chosen voice (recorded while the two chimes play); if that can't be
+done within 10 seconds, the standard voice says them, so none is ever missed.
+
+
 | Setting | What it does |
 |---|---|
 | `REALTIME_VOICE` | `cedar` (male) and `marin` (female, the default) are OpenAI's most natural voices. Others: `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `alloy` |
 | `REALTIME_STYLE` | Personality and delivery, e.g. `Speak with a warm, calm British accent, like a witty butler.` |
-| `REALTIME_SILENCE_MS` | How long a pause means "I'm done" (default 500). Lower = snappier, but may cut you off |
+| `REALTIME_SILENCE_MS` | How long a pause means "I'm done" (default 1000; Settings → Device overrides it). Lower = snappier, but may cut you off; longer (1.5–4 s) lets you think mid-sentence when dictating |
+| `REALTIME_END_OF_SPEECH` | `relaxed` (default): Gemini waits through hesitations before deciding you've finished; `quick`: decides sooner, for one-line commands |
 | `REALTIME_FOLLOW_UP_MS` | How long Empathika keeps listening for a follow-up before hanging up (default 8000) |
 | `REALTIME_WAKE_INTERRUPT` | `on` (default): say the wake word while Empathika is talking to cut her off and ask something else. Works on normal speakers |
 | `REALTIME_BARGE_IN=on` | Lets you interrupt Empathika mid-sentence. **Use only with headphones** (or a speakerphone with echo cancellation): otherwise Empathika hears her own voice and interrupts herself |
 | `REALTIME_TRANSCRIBE_MODEL` | Set to e.g. `gpt-4o-mini-transcribe` to also log what you said (small extra cost) |
 
 Switch back any time with `VOICE_MODE=pipeline`.
+
+## Taking turns: when Empathika decides you've finished
+
+Three things decide when Empathika answers, all under Settings → Device:
+
+1. **The pause** ("A pause of … means you've finished"). Gemini ends your turn after that much silence. It is also told to be slow to call a hesitation a pause (`REALTIME_END_OF_SPEECH=relaxed`).
+2. **The grace window** ("If you carry on within … Empathika stays quiet"). Empathika's answer is held back that long after your pause, with the microphone still open. Speak again inside it and the answer is dropped unheard: Empathika just keeps listening, and the voice model is told nobody heard it, so the next answer stands on its own. Every answer starts that much later, so keep it short (0.8 s is the default; "no time" switches it off).
+3. **The follow-up wait** ("After she answers, stop listening when nothing more is said for …").
+
+For telling her about your day, set the pause to 1.5–2 s and the grace window to 1.2 s. For quick commands, 0.8 s and 0.5 s.
+
+The log traces each of these: `[voice +12.3s] you carried on within the 800 ms grace window: Empathika's answer (1400 ms of speech, still arriving) dropped unheard, still listening`.
 
 ## Interrupting Empathika
 
@@ -101,8 +122,12 @@ OpenAI charges per minute of audio in and out. Published third-party estimates f
 `gpt-realtime-2` are roughly **$0.15–0.20 per minute of conversation**. Check
 https://openai.com/api/pricing for current prices. To keep costs down, Empathika:
 - only connects after the wake word (the always-on listening is local and free),
-- hangs up after `REALTIME_FOLLOW_UP_MS` of quiet,
-- never keeps a session open longer than `REALTIME_MAX_SESSION_S` (default 5 minutes).
+- hangs up when nothing more is *said* for a while after her answer (Settings → Device: 4 to 20 seconds,
+  default `REALTIME_FOLLOW_UP_MS`). Only your words count: a stretch of sound that ends without any words
+  (a TV, people talking across the room) doesn't keep her listening. While you are talking she never hangs
+  up, however long the sentence; and a first request that never comes ends it after 7 seconds,
+- ends a long session at the next quiet moment after `REALTIME_MAX_SESSION_S` (default 15 minutes), never
+  mid-sentence or mid-answer.
 
 Set a monthly spending limit in your OpenAI account settings before a demo.
 

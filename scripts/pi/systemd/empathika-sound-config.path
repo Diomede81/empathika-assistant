@@ -1,0 +1,9 @@
+[Unit]
+Description=Empathika: apply the speaker sound chosen on the control panel
+
+[Path]
+PathChanged=/run/empathika/sound.json
+Unit=empathika-sound-reload.service
+
+[Install]
+WantedBy=default.target

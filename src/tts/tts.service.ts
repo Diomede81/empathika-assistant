@@ -29,6 +29,31 @@ export class TtsService {
   ) {}
 
   /** Returns a speech session: say() each sentence, then await done(). */
+  /** Cuts off whatever is playing right now (the greeting after a false wake-up). */
+  stopPlayback(): void {
+    this.speaker.stop();
+  }
+
+  /**
+   * Says something in the voice that runs on the box itself (Piper), so it works without internet (no WiFi,
+   * router down); the usual voice if Piper isn't there. For messages about the connection itself.
+   */
+  async sayLocal(text: string): Promise<void> {
+    if (!text.trim()) return;
+    if (this.cfg.tts.provider === 'openai') {
+      try {
+        const s = this.synthesizePiper(text);
+        await this.speaker.play(await s.format, s.audio);
+        return;
+      } catch (err) {
+        this.log.warn(`The box's own voice (Piper) didn't answer (${(err as Error).message}); using the usual one`);
+      }
+    }
+    const s = this.session();
+    s.say(text);
+    await s.done();
+  }
+
   session() {
     const order = new AsyncQueue<Synthesis>();
     let stopped = false;
@@ -147,20 +172,64 @@ export class TtsService {
     return { format, audio };
   }
 
+  /** A whole phrase as audio, without playing it (e.g. to say it in an online meeting). */
+  async render(text: string): Promise<{ format: PcmFormat; pcm: Buffer }> {
+    const s = this.synthesize(text);
+    const format = await s.format;
+    const parts: Buffer[] = [];
+    for await (const chunk of s.audio) parts.push(chunk);
+    return { format, pcm: Buffer.concat(parts) };
+  }
+
+  /** Short phrases (the greeting) synthesised once and kept, so they play without any delay. */
+  private readonly ready = new Map<string, { format: PcmFormat; pcm: Buffer[] }>();
+
+  /** Synthesises a phrase in advance (e.g. the greeting at start-up). */
+  async prepare(text: string): Promise<boolean> {
+    if (!text.trim() || this.ready.has(text)) return true;
+    try {
+      const s = this.synthesize(text);
+      const pcm: Buffer[] = [];
+      for await (const c of s.audio) pcm.push(c);
+      const format = await s.format;
+      if (this.ready.size > 10) this.ready.clear();
+      this.ready.set(text, { format, pcm });
+      return true;
+    } catch (err) {
+      this.log.warn(`Could not prepare "${text}": ${(err as Error).message}`);
+      return false;
+    }
+  }
+
+  /** Says a short phrase straight away (prepared once, then replayed). */
+  async sayReady(text: string): Promise<void> {
+    if (!this.ready.has(text) && !(await this.prepare(text))) return;
+    const { format, pcm } = this.ready.get(text)!;
+    await this.speaker.play(format, (async function* () { yield* pcm; })());
+  }
+
+  /** A friendly rising three-note jingle when Empathika starts. */
+  jingle(): Promise<void> {
+    return this.tones([[523.25, 140], [659.25, 140], [783.99, 320]], 7000, 1500);
+  }
+
   /** A short rising two-note chime, so you know Empathika is listening. */
   chime(): Promise<void> {
+    return this.tones([[880, 90], [1320, 90]], 6000, 200);
+  }
+
+  private tones(notes: [number, number][], level: number, fadeOut: number): Promise<void> {
     const rate = 22050;
-    const notes = [880, 1320];
-    const noteMs = 90;
-    const pcm = Buffer.alloc(Math.round((rate * noteMs) / 1000) * notes.length * 2);
-    let i = 0;
-    for (const f of notes) {
-      const n = Math.round((rate * noteMs) / 1000);
-      for (let k = 0; k < n; k++, i += 2) {
-        const fade = Math.min(1, k / 200, (n - k) / 200); // avoid clicks
-        pcm.writeInt16LE(Math.round(Math.sin((2 * Math.PI * f * k) / rate) * 6000 * fade), i);
+    const parts = notes.map(([f, ms]) => {
+      const n = Math.round((rate * ms) / 1000);
+      const b = Buffer.alloc(n * 2);
+      for (let k = 0; k < n; k++) {
+        const fade = Math.min(1, k / 200, (n - k) / Math.min(n / 2, fadeOut)); // no clicks; a long fade lets a note ring out
+        b.writeInt16LE(Math.round(Math.sin((2 * Math.PI * f * k) / rate) * level * fade), k * 2);
       }
-    }
+      return b;
+    });
+    const pcm = Buffer.concat(parts);
     return this.speaker.play({ rate, width: 2, channels: 1 }, (async function* () { yield pcm; })());
   }
 }

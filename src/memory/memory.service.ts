@@ -3,12 +3,15 @@ import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'n
 import { writeFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { keyWasGenerated, memorySecret } from './sealed-store';
 import { APP_CONFIG, AppConfig } from '../config';
 import { timeZone } from '../actions/clock';
 import { masterKey, newSecret, open, seal, SealedFile, vaultKey } from './crypto';
 import { cosine, EmbedderService, fromB64, toB64 } from './embedder.service';
+import { isSameFact } from './duplicates';
 import { label, ModesService, VaultName, VAULTS } from './modes.service';
 import { Activity, ActivityKind, ActivityLog } from './activity-log';
+import { said } from '../log-content';
 
 export type Kind = 'person' | 'life_story' | 'preference' | 'routine' | 'date' | 'family_news' | 'health' | 'fact';
 export const KINDS: Kind[] = ['person', 'life_story', 'preference', 'routine', 'date', 'family_news', 'health', 'fact'];
@@ -68,6 +71,8 @@ export interface NewItem {
 
 interface VaultData {
   version: 2;
+  /** The meaning-search model that made the stored vectors: a different one in .env means re-indexing everything. */
+  embedModel?: string;
   items: MemoryItem[];
   episodes: Episode[];
 }
@@ -106,7 +111,7 @@ const MAX_ITEMS_PER_VAULT = 5000;
 const MAX_EPISODES_PER_VAULT = 5000;
 const MAX_TEXT = 300;
 const MAX_NEWS = 1200;
-const SAME_FACT = 0.9; // meaning similarity above which a new fact replaces the old one
+const TIDY_MS = 6 * 3600_000;
 const SECRET = /\b(password|passcode|passphrase|pin( code| number)?|alarm code|door code|security code|cvv|card number|sort code|account number|iban|api key|token)\b/i;
 const KIND_WEIGHT: Record<Kind, number> = { person: 3, life_story: 2.5, preference: 2.5, routine: 2, health: 2, family_news: 1.5, date: 1.5, fact: 1 };
 
@@ -216,6 +221,7 @@ export class MemoryService implements OnModuleInit {
   promptSection(included = new Set<string>()): string {
     if (!this.enabled) return '';
     this.expire();
+    this.tidy();
     const mode = this.modes.mode;
     const open = this.modes.readable(mode);
     const items = this.items(open).filter((i) => !i.unverified);
@@ -258,10 +264,11 @@ export class MemoryService implements OnModuleInit {
       ...this.sections.map((f) => f(open)),
       recent.length ? `Recent conversations:\n${recent.join('\n')}` : '',
       'Use recall to search all facts and past conversations before saying you don\'t know something about the resident. ' +
-        'When the resident shares a lasting detail (family and friends, their life story, places, work they did, likes and ' +
-        'dislikes, routines, important dates), call remember with one short self-contained sentence using real names and ' +
-        'dates. Vault: resident for who they are and what they enjoy; care for anything about health, pain, mood, sleep, ' +
-        'eating, falls or medication (staff will see it; do not read it back). Call forget when asked. ' +
+        'Call remember only when someone explicitly asks you to remember or note something: one short self-contained ' +
+        'sentence with real names and dates. Vault: resident for who they are and what they enjoy; care for anything about ' +
+        'health, pain, mood, sleep, eating, falls or medication (staff will see it; do not read it back). Details the resident ' +
+        'mentions in passing (family, life story, likes) are filed automatically after the conversation, so never call ' +
+        'remember for them, and never turn a question into a fact. Call forget when asked. ' +
         'Never store passwords, PINs, codes or account numbers.',
     ]
       .filter(Boolean)
@@ -297,7 +304,7 @@ export class MemoryService implements OnModuleInit {
       for (const i of v.data.items) {
         if (!i.vec) continue;
         const s = cosine(vec, fromB64(i.vec));
-        if (s >= SAME_FACT && (!best || s > best.s)) best = { i, s };
+        if (isSameFact(text, i.text, s) && (!best || s > best.s)) best = { i, s };
       }
       same = best?.i;
     }
@@ -315,7 +322,7 @@ export class MemoryService implements OnModuleInit {
       });
       this.save(v);
       if (changed) {
-        this.log.log(`Updated [${v.name}]: "${text}"`);
+        this.log.log(`Updated [${v.name}]: ${said(text)}`);
         this.activity('updated', `Updated (${n.source})`, [v.name], [text]);
       }
       return { ok: true, message: changed ? `Updated: ${text}` : 'Already remembered.', item: same };
@@ -342,7 +349,7 @@ export class MemoryService implements OnModuleInit {
     };
     v.data.items.push(item);
     this.save(v);
-    this.log.log(`Remembered [${v.name}/${item.kind}${item.unverified ? ', unverified' : ''}] (${n.source}): "${text}"`);
+    this.log.log(`Remembered [${v.name}/${item.kind}${item.unverified ? ', unverified' : ''}] (${n.source}): ${said(text)}`);
     this.activity('saved', `Saved (${n.source}${item.unverified ? ', unverified' : ''})`, [v.name], [text]);
     return {
       ok: true,
@@ -380,7 +387,7 @@ export class MemoryService implements OnModuleInit {
     v.data.episodes.push({ id: randomUUID(), vault, at: at.toISOString(), summary: text, level: 'note', vec: vec ? toB64(vec) : undefined });
     this.activity('note', 'New conversation note', [vault], [text]);
     if (v.data.episodes.length > MAX_EPISODES_PER_VAULT) v.data.episodes.splice(0, v.data.episodes.length - MAX_EPISODES_PER_VAULT);
-    this.log.log(`Conversation note [${vault}]: "${text}"`);
+    this.log.log(`Conversation note [${vault}]: ${said(text)}`);
     this.save(v);
   }
 
@@ -430,11 +437,16 @@ export class MemoryService implements OnModuleInit {
     return true;
   }
 
+  /** A fact by id, from any open vault. */
+  itemById(id: string): MemoryItem | undefined {
+    return this.find(id)?.i;
+  }
+
   deleteItem(id: string): boolean {
     const f = this.find(id);
     if (!f) return false;
     f.v.data.items = f.v.data.items.filter((i) => i.id !== id);
-    this.log.log(`Forgot [${f.v.name}]: "${f.i.text}"`);
+    this.log.log(`Forgot [${f.v.name}]: ${said(f.i.text)}`);
     this.activity('forgot', 'Forgot', [f.v.name], [f.i.text]);
     this.save(f.v);
     return true;
@@ -458,7 +470,7 @@ export class MemoryService implements OnModuleInit {
     dest.data.items.push({ ...f.i, vault: to, updatedAt: new Date().toISOString() });
     this.save(f.v);
     this.save(dest);
-    this.log.log(`Moved to ${to}: "${f.i.text}"`);
+    this.log.log(`Moved to ${to}: ${said(f.i.text)}`);
     this.activity('moved', `Moved from ${f.v.name} to ${to}`, [f.v.name, to], [f.i.text]);
     return true;
   }
@@ -604,6 +616,26 @@ export class MemoryService implements OnModuleInit {
     for (const v of touched) this.save(v);
   }
 
+  private lastTidy = new Map<string, number>();
+
+  /**
+   * Merges facts saved twice in different words (e.g. once during the conversation and again by the
+   * filer afterwards), keeping the newest wording. At most every few hours per vault.
+   */
+  private tidy(): void {
+    const now = Date.now();
+    for (const v of this.openVaults()) {
+      if (now - (this.lastTidy.get(v.name) ?? 0) < TIDY_MS) continue;
+      this.lastTidy.set(v.name, now);
+      const merged = mergeDuplicates(v.data.items);
+      if (merged.length) {
+        this.log.log(`${v.name}: merged ${merged.length} duplicate fact(s)`);
+        this.activity('updated', `Merged ${merged.length} duplicate fact(s)`, [v.name], merged);
+        this.save(v);
+      }
+    }
+  }
+
   private expire(): void {
     const now = new Date().toISOString();
     for (const v of this.openVaults()) {
@@ -618,6 +650,12 @@ export class MemoryService implements OnModuleInit {
 
   private async reindex(): Promise<void> {
     for (const v of this.openVaults()) {
+      // Vectors from another model don't compare with the new one's: start again (keyword search works meanwhile).
+      if (v.data.embedModel && v.data.embedModel !== this.cfg.memory.embedModel) {
+        this.log.log(`${v.name}: the meaning-search model changed (${v.data.embedModel} → ${this.cfg.memory.embedModel}); re-indexing`);
+        for (const i of v.data.items) delete i.vec;
+        for (const e of v.data.episodes) delete e.vec;
+      }
       const missing: { obj: { vec?: string }; text: string }[] = [
         ...v.data.items.filter((i) => !i.vec).map((i) => ({ obj: i, text: i.text })),
         ...v.data.episodes.filter((e) => !e.vec).map((e) => ({ obj: e, text: e.summary })),
@@ -628,8 +666,9 @@ export class MemoryService implements OnModuleInit {
         if (!vecs) return;
         batch.forEach((b, k) => (b.obj.vec = toB64(vecs[k])));
       }
-      if (missing.length) {
-        this.log.log(`Indexed ${missing.length} memories in ${v.name}`);
+      if (missing.length || v.data.embedModel !== this.cfg.memory.embedModel) {
+        if (missing.length) this.log.log(`Indexed ${missing.length} memories in ${v.name}`);
+        v.data.embedModel = this.cfg.memory.embedModel;
         this.save(v);
       }
     }
@@ -664,22 +703,16 @@ export class MemoryService implements OnModuleInit {
     return this.modes.mode === 'staff' ? '' : ' (care notes are only open in a staff session)';
   }
 
-  /** MEMORY_KEY from .env, or a key generated on first start and kept next to the vaults. */
+  /** MEMORY_KEY from .env, or the key made once on first start and kept next to the vaults (memorySecret). */
   private secret(): string {
-    if (this.cfg.memory.key) return this.cfg.memory.key;
-    const file = join(this.cfg.memory.dir, 'memory.key');
-    try {
-      return readFileSync(file, 'utf8').trim();
-    } catch {
-      mkdirSync(this.cfg.memory.dir, { recursive: true });
-      const s = newSecret();
-      writeFileSync(file, s, { encoding: 'utf8', mode: 0o600 });
+    const s = memorySecret(this.cfg);
+    if (keyWasGenerated()) {
       this.log.warn(
-        `Generated a memory encryption key in ${file}. For stronger protection, copy it into .env as MEMORY_KEY ` +
-          'and delete the file, so the key and the vaults are never stored together (docs/MEMORY.md).',
+        `Generated an encryption key in ${join(this.cfg.memory.dir, 'memory.key')}. For stronger protection, copy it into .env as MEMORY_KEY ` +
+          'and delete the file, so the key and the data are never stored together (docs/MEMORY.md).',
       );
-      return s;
     }
+    return s;
   }
 
   private load(name: VaultName, key: Buffer): Vault {
@@ -796,4 +829,40 @@ export function episodeLabel(e: Pick<Episode, 'at' | 'from' | 'level'>): string 
 
 export function shortDate(iso: string): string {
   return new Intl.DateTimeFormat('en-GB', { timeZone: timeZone(), day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
+}
+
+/**
+ * Removes duplicate facts from the list (in place): of each set of the same fact, the most recently
+ * updated wording stays, with the earliest creation date, the uses added up and any details it lacked.
+ * Returns the wordings removed.
+ */
+export function mergeDuplicates(items: MemoryItem[]): string[] {
+  const removed: string[] = [];
+  const vecs = new Map(items.map((i) => [i.id, i.vec ? fromB64(i.vec) : undefined]));
+  const order = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const gone = new Set<string>();
+  for (let x = 0; x < order.length; x++) {
+    const keep = order[x];
+    if (gone.has(keep.id)) continue;
+    const kv = vecs.get(keep.id);
+    for (let y = x + 1; y < order.length; y++) {
+      const other = order[y];
+      if (gone.has(other.id)) continue;
+      const ov = vecs.get(other.id);
+      const sim = normalise(keep.text) === normalise(other.text) ? 1 : kv && ov ? cosine(kv, ov) : 0;
+      if (!isSameFact(keep.text, other.text, sim)) continue;
+      gone.add(other.id);
+      removed.push(other.text);
+      keep.createdAt = other.createdAt < keep.createdAt ? other.createdAt : keep.createdAt;
+      keep.uses = (keep.uses ?? 0) + (other.uses ?? 0);
+      keep.subject ??= other.subject;
+      keep.date ??= other.date;
+      if (!other.unverified) keep.unverified = undefined;
+    }
+  }
+  if (gone.size) {
+    const left = items.filter((i) => !gone.has(i.id));
+    items.splice(0, items.length, ...left);
+  }
+  return removed;
 }

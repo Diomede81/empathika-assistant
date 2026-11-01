@@ -1,0 +1,8 @@
+[Unit]
+Description=Empathika: switch the microphone board's lights on request
+
+[Service]
+Type=oneshot
+Environment=EMPATHIKA_RUN_DIR=/run/empathika
+Environment=XVF_HOST_DIR=/usr/local/lib/empathika/xvf_host
+ExecStart=/usr/local/lib/empathika/empathika-mic-light.sh

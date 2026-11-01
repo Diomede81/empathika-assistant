@@ -7,6 +7,7 @@ import { FamilyUpdatesService, whenSaid } from '../care-app/family-updates.servi
 import { TimerService } from '../actions/timer.service';
 import { MemoryItem } from '../memory/memory.service';
 import { AmbientService } from './ambient.service';
+import { DeviceService } from '../device/device.service';
 
 const TICK_MS = 15_000;
 const NOTE_MS = 15 * 60_000;
@@ -33,6 +34,7 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
     @Optional() private readonly family?: FamilyUpdatesService,
     @Optional() private readonly timers?: TimerService,
     @Optional() private readonly ambient?: AmbientService,
+    @Optional() private readonly device?: DeviceService,
   ) {}
 
   onModuleInit(): void {
@@ -97,6 +99,7 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
   /** Shows the next waiting notification if now is a good moment. */
   deliver(): void {
     if (this.lock?.locked) return; // kept until the start-up code is entered
+    if (this.device?.nightNow) return; // night mode: kept until the morning
     if (!this.pending.length) return;
     const info = this.face.info();
     if (info.state !== 'idle') return; // talking, asleep, or setting up the WiFi

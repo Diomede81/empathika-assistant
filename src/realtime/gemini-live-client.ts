@@ -11,15 +11,24 @@ import { toGeminiSchema } from './gemini-schema';
  *
  * Differences handled here:
  * - Gemini continues by itself after tool results, so `response-done` always reports
- *   toolCalls: 0 and requestResponse() is a no-op.
+ *   toolCalls: 0 and requestResponse() is a no-op. It answers after every tool response it gets,
+ *   so the results of actions asked for together (three to-dos at once) go back together, in one
+ *   response: otherwise Empathika says "Done" once per action.
  * - Speech start/stop events come from the server when it sends them (voiceActivity);
  *   otherwise a simple loudness detector on the outgoing mic audio provides them.
  * - There is no "cancel reply" message; interrupted audio is simply discarded.
  */
+/** How long to wait after the last result for more actions asked for in the same go. */
+const TOOL_BATCH_MS = 120;
+
 export class GeminiLiveClient extends EventEmitter implements VoiceClient {
   readonly inputRate = 16000;
   private ws?: WebSocket;
   private readonly toolNames = new Map<string, string>();
+  /** Actions asked for and not answered yet, and the answers held until they all are. */
+  private readonly outstanding = new Set<string>();
+  private results: { id: string; name: string; response: { result: string } }[] = [];
+  private flushTimer?: NodeJS.Timeout;
   private userText = '';
   private maxText = '';
   private interrupted = false;
@@ -90,11 +99,20 @@ export class GeminiLiveClient extends EventEmitter implements VoiceClient {
   }
 
   sendToolResult(callId: string, output: string): void {
-    this.send({
-      toolResponse: {
-        functionResponses: [{ id: callId, name: this.toolNames.get(callId) ?? '', response: { result: output } }],
-      },
-    });
+    if (!this.toolNames.has(callId)) return; // cancelled meanwhile: nothing waits for it
+    this.outstanding.delete(callId);
+    this.results.push({ id: callId, name: this.toolNames.get(callId) ?? '', response: { result: output } });
+    this.toolNames.delete(callId);
+    clearTimeout(this.flushTimer);
+    // all answered: send them together, after a moment in case Gemini asks for more in the same go
+    if (!this.outstanding.size) this.flushTimer = setTimeout(() => this.flushResults(), TOOL_BATCH_MS);
+  }
+
+  private flushResults(): void {
+    if (this.outstanding.size || !this.results.length) return;
+    const functionResponses = this.results;
+    this.results = [];
+    this.send({ toolResponse: { functionResponses } });
   }
 
   requestResponse(): void {
@@ -113,7 +131,16 @@ export class GeminiLiveClient extends EventEmitter implements VoiceClient {
     /* not supported by Gemini Live */
   }
 
+  addContext(text: string): void {
+    this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: false } });
+  }
+
+  speak(text: string): void {
+    this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true } });
+  }
+
   close(): void {
+    clearTimeout(this.flushTimer);
     this.closing = true;
     this.ws?.close();
     this.ws = undefined;
@@ -130,10 +157,23 @@ export class GeminiLiveClient extends EventEmitter implements VoiceClient {
       if (m.voiceActivity.voiceActivityType === 'ACTIVITY_END') this.emit('speech-stopped');
     }
     if (m.toolCall?.functionCalls) {
+      clearTimeout(this.flushTimer);
       for (const c of m.toolCall.functionCalls as Array<{ id: string; name: string; args?: Record<string, unknown> }>) {
         this.toolNames.set(c.id, c.name);
+        this.outstanding.add(c.id);
         this.emit('tool-call', { callId: c.id, name: c.name, args: c.args ?? {} });
       }
+    }
+    // Gemini dropped actions it asked for (the user interrupted): don't wait for them
+    if (m.toolCallCancellation?.ids) {
+      for (const id of m.toolCallCancellation.ids as string[]) {
+        this.outstanding.delete(id);
+        this.toolNames.delete(id);
+      }
+      // the conversation stops waiting for them
+      this.emit('tool-cancelled', m.toolCallCancellation.ids as string[]);
+      this.results = this.results.filter((r) => !(m.toolCallCancellation.ids as string[]).includes(r.id));
+      if (!this.outstanding.size && this.results.length) this.flushTimer = setTimeout(() => this.flushResults(), TOOL_BATCH_MS);
     }
     const sc = m.serverContent;
     if (sc) {
@@ -141,7 +181,10 @@ export class GeminiLiveClient extends EventEmitter implements VoiceClient {
         const data = part.inlineData?.data;
         if (data && String(part.inlineData.mimeType ?? '').startsWith('audio/')) this.emit('audio', Buffer.from(data, 'base64'));
       }
-      if (sc.inputTranscription?.text) this.userText += sc.inputTranscription.text;
+      if (sc.inputTranscription?.text) {
+        this.userText += sc.inputTranscription.text;
+        this.emit('user-words', this.userText.trim()); // as it comes in, before the turn ends
+      }
       if (sc.outputTranscription?.text) {
         this.maxText += sc.outputTranscription.text;
         this.emit('assistant-text', sc.outputTranscription.text);
@@ -206,7 +249,18 @@ export function buildGeminiSetup(opts: VoiceClientOptions, parts: GeminiSetupPar
     // Strict OpenAPI-style schemas: Gemini Live rejects many JSON Schema keywords with
     // "Request contains an invalid argument" once the model tries to use the tools.
     ...(opts.tools.length ? { tools: [{ functionDeclarations: geminiDeclarations(opts.tools) }] } : {}),
-    ...(p.vad ? { realtimeInputConfig: { automaticActivityDetection: { silenceDurationMs: opts.silenceMs } } } : {}),
+    // endOfSpeechSensitivity LOW: Gemini is slower to decide the user has finished, so a breath or a thought
+    // mid-sentence doesn't end the turn; silenceDurationMs is the pause that does.
+    ...(p.vad
+      ? {
+          realtimeInputConfig: {
+            automaticActivityDetection: {
+              silenceDurationMs: opts.silenceMs,
+              endOfSpeechSensitivity: opts.endOfSpeech === 'quick' ? 'END_SENSITIVITY_HIGH' : 'END_SENSITIVITY_LOW',
+            },
+          },
+        }
+      : {}),
     ...(p.transcription ? { inputAudioTranscription: {}, outputAudioTranscription: {} } : {}),
   };
 }

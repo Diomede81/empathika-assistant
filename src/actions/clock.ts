@@ -68,3 +68,13 @@ export function local(now = new Date()): { date: string; time: string; weekday: 
   const g = (k: string) => p.find((x) => x.type === k)?.value ?? '';
   return { date: `${g('year')}-${g('month')}-${g('day')}`, time: `${g('hour')}:${g('minute')}`, weekday: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(g('weekday')) + 1 };
 }
+
+/** Today's date (YYYY-MM-DD) in the household time zone. */
+export function localToday(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: timeZone() }).format(new Date());
+}
+
+/** A YYYY-MM-DD date moved by n days. */
+export function addDays(date: string, n: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
+}

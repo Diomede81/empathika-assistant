@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { APP_CONFIG, AppConfig } from '../config';
+import { timeZone } from '../actions/clock';
 import { SealedStore } from '../memory/sealed-store';
 
 const run = promisify(execFile);
@@ -19,7 +20,34 @@ export interface DeviceStatus {
   brightness: number;
   /** Whether the box's screen can change its brightness (known after the first change on the box). */
   brightnessSupported?: boolean;
+  /** What Empathika says when she hears "Hey Empathika" (empty: a short beep), and the start-up jingle. */
+  greeting?: string;
+  /** Minutes after a conversation during which "Hey Empathika" gets just the short beep, not the greeting again (0: greet every time). */
+  greetAgainMin?: number;
+  startSound?: boolean;
+  /** How the speaker is tuned (see SPEAKER_TONES). */
+  tone?: SpeakerTone;
+  night?: Night & { now: boolean };
+  /** The mic board's lights: the setting, and whether they are on or off right now. */
+  micLight?: MicLight;
+  micLightNow?: 'on' | 'off';
+  /** The box's answer to the last request (whether the control tool worked). */
+  micLightReport?: { ok: boolean; want: string; message: string; at: string };
+  /** Seconds of no words after Empathika's answer before a conversation ends (undefined: the .env default). */
+  listenSec?: number;
+  /** Milliseconds of pause that mean "I've finished speaking" in the live voice (undefined: the .env default). */
+  pauseMs?: number;
+  /** Milliseconds Empathika holds her answer back after you pause: carry on within it and she stays quiet. */
+  graceMs?: number;
 }
+
+/** Speaker tuning, applied on the box by empathika-sound.sh (an equaliser before the mic board). */
+export const SPEAKER_TONES = {
+  flat: 'Flat: the sound as it is',
+  warm: 'Warm: fuller, more bass, softer highs (best for music)',
+  voice: 'Voice: clearer speech, less boom',
+} as const;
+export type SpeakerTone = keyof typeof SPEAKER_TONES;
 
 /**
  * The box's speaker volume and screen brightness, from the screen's menu, by voice or from the
@@ -28,11 +56,24 @@ export interface DeviceStatus {
  * so she asks the box through the folder they share (/run/empathika/brightness-request; the box's
  * empathika-brightness service applies it) and keeps the level so it is set again after a restart.
  */
+export const DEFAULT_GREETING = 'Hello, how can I help?';
+
+/** By default the greeting isn't repeated within 10 minutes of the last conversation: just the short beep. */
+const GREET_AGAIN_MIN = 10;
+
 @Injectable()
 export class DeviceService implements OnModuleInit {
   private readonly log = new Logger('Device');
-  private readonly store: SealedStore<{ brightness?: number }>;
+  private readonly store: SealedStore<{ brightness?: number; greeting?: string; greetAgainMin?: number; startSound?: boolean; listenSec?: number; pauseMs?: number; graceMs?: number; tone?: SpeakerTone; night?: Night; micLight?: MicLight }>;
+  /** The mic board's LED ring: on, off, or off during night mode (and the face's sleep hours). */
+  private micLightSetting: MicLight = 'night';
+  private micLightApplied?: 'on' | 'off';
+  private micLightTimer?: NodeJS.Timeout;
+  /** Night mode: between these times Empathika is muted (no wake word, no announcements, no screen notices). */
+  private nightSettings: Night = { on: false, from: '23:00', to: '07:00' };
   private level = 100;
+  private voice: { greeting: string; greetAgainMin: number; startSound: boolean; listenSec?: number; pauseMs?: number; graceMs?: number } = { greeting: DEFAULT_GREETING, greetAgainMin: GREET_AGAIN_MIN, startSound: true };
+  private speakerTone: SpeakerTone = 'flat';
 
   constructor(@Inject(APP_CONFIG) private readonly cfg: AppConfig) {
     this.store = new SealedStore(cfg.memory.dir, 'device');
@@ -40,16 +81,164 @@ export class DeviceService implements OnModuleInit {
 
   onModuleInit(): void {
     try {
-      this.level = clamp(this.store.load()?.brightness ?? 100, MIN_BRIGHTNESS);
+      const saved = this.store.load();
+      this.level = clamp(saved?.brightness ?? 100, MIN_BRIGHTNESS);
+      this.voice = { greeting: saved?.greeting ?? this.cfg.audio.wakeGreeting, greetAgainMin: saved?.greetAgainMin ?? GREET_AGAIN_MIN, startSound: saved?.startSound ?? true, listenSec: saved?.listenSec, pauseMs: saved?.pauseMs, graceMs: saved?.graceMs };
+      if (saved?.tone && saved.tone in SPEAKER_TONES) this.speakerTone = saved.tone;
+      if (saved?.night) this.nightSettings = { ...this.nightSettings, ...saved.night };
+      if (saved?.micLight && MIC_LIGHTS.includes(saved.micLight)) this.micLightSetting = saved.micLight;
     } catch {
       // keep full brightness
     }
+    // /run/empathika is emptied when the box restarts: tell it the speaker tuning again.
+    if (this.cfg.face.onBox) this.applyTone();
     // After a restart, the box's screen starts at full brightness: set it back to the chosen level.
     if (this.cfg.face.onBox && this.level !== 100) this.applyBrightness();
+    // The mic board's lights: applied now and whenever night begins or ends.
+    if (this.cfg.face.onBox) {
+      this.applyMicLight();
+      this.micLightTimer = setInterval(() => this.applyMicLight(), 60_000);
+      this.micLightTimer.unref();
+    }
   }
 
   async status(): Promise<DeviceStatus> {
-    return { volume: await this.volume(), brightness: this.level, brightnessSupported: this.backlight()?.supported };
+    return { volume: await this.volume(), brightness: this.level, brightnessSupported: this.backlight()?.supported, ...this.voice, tone: this.speakerTone, night: { ...this.nightSettings, now: this.nightNow }, micLight: this.micLightSetting, micLightNow: this.micLightApplied, micLightReport: this.micLightReport() };
+  }
+
+  // ---------- Night mode ----------
+
+  get night(): Night {
+    return this.nightSettings;
+  }
+
+  /** Whether it is night now: Empathika stays muted (switched off on the control panel at any time). */
+  get nightNow(): boolean {
+    const n = this.nightSettings;
+    if (!n.on) return false;
+    return inRange(n.from, n.to);
+  }
+
+  setNight(changes: { on: boolean; from?: string; to?: string }): string {
+    const ok = (t?: string) => t !== undefined && /^\d{2}:\d{2}$/.test(t);
+    if (changes.from !== undefined && !ok(changes.from)) return 'The "from" time should look like 23:00.';
+    if (changes.to !== undefined && !ok(changes.to)) return 'The "to" time should look like 07:00.';
+    this.nightSettings = { on: changes.on, from: changes.from ?? this.nightSettings.from, to: changes.to ?? this.nightSettings.to };
+    this.persist();
+    const n = this.nightSettings;
+    return n.on ? `Night mode: Empathika is muted from ${n.from} to ${n.to}${this.nightNow ? ' (that is now)' : ''}.` : 'Night mode is off.';
+  }
+
+  // ---------- The mic board's lights ----------
+
+  get micLight(): MicLight {
+    return this.micLightSetting;
+  }
+
+  setMicLight(v: string): string {
+    if (!MIC_LIGHTS.includes(v as MicLight)) return 'Choose on, off, or off at night.';
+    this.micLightSetting = v as MicLight;
+    this.persist();
+    this.applyMicLight(true);
+    return v === 'on' ? 'Microphone lights on.' : v === 'off' ? 'Microphone lights off.' : `Microphone lights off at night (night mode, or ${this.cfg.face.sleep} while the face sleeps).`;
+  }
+
+  /** Whether the ring should be dark right now. */
+  private micLightWanted(): 'on' | 'off' {
+    if (this.micLightSetting === 'off') return 'off';
+    if (this.micLightSetting === 'on') return 'on';
+    const [from, to] = this.cfg.face.sleep.trim().split('-');
+    const asleep = /^\d{1,2}:\d{2}$/.test(from ?? '') && /^\d{1,2}:\d{2}$/.test(to ?? '') && inRange(from.padStart(5, '0'), to.padStart(5, '0'));
+    return this.nightNow || asleep ? 'off' : 'on';
+  }
+
+  /** Asks the box to switch the ring (empathika-mic-light.sh reads /run/empathika/mic-light-request), only when something changed. */
+  private applyMicLight(force = false): void {
+    const want = this.micLightWanted();
+    const report = this.micLightReport();
+    // Re-sent when the box hasn't confirmed it yet (the box service may have started after the request).
+    if (!force && want === this.micLightApplied && report?.want === want) return;
+    try {
+      writeFileSync(join(this.cfg.face.runDir, 'mic-light-request'), want);
+      this.micLightApplied = want;
+      this.log.log(`Microphone lights ${want}`);
+    } catch {
+      /* not on the box */
+    }
+  }
+
+  // ---------- Greeting and start-up sound ----------
+
+  /** What Empathika says when she hears "Hey Empathika" (empty: just the short beep). */
+  get greeting(): string {
+    return this.voice.greeting;
+  }
+
+  /** Minutes after a conversation when "Hey Empathika" gets just the beep instead of the greeting (0: greet every time). */
+  get greetAgainMin(): number {
+    return this.voice.greetAgainMin;
+  }
+
+  /** A short jingle when Empathika starts, so you know she's ready. */
+  get startSound(): boolean {
+    return this.voice.startSound;
+  }
+
+  /** Seconds of no words from the user after which a conversation ends (the control panel; undefined: the .env default). */
+  get listenSec(): number | undefined {
+    return this.voice.listenSec;
+  }
+
+  /** The pause (ms) that ends what the user is saying, in the live voice (undefined: the .env default). */
+  get pauseMs(): number | undefined {
+    return this.voice.pauseMs;
+  }
+
+  /** How long (ms) Empathika holds her answer back after you pause (undefined: the default). */
+  get graceMs(): number | undefined {
+    return this.voice.graceMs;
+  }
+
+  setVoice(changes: { greeting?: string; greetAgainMin?: number; startSound?: boolean; listenSec?: number; pauseMs?: number; graceMs?: number }): string {
+    if (changes.listenSec !== undefined && Number.isFinite(changes.listenSec)) this.voice.listenSec = Math.max(3, Math.min(60, Math.round(changes.listenSec)));
+    if (changes.pauseMs !== undefined && Number.isFinite(changes.pauseMs)) this.voice.pauseMs = Math.max(300, Math.min(4000, Math.round(changes.pauseMs)));
+    if (changes.graceMs !== undefined && Number.isFinite(changes.graceMs)) this.voice.graceMs = Math.max(0, Math.min(2000, Math.round(changes.graceMs)));
+    if (changes.greeting !== undefined) this.voice.greeting = changes.greeting.replace(/\s+/g, ' ').trim().slice(0, 120);
+    if (changes.greetAgainMin !== undefined && Number.isFinite(changes.greetAgainMin)) this.voice.greetAgainMin = Math.max(0, Math.min(240, Math.round(changes.greetAgainMin)));
+    if (changes.startSound !== undefined) this.voice.startSound = changes.startSound;
+    this.persist();
+    return 'Saved.';
+  }
+
+  private persist(): void {
+    this.store
+      .save({ brightness: this.level, ...this.voice, tone: this.speakerTone, night: this.nightSettings, micLight: this.micLightSetting })
+      .catch((err) => this.log.warn(`Could not save the device settings: ${(err as Error).message}`));
+  }
+
+  // ---------- Speaker tuning ----------
+
+  get tone(): SpeakerTone {
+    return this.speakerTone;
+  }
+
+  setTone(tone: string): string {
+    if (!(tone in SPEAKER_TONES)) return 'Unknown speaker sound.';
+    if (!this.cfg.face.onBox) return 'The speaker sound can only be changed on the Empathika box.';
+    this.speakerTone = tone as SpeakerTone;
+    this.persist();
+    if (!this.applyTone()) return "Couldn't reach the box's sound settings.";
+    this.log.log(`Speaker sound: ${tone}`);
+    return `Speaker sound: ${tone}. It changes in a couple of seconds.`;
+  }
+
+  private applyTone(): boolean {
+    try {
+      writeFileSync(join(this.cfg.face.runDir, 'sound.json'), JSON.stringify({ tone: this.speakerTone }));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // ---------- Volume ----------
@@ -93,7 +282,8 @@ export class DeviceService implements OnModuleInit {
   setBrightness(pct: number): number | string {
     if (!this.cfg.face.onBox) return 'Screen brightness can only be changed on the Empathika box';
     this.level = clamp(pct, MIN_BRIGHTNESS);
-    this.store.save({ brightness: this.level }).catch((err) => this.log.warn(`Could not save the brightness: ${(err as Error).message}`));
+    this.dimmed = false;
+    this.persist();
     if (!this.applyBrightness()) return "Couldn't reach the box's screen settings";
     this.log.log(`Brightness ${this.level}%`);
     return this.level;
@@ -103,9 +293,24 @@ export class DeviceService implements OnModuleInit {
     return this.setBrightness(this.level + by);
   }
 
+  /**
+   * The screen dims itself after a quiet spell (and lights up again for anything): a temporary
+   * level, never saved, never above the chosen brightness. Returns whether the backlight can do it.
+   */
+  dim(on: boolean, level: number): boolean {
+    if (!this.cfg.face.onBox) return false;
+    this.dimmed = on;
+    this.dimLevel = clamp(level, MIN_BRIGHTNESS);
+    const ok = this.applyBrightness();
+    return ok && this.backlight()?.supported !== false;
+  }
+  private dimmed = false;
+  private dimLevel = 20;
+
   private applyBrightness(): boolean {
     try {
-      writeFileSync(join(this.cfg.face.runDir, 'brightness-request'), String(this.level));
+      const level = this.dimmed ? Math.min(this.level, this.dimLevel) : this.level;
+      writeFileSync(join(this.cfg.face.runDir, 'brightness-request'), String(level));
       return true;
     } catch {
       return false;
@@ -113,6 +318,16 @@ export class DeviceService implements OnModuleInit {
   }
 
   /** What the box reported after applying the last change (written by empathika-brightness.sh). */
+  /** What the box said after the last microphone-light request (written by empathika-mic-light.sh). */
+  private micLightReport(): { ok: boolean; want: string; message: string; at: string } | undefined {
+    if (!this.cfg.face.onBox) return undefined;
+    try {
+      return JSON.parse(readFileSync(join(this.cfg.face.runDir, 'mic-light.json'), 'utf8')) as { ok: boolean; want: string; message: string; at: string };
+    } catch {
+      return undefined;
+    }
+  }
+
   private backlight(): { supported: boolean } | undefined {
     if (!this.cfg.face.onBox) return { supported: false };
     try {
@@ -124,3 +339,24 @@ export class DeviceService implements OnModuleInit {
 }
 
 const clamp = (v: number, min: number) => Math.max(min, Math.min(100, Math.round(Number.isFinite(v) ? v : 100)));
+
+export const MIC_LIGHTS = ['on', 'off', 'night'] as const;
+export type MicLight = (typeof MIC_LIGHTS)[number];
+
+export interface Night {
+  on: boolean;
+  /** "HH:MM" local time; the range may cross midnight (23:00 to 07:00). */
+  from: string;
+  to: string;
+}
+
+/** Whether the local time is within from–to (crossing midnight allowed). */
+export function inRange(from: string, to: string, now = new Date()): boolean {
+  const p = new Intl.DateTimeFormat('en-GB', { timeZone: timeZone(), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+  const mins = +(p.find((x) => x.type === 'hour')?.value ?? 0) * 60 + +(p.find((x) => x.type === 'minute')?.value ?? 0);
+  const [fh, fm] = from.split(':').map(Number);
+  const [th, tm] = to.split(':').map(Number);
+  const f = fh * 60 + fm, t = th * 60 + tm;
+  if (f === t) return false;
+  return f < t ? mins >= f && mins < t : mins >= f || mins < t;
+}

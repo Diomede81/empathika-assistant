@@ -1,8 +1,9 @@
+import { DeviceService } from '../device/device.service';
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { PowerAction, requestPower } from './power';
 import { Card, CardHandlers, screen } from './screen';
 import { EventEmitter } from 'node:events';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import QRCode from 'qrcode';
 import { APP_CONFIG, AppConfig } from '../config';
@@ -46,8 +47,10 @@ export interface FaceInfo {
   notice?: string;
   /** The box is installing an update (Empathika restarts during it: the face says so instead of "Reconnecting"). */
   updating?: boolean;
+  /** The mute button is on: Empathika can't hear anything. */
+  muted?: boolean;
   /** The card on screen (Empathika's face shrinks to the top while it shows). */
-  card?: Card & { until: number };
+  card?: Card & { until: number; seq: number };
   /** Live captions: what Empathika heard, or what she's saying. */
   caption?: { who: 'you' | 'empathika'; text: string };
   /** Around the face when idle: the weather; and the evening photo frame. */
@@ -62,7 +65,14 @@ export interface FaceInfo {
   staffPad?: { pausedUntil?: number; triesLeft: number };
   /** Staff are set up: turning off, restarting, WiFi and updates need a staff session. */
   staffRequired?: boolean;
+  /** Dim the screen after this many quiet seconds (0 = never). */
+  dimAfterSec?: number;
+  /** The box's power button was pressed (when): the screen asks "Turn off / Restart?". */
+  powerAsk?: number;
 }
+
+/** How long a power button press stays "asked" (a screen that reconnects within it still asks). */
+const POWER_ASK_MS = 30_000;
 
 /** How long the staff keypad stays up if nobody types. */
 const STAFF_PAD_MS = 60_000;
@@ -105,6 +115,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     @Optional() private readonly modes?: ModesService,
     @Optional() private readonly toolRouter?: ToolRouterService,
     @Optional() private readonly ambient?: AmbientService,
+    @Optional() private readonly device?: DeviceService,
     @Optional() private readonly screenTools?: ScreenToolsService,
     @Optional() private readonly lock?: LockService,
     @Optional() private readonly staffService?: StaffService,
@@ -282,13 +293,15 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
     const locked = this.lock?.status();
     if (!locked) return info;
     // Locked (start-up code): the clock, timers and the keypad only; nothing personal.
-    return { ...info, locked, reminder: undefined, activity: undefined, card: undefined, caption: undefined, glance: undefined, staff: undefined, staffPad: undefined };
+    // The WiFi setup network's password and QR code only after the code is entered (they let anyone repoint the box).
+    const wifi = info.wifi ? { ...info.wifi, password: undefined, qrSvg: undefined } : undefined;
+    return { ...info, locked, wifi, reminder: undefined, activity: undefined, card: undefined, caption: undefined, glance: undefined, staff: undefined, staffPad: undefined };
   }
 
   private fullInfo(): FaceInfo {
     const offline = this.wifi?.state === 'setup' || this.wifi?.state === 'connecting';
     let state: FaceState = this.wifi && this.wifi.state !== 'connected' ? 'setup' : this.speaking ? 'speaking' : this.base;
-    if (state === 'idle' && this.inSleepHours()) state = 'sleeping';
+    if (state === 'idle' && (this.inSleepHours() || this.device?.nightNow)) state = 'sleeping';
     return {
       state,
       mode: this.modes?.mode ?? 'resident',
@@ -300,6 +313,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
       activity: this.activities.size ? [...this.activities.values()].pop() : undefined,
       notice: this.notice && Date.now() < this.notice.until ? this.notice.text : undefined,
       updating: this.updating(),
+      muted: this.cfg.face.onBox && existsSync(join(this.cfg.face.runDir, 'muted')),
       card: this.card && Date.now() < this.card.until ? this.card : undefined,
       caption: this.ambient?.settings.captions && this.caption && Date.now() < this.caption.until ? { who: this.caption.who, text: this.caption.text } : undefined,
       glance: this.ambient?.glance(),
@@ -307,6 +321,8 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
       staff: this.modes?.staff ? { name: this.modes.staff.name, until: this.modes.staff.until } : undefined,
       staffPad: Date.now() < this.staffPadUntil && !this.modes?.staff ? (this.staffService?.status() ?? { triesLeft: 5 }) : undefined,
       staffRequired: Boolean(this.staffService?.count) || undefined,
+      dimAfterSec: this.ambient?.settings.dimAfterSec ?? 10,
+      powerAsk: this.powerAsk && Date.now() - this.powerAsk < POWER_ASK_MS ? this.powerAsk : undefined,
     };
   }
 
@@ -322,6 +338,32 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
   get staffAllowed(): boolean {
     return !this.staffService?.count || this.modes?.mode === 'staff';
   }
+
+  /**
+   * A short press on the box's power button: empathika-power-button.py leaves a note in /run/empathika; it's
+   * picked up here (and removed) and the screen asks "Turn off / Restart?".
+   */
+  private readPowerButton(): void {
+    if (!this.cfg.face.onBox) return;
+    const note = join(this.cfg.face.runDir, 'power-button');
+    let stamp: string;
+    try {
+      stamp = readFileSync(note, 'utf8').trim();
+    } catch {
+      return; // no press
+    }
+    try {
+      unlinkSync(note);
+    } catch {
+      // can't remove it: the press is still only asked about once (same note)
+    }
+    if (stamp === this.powerAskNote) return;
+    this.powerAskNote = stamp;
+    this.powerAsk = Date.now();
+    this.log.log('Power button pressed: asking on the screen');
+  }
+  private powerAsk?: number;
+  private powerAskNote = '';
 
   private tickLevel(): void {
     const now = Date.now();
@@ -352,6 +394,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
 
   private async tickInfo(): Promise<void> {
     await this.readWifi();
+    this.readPowerButton();
     const info = this.info();
     const key = JSON.stringify({ ...info, timers: info.timers.map((t) => t.label) });
     if (key !== this.lastInfo) {
@@ -362,15 +405,29 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
 
   // ---------- Cards ----------
 
-  private card?: Card & { until: number };
+  private card?: Card & { until: number; seq: number };
+  /** Each card shown gets a new number: closing one on the screen hides that card, not the next one with the same id. */
+  private cardSeq = 0;
   private handlers: CardHandlers = {};
   private caption?: { who: 'you' | 'empathika'; text: string; until: number };
 
   showCard(card: Card, handlers: CardHandlers = {}): void {
     if (!this.cfg.face.enabled) return;
-    this.card = { ...card, until: Date.now() + (card.ttlMs ?? CARD_MS) };
+    // An update of the card on screen (music position, recipe step) keeps its number; a new card gets a new one.
+    const same = this.card && this.card.id === card.id && Date.now() < this.card.until;
+    this.card = { ...card, until: Date.now() + (card.ttlMs ?? CARD_MS), seq: same ? this.card!.seq : ++this.cardSeq };
     this.handlers = handlers;
     void this.tickInfo();
+  }
+
+  /**
+   * You ended the conversation ("thank you", "stop", "that's all"...): the card Empathika showed for it
+   * goes and her face comes back. A recipe you're following, a timer or reminder going off and
+   * notifications stay until you close them.
+   */
+  conversationEnded(): void {
+    // Kept: timers, notifications, recipe steps, and a journey's Trainline QR code (time to scan it).
+    if (this.card && !/^(timer-|say-|notify-|steps$|journey$)/.test(this.card.id)) this.dismissCard();
   }
 
   dismissCard(id?: string): void {
@@ -497,7 +554,8 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
   }
 
   private announceWifi(next: WifiStatus, prev?: WifiStatus): void {
-    const say = (t: string) => this.timerService?.announce(t);
+    // Not private, and the internet may be down: said even while locked, in the box's own voice.
+    const say = (t: string) => this.timerService?.announce(t, true);
     if (next.state === 'setup' && prev?.state !== 'setup') {
       say(next.error ? `That didn't work: ${next.error}. Scan the code on my screen to try again.` : "I can't reach the WiFi. Scan the code on my screen to set me up.");
     } else if (next.state === 'connected' && prev && prev.state !== 'connected') {

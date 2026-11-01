@@ -24,6 +24,7 @@ import { DeviceModule } from '../device/device.module';
 import { LockModule } from '../lock/lock.module';
 import { LocationModule } from '../location/location.module';
 import { SoulModule } from '../soul/soul.module';
+import { ToolRouterService } from '../actions/tool-router.service';
 import { TimerService, announcement } from '../actions/timer.service';
 import { TtsModule } from '../tts/tts.module';
 import { TtsService } from '../tts/tts.service';
@@ -102,6 +103,7 @@ async function main(): Promise<void> {
       continue;
     }
     history.push({ role: 'user', content: text });
+    app.get(ToolRouterService).heard(text, 'typed'); // typed answers to "Shall I go ahead?" count too
     transcript.push({ who: 'user', text });
     let reply = '';
     const started = Date.now();

@@ -9,3 +9,4 @@ data/
 config/mcp-servers.json
 __pycache__/
 wake-coach/
+.idea/

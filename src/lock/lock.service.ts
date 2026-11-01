@@ -4,12 +4,14 @@ import { EventEmitter } from 'node:events';
 import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { APP_CONFIG, AppConfig } from '../config';
-import { SealedStore } from '../memory/sealed-store';
+import { memorySecret, SealedStore } from '../memory/sealed-store';
 
 interface Saved {
   /** scrypt hash of the code, with its salt (the code itself is never stored). */
   salt?: string;
   hash?: string;
+  /** The scrypt cost the hash was made with (older ones: 16384); a code is checked with its own and re-hashed at the current one. */
+  n?: number;
   /** Wrong tries in a row, and the pause after too many (kept across restarts). */
   fails: number;
   pausedUntil: number;
@@ -39,7 +41,7 @@ export class LockService extends EventEmitter implements OnModuleInit {
 
   constructor(@Inject(APP_CONFIG) private readonly cfg: AppConfig) {
     super();
-    this.store = new SealedStore(cfg.memory.dir, 'startup-code');
+    this.store = new SealedStore(cfg.memory.dir, 'startup-code', memorySecret(cfg));
   }
 
   onModuleInit(): void {
@@ -107,6 +109,15 @@ export class LockService extends EventEmitter implements OnModuleInit {
     return { ok: false, message };
   }
 
+  /**
+   * The household's code for something other than unlocking (leaving guest mode on the screen):
+   * same tries and pauses as the keypad.
+   */
+  verify(code: string): { ok: boolean; message: string } {
+    if (!this.enabled) return { ok: false, message: 'No start-up code is set: set one on the control panel (Settings, Security).' };
+    return this.check(code);
+  }
+
   /** Lock now (the screen menu's Lock). */
   lock(): boolean {
     if (!this.enabled) return false;
@@ -143,7 +154,7 @@ export class LockService extends EventEmitter implements OnModuleInit {
       return { ok: false, message: 'That code is too easy to guess (like 111111 or 123456). Choose another.' };
     }
     const salt = randomBytes(16).toString('hex');
-    this.saved = { salt, hash: hashOf(next, salt), fails: 0, pausedUntil: 0, pauses: 0 };
+    this.saved = { salt, hash: hashOf(next, salt), n: SCRYPT_N, fails: 0, pausedUntil: 0, pauses: 0 };
     this.save();
     if (!this.isLocked) this.markUnlocked(true); // set while unlocked: no need to type it until the box restarts
     this.log.log('Start-up code set');
@@ -171,7 +182,20 @@ export class LockService extends EventEmitter implements OnModuleInit {
 
   private matches(code: string): boolean {
     if (!this.saved.hash || !this.saved.salt || !isCode(code)) return false;
-    return timingSafeEqual(Buffer.from(hashOf(code, this.saved.salt), 'hex'), Buffer.from(this.saved.hash, 'hex'));
+    const n = this.saved.n ?? 16384;
+    let ok: boolean;
+    try {
+      ok = timingSafeEqual(Buffer.from(hashOf(code, this.saved.salt, n), 'hex'), Buffer.from(this.saved.hash, 'hex'));
+    } catch (err) {
+      this.log.error(`Could not check the start-up code: ${(err as Error).message}`);
+      return false;
+    }
+    // a code hashed at an older cost: hashed again at the current one once it has been entered correctly
+    if (ok && n !== SCRYPT_N) {
+      this.saved = { ...this.saved, hash: hashOf(code, this.saved.salt, SCRYPT_N), n: SCRYPT_N };
+      this.save();
+    }
+    return ok;
   }
 
   private save(): void {
@@ -179,6 +203,9 @@ export class LockService extends EventEmitter implements OnModuleInit {
   }
 }
 
-function hashOf(code: string, salt: string): string {
-  return scryptSync(code, salt, 32, { N: 16384, r: 8, p: 1 }).toString('hex');
+/** scrypt's cost for the start-up code (2^17: a guess a second or so on the box; it needs 128 × N × r bytes, so maxmem is set). */
+const SCRYPT_N = 131072;
+
+function hashOf(code: string, salt: string, n = SCRYPT_N): string {
+  return scryptSync(code, salt, 32, { N: n, r: 8, p: 1, maxmem: 256 * 1024 * 1024 }).toString('hex');
 }

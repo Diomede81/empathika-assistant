@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { FaceService } from '../face/face.service';
 import { APP_CONFIG, AppConfig } from '../config';
+import { DeviceService } from '../device/device.service';
 import { CARE_APP_OFFLINE, describeCapabilities } from '../actions/capabilities';
 import { SpeakerService } from '../audio/speaker.service';
 import { Resampler } from '../audio/resampler';
@@ -20,17 +21,27 @@ import { SoulService } from '../soul/soul.service';
 import { ModesService } from '../memory/modes.service';
 import { isStopRequest } from '../conversation/stop';
 import { ConversationControl } from '../actions/conversation-control';
+import { LiveVoiceService } from './live-voice.service';
+import { said } from '../log-content';
 
 const PCM24 = { rate: 24000, width: 2, channels: 1 };
 /** Skip the first moments after the wake word: that's Empathika's own chime. */
 const CHIME_SKIP_MS = 400;
-/** Only the wake word and then a pause this long: Empathika greets ("Hi, how can I help?"). */
-const GREET_AFTER_MS = 800;
 const FIRST_TURN_WAIT_MS = 7000;
+/** After a stretch of sound ends, its words (the transcript) can trail by this long: wait before deciding it was noise. */
+const WORDS_TRAIL_MS = 4000;
+/** A single unbroken stretch of sound longer than this with no words at all (a TV, a radio) is not the user: the conversation may end under it. */
+const NOISE_SEGMENT_MAX_MS = 45_000;
 /** If a provider never answers after the user spoke, stop waiting (keeps sessions from hanging open). */
 const NO_ANSWER_MS = 15000;
+/** The longest the conversation waits for a running action before going back to normal. */
+const RUNNING_MAX_MS = 150_000;
 /** After an interruption, listen again almost immediately (Empathika's audio has been cut). */
 const INTERRUPT_REOPEN_MS = 250;
+/** How long Empathika holds her answer back after the user pauses, unless Settings > Device says otherwise. */
+const DEFAULT_GRACE_MS = 800;
+/** Told to the voice model when a held answer was dropped (it believes it said it). */
+const UNHEARD_NOTE = '(The user had not finished speaking: your last answer was not played to them. Answer what they say next on its own, without referring to it.)';
 
 /**
  * One spoken conversation using OpenAI Realtime (speech in, speech out, no separate
@@ -46,6 +57,8 @@ export class RealtimeConversationService {
   @Optional() @Inject(SoulService) private readonly soul?: SoulService;
   @Optional() @Inject(ModesService) private readonly modes?: ModesService;
   @Optional() @Inject(ConversationControl) private readonly control?: ConversationControl;
+  /** The voice and speaking style chosen on the control panel (else REALTIME_VOICE / REALTIME_STYLE). */
+  @Optional() @Inject(LiveVoiceService) private readonly liveVoice?: LiveVoiceService;
 
   constructor(
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
@@ -55,13 +68,15 @@ export class RealtimeConversationService {
     private readonly wake: WakeWordService,
     private readonly memory: MemoryService,
     private readonly learner: MemoryLearnerService,
+    @Optional() private readonly device?: DeviceService,
   ) {}
 
   /**
    * Runs until the conversation goes quiet. `setMicHandler` routes microphone chunks
-   * (16-bit mono at `micRate`) to this conversation.
+   * (16-bit mono at `micRate`) to this conversation. Resolves true when it ended because the mode was switched: the
+   * caller then starts the next one at once, in the new mode.
    */
-  async run(setMicHandler: (h: (chunk: Buffer) => void) => void, micRate: number, chimed: boolean): Promise<void> {
+  async run(setMicHandler: (h: (chunk: Buffer) => void) => void, micRate: number, chimed: boolean): Promise<boolean | void> {
     const rt = this.cfg.realtime;
     const providerName = rt.provider === 'gemini' ? 'Gemini Live' : 'OpenAI Realtime';
     if (!rt.apiKey) {
@@ -77,15 +92,16 @@ export class RealtimeConversationService {
       url: rt.url,
       apiKey: rt.apiKey,
       model: rt.model,
-      voice: rt.voice,
+      voice: this.liveVoice?.voice ?? rt.voice,
       instructions:
-        `${this.soul?.systemPrompt() ?? this.cfg.llm.systemPrompt}\n${rt.style}\nCurrent local time: ${describeNow()}.` +
+        `${this.soul?.systemPrompt() ?? this.cfg.llm.systemPrompt}\n${this.liveVoice?.style ?? rt.style}\nCurrent local time: ${describeNow()}.` +
         (this.memory.enabled ? `\n${this.memory.promptSection()}` : '') +
         (this.cfg.app.mcpUrl && !this.tools.careAppConnected ? `\n${CARE_APP_OFFLINE}` : ''),
       tools: rt.tools
         ? this.tools.tools.filter((t) => !(t.type === 'function' && matchesAny(t.function.name, rt.excludeTools)))
         : [],
-      silenceMs: rt.silenceMs,
+      silenceMs: this.device?.pauseMs ?? rt.silenceMs,
+      endOfSpeech: rt.endOfSpeech,
       interruptResponse: rt.bargeIn,
       transcribeModel: rt.transcribeModel,
       language: rt.language,
@@ -153,24 +169,39 @@ export class RealtimeConversationService {
     } catch (err) {
       setMicHandler(() => undefined);
       this.log.error(`Could not start the ${providerName} session: ${(err as Error).message}`);
-      return this.sayFallback("Sorry, I can't reach my real-time voice right now.");
+      return this.sayFallback(
+        /fetch failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|ETIMEDOUT|network|timed? ?out|socket/i.test((err as Error).message)
+          ? "Sorry, I can't reach the internet right now, so I can't answer. If the WiFi has changed, hold my screen for two seconds and choose WiFi setup."
+          : "Sorry, I can't reach my real-time voice right now.",
+      );
     }
     connected = true;
     for (const pcm of early.splice(0)) client.sendAudio(pcm);
     this.face?.setState('listening');
-    this.log.log(`Connected to ${providerName} ${rt.model} (voice "${rt.voice}") in ${Date.now() - started} ms - talk now`);
+    this.log.log(`Connected to ${providerName} ${rt.model} (voice "${options.voice}") in ${Date.now() - started} ms - talk now`);
 
     let player: AsyncQueue<Buffer> | undefined;
     let playing: Promise<void> = Promise.resolve();
     let pendingTools: Promise<void>[] = [];
+    /** Actions still running (call id → when they started). */
+    const running = new Map<string, number>();
     let userSpeaking = false;
     let busy = false;
     let turns = 0;
     let closed = false;
     const startMode = this.modes?.mode;
-    this.control?.consumeEnd(); // nothing left over from a previous conversation
+    this.control?.reset(); // nothing left over from a previous conversation
     let lastActivity = Date.now();
     let speechStoppedAt = 0;
+    /** When the user last said actual words (the transcript), and when the current sound started. */
+    let wordsAt = 0;
+    let speechStartedAt = 0;
+    let limitNoted = false;
+    const followUpMs = (this.device?.listenSec ?? 0) > 0 ? this.device!.listenSec! * 1000 : rt.followUpMs;
+    // "Let me finish": Empathika's answer is held back this long after the user pauses; speak again within it and the
+    // answer is dropped unheard, the mic still open. Not in headphones mode, where talking over her already works.
+    const graceMs = rt.bargeIn ? 0 : (this.device?.graceMs ?? DEFAULT_GRACE_MS);
+    this.log.log(`[voice] session settings: pause ${this.device?.pauseMs ?? rt.silenceMs} ms (${rt.endOfSpeech} end of speech), grace ${graceMs} ms, follow-up ${Math.round(followUpMs / 1000)}s, first turn ${FIRST_TURN_WAIT_MS / 1000}s, session limit ${rt.maxSessionMs / 1000}s, words ${rt.provider === 'gemini' || rt.transcribeModel ? 'known' : 'unknown'}`);
     let firstAudioThisTurn = true;
     let clearTimer: NodeJS.Timeout | undefined;
     // Bumped on every interruption: queued replies from before it are dropped, not played.
@@ -181,8 +212,17 @@ export class RealtimeConversationService {
     let responseActive = false;
     // What was said, for the conversation note saved to memory afterwards.
     const transcript: TranscriptLine[] = [];
+    /** Audio of a reply held back during the grace window (undefined: not holding). */
+    let held: Buffer[] | undefined;
+    let heldMs = 0;
+    let holdTimer: NodeJS.Timeout | undefined;
+    /** The server finished the held reply before the window ended: close the player once it has been pushed. */
+    let holdComplete = false;
+    /** A held reply was dropped because the user carried on; the server may still think Empathika said it. */
+    let droppedReply = false;
 
     interrupt = () => {
+      if (held) return dropHeld('interrupted');
       if (!speaking()) return; // only meaningful while Empathika is talking
       generation++;
       this.speaker.stop();
@@ -200,26 +240,59 @@ export class RealtimeConversationService {
       this.log.log('Interrupted - Empathika stopped talking, listening to you');
     };
 
-    // "Hey Empathika" and then a pause: she says hello and waits. If they carried straight on
-    // ("Hey Empathika, what time is it?") the question is answered without a greeting.
-    const greeting = this.cfg.audio.wakeGreeting;
-    let greetTimer: NodeJS.Timeout | undefined;
-    if (greeting) {
-      greetTimer = setTimeout(() => {
-        if (ended || closed || userSpeaking || busy || turns > 0 || speaking()) return;
-        this.log.log('Only the wake word: greeting');
-        client.sendText(
-          `(Not said by the user: they just called your name to get your attention and haven't said anything else yet. ` +
-            `Greet them in a few warm words, like "${greeting}", and then wait for them.)`,
-        );
-      }, Math.max(0, started + CHIME_SKIP_MS + GREET_AFTER_MS - Date.now()));
-    }
-
+    const trace = (what: string) => this.log.log(`[voice +${((Date.now() - started) / 1000).toFixed(1)}s] ${what}`);
+    /** The user spoke again inside the grace window: the held answer is never played. */
+    const dropHeld = (why: string) => {
+      clearTimeout(holdTimer);
+      const ms = heldMs;
+      held = undefined;
+      heldMs = 0;
+      const finished = holdComplete;
+      holdComplete = false;
+      if (finished) {
+        // The server believes Empathika gave that answer: tell it nobody heard it, so the next answer doesn't build on it.
+        client.addContext?.(UNHEARD_NOTE);
+      } else {
+        discardingCancelled = true; // the rest of that reply is still coming: ignore it
+        droppedReply = true; // and when it ends, tell the server (unless it cancelled it itself)
+      }
+      busy = true; // waiting for the answer to what the user is now saying
+      firstAudioThisTurn = true;
+      trace(`${why} within the ${graceMs} ms grace window: Empathika's answer (${Math.round(ms)} ms of speech${finished ? ', complete' : ', still arriving'}) dropped unheard, still listening`);
+    };
+    /** The grace window passed with no more speech: play the held reply. */
+    const startPlaying = () => {
+      holdTimer = undefined;
+      const chunks = held ?? [];
+      held = undefined;
+      if (firstAudioThisTurn && speechStoppedAt) {
+        this.log.log(`voice-to-voice ${Date.now() - speechStoppedAt} ms (end of your speech -> Empathika starts talking, after the ${graceMs} ms grace window)`);
+        firstAudioThisTurn = false;
+      }
+      const q = (player = new AsyncQueue<Buffer>());
+      const gen = generation;
+      playing = playing.then(() => (gen === generation ? this.speaker.play(PCM24, q) : undefined)).catch(() => undefined);
+      audioEndsAt = Math.max(audioEndsAt, Date.now()) + heldMs;
+      heldMs = 0;
+      lastActivity = Math.max(lastActivity, audioEndsAt + echoTail); // the follow-up wait starts when she has finished
+      for (const b of chunks) q.push(b);
+      if (holdComplete) {
+        holdComplete = false;
+        q.close();
+        player = undefined;
+      }
+    };
     client.on('speech-started', () => {
-      clearTimeout(greetTimer);
+      trace(`you started speaking${turns === 0 ? ' (first turn)' : ''}`);
+      if (held) dropHeld('you carried on');
+      this.lastUserSpeechAt = Date.now();
+      this.tools.userSpoke(); // may be the answer to "Shall I go ahead?"
       this.face?.setState('listening');
       userSpeaking = true;
-      lastActivity = Date.now();
+      speechStartedAt = Date.now();
+      // Sound alone doesn't count as activity after an answer: only words do (below), so noise can't keep the conversation
+      // open. On the first turn it does count: the user has just said "Hey Empathika" and is talking, however long it takes.
+      if (turns === 0) lastActivity = Date.now();
       if (rt.bargeIn) interrupt(); // headphones mode: just start talking
     });
     client.on('speech-stopped', () => {
@@ -227,13 +300,28 @@ export class RealtimeConversationService {
       userSpeaking = false;
       busy = true;
       speechStoppedAt = Date.now();
+      // the words of what was just said may still be on their way: counted when they arrive (heardWords)
       firstAudioThisTurn = true;
+      trace(`you stopped speaking after ${((speechStoppedAt - speechStartedAt) / 1000).toFixed(1)}s${wordsAt >= speechStartedAt ? '' : ' (words not in yet)'}; waiting for Empathika`);
     });
     client.on('audio', (pcm: Buffer) => {
       if (discardingCancelled) return;
       responseActive = true;
+      if (held) {
+        held.push(pcm);
+        heldMs += (pcm.length / (PCM24.rate * 2)) * 1000;
+        return;
+      }
       if (!player) {
         if (!rt.bargeIn && !speaking()) client.clearInput();
+        if (graceMs > 0 && firstAudioThisTurn) {
+          // The first sound of a reply: hold it back in case the user was only pausing.
+          held = [pcm];
+          heldMs = (pcm.length / (PCM24.rate * 2)) * 1000;
+          holdComplete = false;
+          holdTimer = setTimeout(startPlaying, graceMs);
+          return;
+        }
         if (firstAudioThisTurn && speechStoppedAt) {
           this.log.log(`voice-to-voice ${Date.now() - speechStoppedAt} ms (end of your speech -> Empathika starts talking)`);
           firstAudioThisTurn = false;
@@ -251,9 +339,17 @@ export class RealtimeConversationService {
     });
     // "Stop" / "that's all" from the user, or end_conversation from the model: go quiet and end.
     let stopReason: string | undefined;
+    /** Music just started: end once she's said so (finished speaking). */
+    let endAfterReply = false;
     const hush = (why: string) => {
       stopReason ??= why;
+      this.hushNow = undefined;
+      this.face?.conversationEnded(); // the card shown for this conversation goes; her face comes back
       generation++;
+      clearTimeout(holdTimer);
+      held = undefined;
+      heldMs = 0;
+      holdComplete = false;
       this.speaker.stop();
       player?.close();
       player = undefined;
@@ -263,21 +359,46 @@ export class RealtimeConversationService {
       }
       busy = false;
     };
+    this.hushNow = hush;
 
     client.on('tool-call', (c: { callId: string; name: string; args: Record<string, unknown> }) => {
       responseActive = true;
       transcript.push({ who: 'action', text: c.name });
-      pendingTools.push(this.tools.call(c.name, c.args).then((out) => client.sendToolResult(c.callId, out)));
+      // While actions run (a task worked out by the thinking model takes up to a minute), the conversation stays open.
+      running.set(c.callId, Date.now());
+      pendingTools.push(
+        this.tools
+          .call(c.name, c.args)
+          .then((out) => client.sendToolResult(c.callId, out))
+          .finally(() => {
+            running.delete(c.callId);
+            lastActivity = Date.now();
+          }),
+      );
     });
     client.on('response-done', async (r: { toolCalls: number; status?: string; reason?: string }) => {
       responseActive = false;
       if (discardingCancelled) {
         // The reply the user interrupted has now ended on the server side.
         discardingCancelled = false;
-        if (r.status === 'cancelled') return;
+        if (r.status === 'cancelled') {
+          droppedReply = false;
+          return;
+        }
       }
-      player?.close();
-      player = undefined;
+      if (droppedReply) {
+        // The server believes Empathika gave that answer: tell it nobody heard it, so the next answer doesn't build on it.
+        droppedReply = false;
+        client.addContext?.(UNHEARD_NOTE);
+        trace('told the voice model its dropped answer went unheard');
+        if (r.status !== 'failed') return; // not an answer the user heard: no turn, no "finished answer"
+      }
+      if (held) {
+        holdComplete = true; // the player closes once the grace window has passed
+      } else {
+        player?.close();
+        player = undefined;
+      }
       // Discard anything the server buffered while Empathika was still audible (her own echo).
       if (!rt.bargeIn) {
         clearTimeout(clearTimer);
@@ -294,11 +415,28 @@ export class RealtimeConversationService {
       }
       turns++;
       busy = false;
+      trace(`Empathika finished answer ${turns}; listening for ${Math.round(followUpMs / 1000)}s of nothing said`);
+      if (this.control?.consumeEndAfterReply()) endAfterReply = true;
       this.face?.setState('listening');
       lastActivity = Math.max(Date.now(), audioEndsAt + echoTail);
     });
+    // What the user said, as it comes in: the answer to "Shall I go ahead?" is checked against it.
+    const heardWords = (t: string) => {
+      const n = t.replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(' ').filter((w) => w.length > 1).length;
+      if (n < 1) return;
+      const first = wordsAt < speechStartedAt;
+      wordsAt = Date.now();
+      lastActivity = wordsAt;
+      if (first) trace(`your words arrived (${n} so far${speechStoppedAt > speechStartedAt ? `, ${((wordsAt - speechStoppedAt) / 1000).toFixed(1)}s after you stopped` : ', while you speak'})`);
+    };
+    client.on('user-words', (t: string) => {
+      this.tools.heard(t);
+      heardWords(t);
+    });
     client.on('user-transcript', (t: string) => {
-      this.log.log(`You: "${t}"`);
+      this.tools.heard(t);
+      heardWords(t);
+      this.log.log(`You: ${said(t)}`);
       transcript.push({ who: 'user', text: t });
       this.face?.heard(t);
       if (isStopRequest(t)) hush(`you said "${t}"`);
@@ -310,7 +448,7 @@ export class RealtimeConversationService {
     });
     client.on('assistant-transcript', (t: string) => {
       for (const s of sentences.flush()) this.face?.said(s);
-      this.log.log(`Empathika: "${t}"`);
+      this.log.log(`Empathika: ${said(t)}`);
       transcript.push({ who: 'empathika', text: t });
     });
     client.on('error', (err: Error) => {
@@ -323,27 +461,53 @@ export class RealtimeConversationService {
       }
     });
     client.on('close', () => (closed = true));
+    // Gemini dropped actions it no longer needs (e.g. the user spoke over it): stop waiting for them
+    client.on('tool-cancelled', (ids: string[]) => {
+      for (const id of ids) running.delete(id);
+      if (ids.length) this.log.log(`${ids.length} action${ids.length === 1 ? '' : 's'} cancelled by the voice model`);
+    });
 
     // Stay open while the conversation is alive; close after a quiet spell.
     const reason = await new Promise<string>((resolve) => {
       const tick = setInterval(() => {
         const now = Date.now();
         const quietFor = now - lastActivity;
-        const limit = turns === 0 ? FIRST_TURN_WAIT_MS : rt.followUpMs;
+        const limit = turns === 0 ? FIRST_TURN_WAIT_MS : followUpMs;
+        // While the user is talking, nothing ends the conversation (a long question's words arrive only at its pauses);
+        // only an unbroken stretch of sound with no words at all, far longer than a sentence, is taken for noise.
+        if (userSpeaking && speechStartedAt && now - speechStartedAt > NOISE_SEGMENT_MAX_MS && wordsAt < speechStartedAt) {
+          userSpeaking = false;
+          this.log.log('A long stretch of sound with no words: not counting it as you talking');
+        }
+        // A stretch of sound that ended: its words count once they arrive (they may trail a few seconds); none means noise.
+        if (!userSpeaking && speechStoppedAt > speechStartedAt && wordsAt < speechStartedAt && now - speechStoppedAt <= WORDS_TRAIL_MS) {
+          lastActivity = Math.max(lastActivity, speechStoppedAt); // still waiting for the words: don't hang up yet
+        }
         let why: string | undefined;
         if (closed) why = 'connection closed';
         else if (stopReason) why = stopReason;
+        else if (endAfterReply && !busy && !speaking() && now >= lastActivity) why = 'music started: quiet so you can listen';
         // Switched mode: end once she's confirmed it, so the next conversation starts in the new
         // mode with only that mode's memories (nothing from this one carries over).
         else if (!busy && !speaking() && startMode && this.modes?.mode !== startMode) why = `switched to ${this.modes?.mode} mode`;
-        else if (now - started > rt.maxSessionMs) why = `reached the ${rt.maxSessionMs / 1000}s session limit`;
+        // The session limit never cuts the user off mid-sentence or mid-answer: it ends the session at the next quiet moment.
+        else if (now - started > rt.maxSessionMs && !userSpeaking && !busy && !speaking()) why = `reached the ${rt.maxSessionMs / 1000}s session limit`;
+        else if (now - started > rt.maxSessionMs && !limitNoted) {
+          limitNoted = true;
+          trace(`past the ${rt.maxSessionMs / 1000}s session limit: ending at the next quiet moment`);
+        }
+        // an action is still working: not "no answer", not quiet (but never more than RUNNING_MAX_MS: a hung one
+        // must not leave Empathika deaf; the action router's own limits normally end it well before)
+        else if ([...running.values()].some((t) => now - t < RUNNING_MAX_MS)) lastActivity = now;
         else if (busy && !speaking() && speechStoppedAt && now - speechStoppedAt > NO_ANSWER_MS && now - lastActivity > NO_ANSWER_MS) {
           busy = false; // the provider never answered (e.g. it heard noise, not a request)
           lastActivity = now;
+          trace(`no answer from the voice model ${NO_ANSWER_MS / 1000}s after you stopped: treating it as not a request`);
         } else if (!busy && !userSpeaking && !deaf() && quietFor > limit) {
-          why = turns === 0 ? 'no request heard' : 'no follow-up question';
+          why = turns === 0 ? 'no request heard' : `nothing more said for ${Math.round(limit / 1000)}s`;
         }
         if (why) {
+          trace(`ending: ${why} (quiet for ${(quietFor / 1000).toFixed(1)}s, limit ${Math.round(limit / 1000)}s, speaking ${userSpeaking}, busy ${busy})`);
           clearInterval(tick);
           resolve(why);
         }
@@ -351,6 +515,7 @@ export class RealtimeConversationService {
     });
 
     ended = true;
+    this.hushNow = undefined;
     this.face?.setState('idle');
     this.wake.disarm();
     setMicHandler(() => undefined);
@@ -359,12 +524,26 @@ export class RealtimeConversationService {
     player?.close();
     await playing;
     void this.learner.learn(transcript, startMode);
-    this.log.log(`Conversation ended (${reason}, ${turns} answer${turns === 1 ? '' : 's'}, ${Math.round((Date.now() - started) / 1000)}s); waiting for the wake word`);
+    const switched = startMode !== undefined && this.modes?.mode !== startMode && reason.startsWith('switched to');
+    this.log.log(`Conversation ended (${reason}, ${turns} answer${turns === 1 ? '' : 's'}, ${Math.round((Date.now() - started) / 1000)}s); ${switched ? 'carrying on in the new mode' : 'waiting for the wake word'}`);
+    return switched;
   }
 
+  /** The conversation running now, if any: stops it (a late false-wake-up verdict). */
+  private hushNow?: (why: string) => void;
+  /** When the user last started speaking in a live conversation. */
+  private lastUserSpeechAt = 0;
+
+  stop(why: string): void {
+    this.hushNow?.(why);
+  }
+
+  get userSpokeAt(): number {
+    return this.lastUserSpeechAt;
+  }
+
+  /** When the live voice can't be used (often: no internet), in the voice that runs on the box itself. */
   private async sayFallback(text: string): Promise<void> {
-    const s = this.tts.session();
-    s.say(text);
-    await s.done().catch(() => undefined);
+    await this.tts.sayLocal(text).catch(() => undefined);
   }
 }
