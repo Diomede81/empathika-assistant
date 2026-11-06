@@ -1,6 +1,7 @@
 /** HTML for the control panel. Server-rendered, no external assets, works on a phone. */
 import { MODELS_CSS, modelsSection, PanelModels } from './models-page';
 import { PanelScreen, SCREEN_CSS, screenSection } from './screen-page';
+import { activitiesSection, PanelActivities, PanelPeople, peopleSection, PEOPLE_CSS } from './people-page';
 
 export interface PanelFact {
   id: string;
@@ -55,6 +56,8 @@ export interface PanelData {
   /** Phones and computers signed in to this panel (each allowed on Empathika's screen), and whether the password is in .env. */
   devices?: { id: string; label: string; created: number; lastUsed: number; expires: number; current: boolean }[];
   passwordFromEnv?: boolean;
+  people?: PanelPeople;
+  activities?: PanelActivities;
   careApp: {
     configured: boolean;
     connected: boolean;
@@ -372,7 +375,8 @@ const badge = (ok: boolean, yes = 'Connected', no = 'Not connected') =>
 const TABS: [string, string][] = [
   ['overview', 'Overview'],
   ['memory', 'Resident'],
-  ['family', 'Family news'],
+  ['family', 'Family & friends'],
+  ['activities', 'Activities'],
   ['staff', 'Staff'],
   ['empathika', 'Empathika'],
   ['connections', 'Connections'],
@@ -388,6 +392,8 @@ function overview(d: PanelData): string {
   const unshared = m?.family.filter((f) => !f.sharedAt).length ?? 0;
   const tiles = [
     m ? tile('#tab-memory', 'Resident', `${count('resident')} thing${count('resident') === 1 ? '' : 's'} Empathika knows`, `${count('care')} care note${count('care') === 1 ? '' : 's'} (staff only)`) : '',
+    d.people ? tile('#tab-family', 'Family & friends', `${d.people.list.length} ${d.people.list.length === 1 ? 'person' : 'people'}`, d.people.list.filter((p) => p.birthdayIn !== undefined && p.birthdayIn <= 7).map((p) => `🎂 ${esc(p.name)} ${p.birthdayIn === 0 ? 'today' : `in ${p.birthdayIn} days`}`).join(', ') || 'Relationships, news, visits, stories') : '',
+    d.activities ? tile('#tab-activities', 'Activities', `${d.activities.summary.reduce((n, r) => n + r.times, 0)} in the last 14 days`, 'Puzzles, quizzes, memory lane') : '',
     m ? tile('#tab-family', 'Family news', `${m.family.length} message${m.family.length === 1 ? '' : 's'}`, unshared ? `<span class="warntext">${unshared} not passed on yet</span>` : 'All passed on') : '',
     d.staff ? tile('#tab-staff', 'Staff', `${d.staff.list.length} with a PIN`, d.staff.session ? esc(d.staff.session) : 'No staff session now') : '',
     tile('#care-app', 'Care app', d.careApp.configured ? badge(d.careApp.connected) : badge(false, '', 'Not set up'), d.careApp.backup.lastBackupAt ? `Backed up ${esc(when(d.careApp.backup.lastBackupAt))}` : 'Care record, family news and backup'),
@@ -409,7 +415,7 @@ export function renderPanel(d: PanelData): string {
     )
     .join('');
 
-  const show: Record<string, boolean> = { overview: true, memory: Boolean(d.memory), family: Boolean(d.memory), staff: Boolean(d.staff), empathika: Boolean(d.soul), connections: true, settings: true };
+  const show: Record<string, boolean> = { overview: true, memory: Boolean(d.memory), family: Boolean(d.memory), activities: Boolean(d.activities), staff: Boolean(d.staff), empathika: Boolean(d.soul), connections: true, settings: true };
   const attention: Record<string, boolean> = {
     connections: Boolean((d.careApp.configured && !d.careApp.connected) || d.careApp.backup.lastError || (d.web?.configured && !d.web.connected)),
     settings: Boolean(d.location && !d.location.place),
@@ -434,7 +440,7 @@ ul{list-style:none;margin:0;padding:0}.row{display:flex;align-items:center;justi
 select{flex:none}.modes,.tabs,.acts{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.acts{margin:0;flex:none}.move{display:flex;gap:6px}
 .tab{padding:6px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--text)}.tab.on{border-color:var(--accent);color:var(--accent);font-weight:600}
 .badge.warn{background:var(--errbg);color:var(--err)}.badge.imp{background:#fff4e0;color:#9a5b00}.warntext{color:var(--err)}
-${MODELS_CSS}${SCREEN_CSS}
+${MODELS_CSS}${SCREEN_CSS}${PEOPLE_CSS}
 .wrap{flex-wrap:wrap}.level{align-items:center}.level label{width:84px;flex:none}.level input[type=range]{flex:1;accent-color:var(--accent)}.level span{width:44px;text-align:right}.edit{flex-wrap:wrap;margin:8px 0}summary{cursor:pointer}
 h3{font-size:14px;margin:16px 0 8px}.stack{margin:12px 0}.stack .addfact{margin:6px 0}.danger{margin-top:20px;align-items:center;justify-content:space-between}
 textarea{width:100%;font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);resize:vertical;font-variant-ligatures:none}
@@ -467,7 +473,9 @@ ${d.notice ? `<div class="notice ${d.notice.kind}">${esc(d.notice.text)}</div>` 
 
 <div class="pane" id="tab-memory">${d.memory ? memorySection(d.memory) : ''}</div>
 
-<div class="pane" id="tab-family">${d.memory ? familySection(d.memory, d.careApp) : ''}</div>
+<div class="pane" id="tab-family">${d.people ? peopleSection(d.people) : ''}${d.memory ? familySection(d.memory, d.careApp) : ''}</div>
+
+<div class="pane" id="tab-activities">${d.activities ? activitiesSection(d.activities) : ''}</div>
 
 <div class="pane" id="tab-staff">${d.staff ? staffSection(d.staff) : ''}</div>
 
@@ -513,6 +521,7 @@ ${d.lock ? lockRow(d.lock) : ''}
     if (!pane) pane = document.getElementById('tab-' + document.body.getAttribute('data-tab')) || panes[0];
     panes.forEach(function (p) { p.classList.toggle('on', p === pane); });
     links.forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === '#' + pane.id); });
+    if (el && el.tagName === 'DETAILS') el.open = true;
     if (el && el !== pane) el.scrollIntoView(); else window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);

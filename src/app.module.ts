@@ -14,10 +14,12 @@ import { LockModule } from './lock/lock.module';
 import { StaffModule } from './staff/staff.module';
 import { CareAppModule } from './care-app/care-app.module';
 import { LiveVoiceModule } from './realtime/live-voice.module';
+import { PeopleModule } from './people/people.module';
+import { ActivitiesModule } from './activities/activities.module';
 
 @Global()
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), LockModule, LiveVoiceModule, StaffModule, CareAppModule, ModelsModule, DeviceModule, UpdatesModule, SoulModule, LocationModule, WebModule, FaceModule, ConversationModule, ControlPanelModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), LockModule, LiveVoiceModule, StaffModule, CareAppModule, PeopleModule, ActivitiesModule, ModelsModule, DeviceModule, UpdatesModule, SoulModule, LocationModule, WebModule, FaceModule, ConversationModule, ControlPanelModule],
   providers: [{ provide: APP_CONFIG, useFactory: loadConfig }],
   exports: [APP_CONFIG],
 })

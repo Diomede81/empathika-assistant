@@ -1,3 +1,5 @@
+import { PeopleService } from '../people/people.service';
+import { ActivitiesService } from '../activities/activities.service';
 import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import type { ChatCompletionTool } from 'openai/resources/chat/completions';
 import { McpServersService } from '../mcp/mcp-servers.service';
@@ -84,6 +86,8 @@ export class ToolRouterService {
     @Optional() private readonly updates?: UpdatesService,
     @Optional() private readonly screenTools?: ScreenToolsService,
     @Optional() private readonly lock?: LockService,
+    @Optional() private readonly people?: PeopleService,
+    @Optional() private readonly activities?: ActivitiesService,
   ) {}
 
   onModuleInit(): void {
@@ -108,6 +112,8 @@ export class ToolRouterService {
       ...(this.web?.tools ?? []),
       ...(this.updates?.tools ?? []),
       ...(this.screenTools?.tools ?? []),
+      ...(this.people?.tools ?? []),
+      ...(this.activities?.tools ?? []),
       ...this.mcp.tools.map(confirm),
     ];
   }
@@ -323,6 +329,8 @@ export class ToolRouterService {
         }
         return await this.screenTools.call(name, args);
       }
+      if (this.people?.has(name)) return await this.people.call(name, args);
+      if (this.activities?.has(name)) return await this.activities.call(name, args);
       if (this.app?.has(name)) return await this.app.call(name, args);
       const server = this.mcp.serverFor(name);
       if (!server) return `Unknown action "${name}".`;

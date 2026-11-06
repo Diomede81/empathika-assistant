@@ -24,6 +24,8 @@ import { DeviceModule } from '../device/device.module';
 import { LockModule } from '../lock/lock.module';
 import { LocationModule } from '../location/location.module';
 import { SoulModule } from '../soul/soul.module';
+import { PeopleModule } from '../people/people.module';
+import { ActivitiesModule } from '../activities/activities.module';
 import { ToolRouterService } from '../actions/tool-router.service';
 import { TimerService, announcement } from '../actions/timer.service';
 import { TtsModule } from '../tts/tts.module';
@@ -42,7 +44,7 @@ try {
 @Global()
 @Module({
   // The face screen follows typing mode too (with --speak the mouth moves with the voice).
-  imports: [ModelsModule, DeviceModule, LockModule, LocationModule, SoulModule, StaffModule, CareAppModule, LlmModule, TtsModule, FaceModule],
+  imports: [ModelsModule, DeviceModule, LockModule, LocationModule, SoulModule, StaffModule, CareAppModule, PeopleModule, ActivitiesModule, LlmModule, TtsModule, FaceModule],
   providers: [{ provide: APP_CONFIG, useFactory: loadConfig }],
   exports: [APP_CONFIG],
 })

@@ -131,6 +131,13 @@ export class WakeWordService {
     client.send('audio-start', { ...s.format, timestamp: 0 });
   }
 
+  /** Answers as if the wake word was heard (a button on the screen), when someone is waiting for it. */
+  trigger(name = 'screen'): boolean {
+    if (!this.session) return false;
+    this.session.resolve(name);
+    return true;
+  }
+
   feed(chunk: Buffer, format: { rate: number; width: number; channels: number }): void {
     this.client?.send('audio-chunk', { ...format }, chunk);
   }

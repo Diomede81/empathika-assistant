@@ -7,7 +7,10 @@ Context Protocol, Streamable HTTP). Through it, the box:
 1. answers **staff questions about the resident** from the care record (medications,
    observations, care plan), but only during a staff session;
 2. receives **news from the family** (relatives' WhatsApp messages and photos) and passes it on;
-3. keeps a **backup of the resident's memories**, so nothing is lost if a box breaks or is replaced.
+3. keeps a **backup of the resident's memories**, so nothing is lost if a box breaks or is replaced;
+4. receives the resident's **family and friends** as staff recorded them (relationships, birthdays,
+   who has died, and guidance on how to talk about them);
+5. reports the resident's **activities** (puzzles, quizzes, memory-lane chats) with their scores.
 
 A practice version of the app ships with Empathika so the box can be tested before the real
 app exists: `npm run mock-app` (code: `src/tools/mock-care-app.ts`). It implements everything
@@ -35,7 +38,7 @@ The box decides what the AI may use **by action name**:
 | Kind | Who can use it | How the box recognises it |
 |---|---|---|
 | **Resident actions** | Anyone in the room (resident, visitors) | Names in `EMPATHIKA_APP_RESIDENT_TOOLS` (default `resident_profile,resident_schedule`) |
-| **System actions** | Only the box itself (backup, family news); never offered to the AI | Names matching `EMPATHIKA_APP_SYSTEM_TOOLS` (default `memory_backup_*,family_update*,staff_*`) |
+| **System actions** | Only the box itself (backup, family news); never offered to the AI | Names matching `EMPATHIKA_APP_SYSTEM_TOOLS` (default `memory_backup_*,family_*,activity_log*,staff_*`) |
 | **Care record** | Only during a **staff session** (a member of staff entered their PIN on the box) | Every other action |
 
 So **any new action the app adds is staff-only by default**, which is the safe default. To offer
@@ -133,13 +136,17 @@ older versions is a good idea). The backup contains:
     { "name": "care", "items": [ … ], "episodes": [ … ] }
   ],
   "soul": { "soul": "…", "resident": "…", "staff": "…" },
-  "journal": [ { "text": "Peggy likes to be called Peggy, not Margaret", "at": "…" } ]
+  "journal": [ { "text": "Peggy likes to be called Peggy, not Margaret", "at": "…" } ],
+  "people": [ { "id": "…", "name": "Sarah Thompson", "relation": "daughter", "circle": "family", "birthday": "1966-11-08", "updates": [ … ], "contacts": [ … ], "about": { "home": "Lives in Leeds" } } ],
+  "activities": { "levels": { "words": 2 }, "sessions": [ … ] }
 }
 ```
 - `resident` vault: who the resident is (life story, family, likes, routines, family news).
 - `care` vault: health and wellbeing observations: **special category health data under GDPR**.
   Store and protect it like the rest of the care record.
 - `soul` / `journal`: Empathika's personality as adapted for this resident.
+- `people`: the resident's family and friends with news, visits and calls ([PEOPLE.md](PEOPLE.md)).
+- `activities`: the activity log and levels ([ACTIVITIES.md](ACTIVITIES.md)).
 
 The app can also **show these memories to staff and family** ("What Empathika knows about Mum"):
 the `resident` vault is the life-story book.
@@ -147,6 +154,34 @@ the `resident` vault is the life-story book.
 ### `memory_backup_get`
 Arguments: `resident_id`. Returns `{ "backup": <the object above> }`, or `{ "backup": null }`
 when there is none. A restore only adds what is missing on the box; it never overwrites.
+
+## Family and friends (system)
+
+### `family_contacts`
+Arguments: `resident_id`. The resident's family and friends as staff recorded them. The box fetches it
+at start-up and every 6 hours, and the app is the reference for these fields (see [PEOPLE.md](PEOPLE.md)).
+```json
+{ "contacts": [
+  { "id": "c-1", "name": "Sarah Thompson", "relationship": "daughter", "birthday": "1966-11-08", "notes": "Lives in Leeds with her husband Mark; visits on Wednesdays." },
+  { "id": "c-2", "name": "Tom Thompson", "relationship": "son", "nickname": "Tommy", "birthday": "1969-07-22" },
+  { "id": "c-4", "name": "George Thompson", "relationship": "husband", "deceased": true, "died_on": "2019",
+    "guidance": "Peggy sometimes asks for George. Do not tell her he has died: ask about their dancing days, then gently move on." }
+] }
+```
+- `id`: stable, so a renamed contact stays the same person. `birthday`: `YYYY-MM-DD` or `MM-DD`.
+- `nickname`: what the resident calls them. `guidance`: how Empathika should talk about them (staff-written).
+- Use the same `from` name in `family_updates_list` (first name is enough), so messages land on the right person.
+
+## Activities (system)
+
+### `activity_log_add`
+Arguments: `resident_id`, `activity`. Sent after each activity. Store it with the resident's
+wellbeing records; trends over weeks are what matter, not one score.
+```json
+{ "activity": { "at": "2026-11-06T10:31:00Z", "kind": "words", "label": "Word puzzle", "level": 1, "asked": 5, "correct": 4, "minutes": 6, "ended": "finished", "topic": null } }
+```
+`kind`: `words`, `sayings`, `numbers`, `memory`, `quiz`, `categories` or `reminiscence` (memory lane:
+`asked`/`correct` are 0, `minutes` is what counts). `ended`: `finished` or `stopped` (they had enough).
 
 ## Later: staff accounts from the app
 

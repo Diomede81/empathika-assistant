@@ -4,6 +4,8 @@ import { MemoryBackup, MemoryService } from '../memory/memory.service';
 import { SoulService, SOUL_DOCS, SoulDoc } from '../soul/soul.service';
 import { StaffService } from '../staff/staff.service';
 import { CareAppService } from './care-app.service';
+import { Person, PeopleService } from '../people/people.service';
+import { ActivitiesService } from '../activities/activities.service';
 
 const PUT = 'memory_backup_put';
 const GET = 'memory_backup_get';
@@ -14,6 +16,10 @@ const FIRST_RUN_MS = 20_000;
 export interface FullBackup extends MemoryBackup {
   soul?: Partial<Record<SoulDoc, string>>;
   journal?: { text: string; at: string }[];
+  /** The resident's people (family, friends) with their records. */
+  people?: Person[];
+  /** The activity log and levels. */
+  activities?: ReturnType<ActivitiesService['exportBackup']>;
 }
 
 export interface BackupStatus {
@@ -35,7 +41,7 @@ export interface BackupStatus {
 export class MemoryBackupService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger('Backup');
   private timer?: NodeJS.Timeout;
-  private backedUpRevision = -1;
+  private backedUpRevision = '';
   private running = false;
   readonly status: BackupStatus = {};
 
@@ -45,7 +51,14 @@ export class MemoryBackupService implements OnModuleInit, OnModuleDestroy {
     private readonly app: CareAppService,
     @Optional() private readonly soul?: SoulService,
     @Optional() private readonly staff?: StaffService,
+    @Optional() private readonly people?: PeopleService,
+    @Optional() private readonly activities?: ActivitiesService,
   ) {}
+
+  /** Changes anywhere in what is backed up. */
+  private get revision(): string {
+    return `${this.memory.revision}/${this.people?.revision ?? 0}/${this.activities?.revision ?? 0}`;
+  }
 
   onModuleInit(): void {
     if (!this.app.configured || !this.memory.enabled) return;
@@ -77,19 +90,25 @@ export class MemoryBackupService implements OnModuleInit, OnModuleDestroy {
   async backup(force = false): Promise<{ ok: boolean; message: string }> {
     if (!this.available) return { ok: false, message: this.app.connected ? 'The care app does not offer memory backups yet.' : 'The care app is not connected.' };
     if (this.running) return { ok: false, message: 'A backup is already running.' };
-    const revision = this.memory.revision;
+    const revision = this.revision;
     if (!force && revision === this.backedUpRevision) return { ok: true, message: 'Nothing changed since the last backup.' };
     this.running = true;
     try {
       await this.memory.flush();
-      const backup: FullBackup = { ...this.memory.exportBackup(), ...this.personality() };
+      const backup: FullBackup = {
+        ...this.memory.exportBackup(),
+        ...this.personality(),
+        ...(this.people?.enabled ? { people: this.people.exportBackup() } : {}),
+        ...(this.activities?.enabled ? { activities: this.activities.exportBackup() } : {}),
+      };
       await this.app.system(PUT, { backup });
       this.backedUpRevision = revision;
       this.status.lastBackupAt = backup.takenAt;
       this.status.lastError = undefined;
       const n = backup.vaults.reduce((s, v) => s + v.items.length, 0);
-      this.log.log(`Memory backed up to the care app (${n} facts)`);
-      return { ok: true, message: `Backed up ${n} facts to the care app.` };
+      const people = backup.people?.length ? ` and ${backup.people.length} people` : '';
+      this.log.log(`Memory backed up to the care app (${n} facts${people})`);
+      return { ok: true, message: `Backed up ${n} facts${people} to the care app.` };
     } catch (err) {
       this.status.lastError = (err as Error).message;
       this.log.warn(`Memory backup failed: ${this.status.lastError}`);
@@ -107,12 +126,14 @@ export class MemoryBackupService implements OnModuleInit, OnModuleDestroy {
       const backup = typeof got === 'object' && got ? ('backup' in got ? got.backup : (got as FullBackup)) : undefined;
       if (!backup || backup.format !== 'empathika-memory') return { ok: false, message: 'The care app has no backup for this resident yet.' };
       const r = await this.memory.restoreBackup(backup);
-      const extra = this.restorePersonality(backup);
+      const people = this.people?.restoreBackup(backup.people) ?? 0;
+      const sessions = this.activities?.restoreBackup(backup.activities) ?? 0;
+      const extra = [this.restorePersonality(backup), people ? `${people} people` : '', sessions ? `${sessions} activities` : ''].filter(Boolean).join(', ');
       const message = `Restored ${r.items} facts and ${r.notes} conversation notes from the backup of ${backup.takenAt.slice(0, 10)}${extra ? `, ${extra}` : ''}.`;
       this.status.lastRestore = `${new Date().toISOString()}: ${message}`;
       this.staff?.audit('memory_restore', undefined, `${why}. ${message}`);
       this.log.log(`${message} (${why})`);
-      this.backedUpRevision = this.memory.revision; // what's here now matches the app
+      this.backedUpRevision = this.revision; // what's here now matches the app
       return { ok: true, message };
     } catch (err) {
       this.log.warn(`Restore failed: ${(err as Error).message}`);

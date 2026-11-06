@@ -41,6 +41,22 @@ interface Store {
   messages: Message[];
   backups: Record<string, { saved_at: string; backup: unknown }>;
   notes: { resident_id: string; at: string; by: string; text: string }[];
+  /** The resident's family and friends, as staff recorded them (shared with the box). */
+  contacts?: Record<string, Contact[]>;
+  /** Activities the box reported (puzzles, quizzes, memory-lane chats). */
+  activities?: { resident_id: string; received_at: string; activity: Record<string, unknown> }[];
+}
+
+interface Contact {
+  id: string;
+  name: string;
+  relationship?: string;
+  nickname?: string;
+  birthday?: string;
+  deceased?: boolean;
+  died_on?: string;
+  guidance?: string;
+  notes?: string;
 }
 
 interface Resident {
@@ -100,6 +116,22 @@ function seed(): Store {
     ],
     backups: {},
     notes: [],
+    contacts: {
+      'res-001': [
+        { id: 'c-1', name: 'Sarah Thompson', relationship: 'daughter', birthday: '1966-' + new Date(Date.now() + 2 * 86400_000).toISOString().slice(5, 10), notes: 'Lives in Leeds with her husband Mark; visits on Wednesdays.' },
+        { id: 'c-2', name: 'Tom Thompson', relationship: 'son', nickname: 'Tommy', birthday: '1969-07-22', notes: 'Lives nearby; looks after the old allotment.' },
+        { id: 'c-3', name: 'Jack Thompson', relationship: 'grandson', birthday: '2003-11-30', notes: "Tom's son; at university in Durham studying history." },
+        {
+          id: 'c-4',
+          name: 'George Thompson',
+          relationship: 'husband',
+          deceased: true,
+          died_on: '2019',
+          guidance: 'Peggy sometimes asks for George, especially in the late afternoon. Do not tell her he has died. Ask her about him: their dancing days at the Locarno, his roses. Then gently move on.',
+        },
+      ],
+    },
+    activities: [],
   };
 }
 
@@ -198,6 +230,18 @@ function mcpServer(): McpServer {
       return json({ ok: true });
     },
   );
+  server.registerTool('family_contacts', { description: "The resident's family and friends as staff recorded them: relationship, nickname, birthday, whether they have died, and guidance.", inputSchema: rid }, async ({ resident_id }) => {
+    return json({ contacts: store.contacts?.[resident_id] ?? [] });
+  });
+  server.registerTool(
+    'activity_log_add',
+    { description: 'Empathika reports an activity the resident did (a puzzle, quiz or memory-lane chat) with the score.', inputSchema: { ...rid, activity: z.record(z.string(), z.unknown()) } },
+    async ({ resident_id, activity }) => {
+      store.activities = [...(store.activities ?? []), { resident_id, received_at: new Date().toISOString(), activity }];
+      save(store);
+      return json({ ok: true });
+    },
+  );
   server.registerTool('memory_backup_get', { description: "The latest backup of Empathika's memory for this resident.", inputSchema: rid }, async ({ resident_id }) => {
     return json({ backup: store.backups[resident_id]?.backup ?? null });
   });
@@ -218,6 +262,8 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '
 function page(): string {
   const msgs = [...store.messages].sort((a, b) => b.received_at.localeCompare(a.received_at));
   const backups = Object.entries(store.backups).map(([id, b]) => `<li>${esc(id)}: saved ${esc(b.saved_at)}</li>`).join('') || '<li>None yet</li>';
+  const contacts = (store.contacts?.['res-001'] ?? []).map((c) => `<li><b>${esc(c.name)}</b> (${esc(c.relationship)})${c.nickname ? `, called "${esc(c.nickname)}"` : ''}${c.birthday ? ` · birthday ${esc(c.birthday)}` : ''}${c.deceased ? ` · died ${esc(c.died_on)}` : ''}${c.guidance ? `<div class="meta">Guidance: ${esc(c.guidance)}</div>` : ''}</li>`).join('') || '<li>None</li>';
+  const activities = (store.activities ?? []).slice(-10).reverse().map((a) => `<li>${esc(a.received_at)} · ${esc(a.activity.label)}: ${esc(a.activity.correct)}/${esc(a.activity.asked)} (${esc(a.activity.ended)}, ${esc(a.activity.minutes)} min)</li>`).join('') || '<li>None yet</li>';
   const notes = store.notes.slice(-10).reverse().map((n) => `<li>${esc(n.at)} · ${esc(n.by)}: ${esc(n.text)}</li>`).join('') || '<li>None yet</li>';
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Empathika app (practice)</title>
 <style>body{font:15px/1.5 system-ui;margin:0;background:#f6f7f9;color:#1b1f24}main{max-width:720px;margin:0 auto;padding:24px 16px}section{background:#fff;border:1px solid #e3e6ea;border-radius:12px;padding:16px;margin:0 0 16px}
@@ -230,7 +276,9 @@ li{margin:6px 0}.meta{color:#5d6670;font-size:13px}</style>
 <label class="meta"><input type="checkbox" name="sensitive" value="yes" style="width:auto"> Sensitive news (staff should pass it on, not Empathika)</label><br><button>Send</button></form></section>
 <section><h2>Messages</h2><ul>${msgs.map((m) => `<li><b>${esc(m.from)}</b>${m.relationship ? ` (${esc(m.relationship)})` : ''}: ${esc(m.text)}<div class="meta">${esc(m.received_at)} · ${m.sensitive ? 'sensitive · ' : ''}${m.delivered_at ? `passed on ${esc(m.delivered_at)}` : 'not passed on yet'}</div></li>`).join('')}</ul></section>
 <section><h2>Memory backups</h2><ul>${backups}</ul></section>
-<section><h2>Notes Empathika added to the care record</h2><ul>${notes}</ul></section></main>`;
+<section><h2>Notes Empathika added to the care record</h2><ul>${notes}</ul></section>
+<section><h2>Family and friends (shared with the box)</h2><ul>${contacts}</ul></section>
+<section><h2>Activities Empathika reported</h2><ul>${activities}</ul></section></main>`;
 }
 
 const http = createServer((req: IncomingMessage, res: ServerResponse) => {

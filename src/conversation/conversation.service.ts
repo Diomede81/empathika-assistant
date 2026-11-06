@@ -113,6 +113,8 @@ export class ConversationService implements OnApplicationBootstrap {
   @Optional() @Inject(FaceService) private readonly face?: FaceService;
 
   private readonly pendingAnnouncements: { text: string; timer: boolean; system?: boolean }[] = [];
+  /** What to say first when a conversation is started from the screen (instead of the greeting). */
+  private opening?: string;
   private announcing = false;
 
   onApplicationBootstrap(): void {
@@ -144,6 +146,13 @@ export class ConversationService implements OnApplicationBootstrap {
     setInterval(() => {
       if (this.device && !this.device.nightNow && this.pendingAnnouncements.length && this.state === 'wake') void this.flushAnnouncements();
     }, 60_000).unref();
+    // A button on the screen can start a conversation (e.g. "Yes please" to a puzzle): only while idle.
+    this.control?.on('start', (opening: string, taken: () => void) => {
+      if (this.state !== 'wake' || this.announcing || this.lock?.locked || this.device?.nightNow) return;
+      this.opening = opening;
+      if (this.wake.trigger('screen')) taken();
+      else this.opening = undefined;
+    });
     void this.wake.checkConfiguredNames().then(() => this.waitForWakeWord());
   }
 
@@ -258,8 +267,11 @@ export class ConversationService implements OnApplicationBootstrap {
     // The double-check runs while Empathika already answers, so it adds no delay; a false wake-up cuts
     // the greeting short and she goes back to sleep.
     const heardAt = Date.now();
-    if (!this.cfg.wakeWord.verify) recordWake('unchecked');
-    const verified = this.cfg.wakeWord.verify ? this.confirmWake(Buffer.concat(recent), fmt) : Promise.resolve(true);
+    // Started from the screen ("Yes please" to a puzzle): nothing to double-check, and her first words are set.
+    const opening = name === 'screen' ? this.opening : undefined;
+    this.opening = undefined;
+    if (!this.cfg.wakeWord.verify && opening === undefined) recordWake('unchecked');
+    const verified = this.cfg.wakeWord.verify && opening === undefined ? this.confirmWake(Buffer.concat(recent), fmt) : Promise.resolve(true);
     if (this.lock?.locked) {
       if (!(await verified)) return this.waitForWakeWord();
       this.log.log(`Wake word "${name}" detected, but Empathika is locked (start-up code)`);
@@ -282,7 +294,7 @@ export class ConversationService implements OnApplicationBootstrap {
     // after the last conversation (within the minutes set on the panel): then just the beep, so it doesn't get tiring.
     const again = (this.device?.greetAgainMin ?? 0) * 60_000;
     const recently = again > 0 && this.lastTalkEnd > 0 && heardAt - this.lastTalkEnd < again;
-    const greeting = recently ? undefined : this.device?.greeting;
+    const greeting = opening ?? (recently ? undefined : this.device?.greeting);
     this.greeted = Boolean(greeting);
     this.chimed = !greeting && (this.cfg.audio.wakeChime || recently);
     let answering: Promise<unknown> = Promise.resolve();
@@ -295,7 +307,7 @@ export class ConversationService implements OnApplicationBootstrap {
           await this.tts.prepare(greeting); // normally ready since start-up
           if (!falseAlarm) await this.tts.sayReady(greeting);
         })().catch((err) => this.log.warn(`Greeting: ${(err as Error).message}`));
-        void this.liveVoice?.ensure(greeting); // in the live voice from next time
+        if (opening === undefined) void this.liveVoice?.ensure(greeting); // in the live voice from next time
       }
     } else if (this.chimed) void this.tts.chime().catch(() => undefined);
     // The double-check gets the greeting plus a moment; after that Empathika listens anyway and it finishes in the

@@ -22,6 +22,14 @@ Mic → Wake word → End-of-speech → Speech-to-text → AI model ⇄ memory, 
   What staff, family and the control panel enter is **checked** and is never overwritten by what a
   resident living with dementia says; contradictions become care notes for staff instead. See
   **[docs/MEMORY.md](docs/MEMORY.md)**.
+- **Family and friends.** A record for each person in the resident's life: relationship, the name the
+  resident uses, birthday, news, visits and calls, and the stories the resident tells about them. Filled
+  from the care app's contact list, the control panel and conversations. For someone who has died, staff
+  add guidance on how she should respond. See **[docs/PEOPLE.md](docs/PEOPLE.md)**.
+- **Keeping the mind active.** Word and number puzzles, finishing old sayings, a memory game, quizzes,
+  "name five" and memory-lane chats about their life. She checks puzzle answers herself, the level adjusts
+  itself, a screen invitation starts one with a tap, and staff see how the resident is getting on. See
+  **[docs/ACTIVITIES.md](docs/ACTIVITIES.md)**.
 - **News from the family.** Relatives send WhatsApp messages and photos to the care home; the
   Empathika app passes them to the box. Empathika shows "💌 Sarah sent you a message", reads it out,
   remembers it ("any news from Sarah?"), and adds the photos to the evening photo frame. Sensitive
@@ -147,4 +155,5 @@ case. In a care home with several boxes, give each its own name during setup (e.
 - [ ] Staff accounts managed centrally in the Empathika app (one PIN for every box)
 - [ ] Call-bell / alert integration when a resident says they've fallen or feel unwell
 - [ ] Replying to family by voice ("tell Sarah I loved the photo")
-- [ ] Reminiscence sessions built from the life story and family photos
+- [x] Reminiscence sessions built from the life story and the resident's people (memory lane)
+- [ ] Memory lane with family photos on the screen

@@ -213,6 +213,11 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     { time: 'Sun', text: '🌧️ 14° / 8°', sub: 'Rain from midday, 80%' },
     { time: 'Mon', text: '⛅ 15° / 7°', sub: 'Cloudy spells' }] };
   SCENES.push(['speaking', 'neutral', 'Card answer']);
+  SCENES.push(['idle', 'happy', 'Puzzle invite'], ['listening', 'neutral', 'Puzzle'], ['idle', 'happy', 'Birthday']);
+  DEMO_CARDS['Puzzle invite'] = { id: 'd9', kind: 'notice', icon: '🔤', title: 'Something to do', big: 'Fancy a word puzzle?', until: FOREVER,
+    actions: [{ id: 'yes', label: 'Yes please', style: 'primary' }, { id: 'later', label: 'Not now' }] };
+  DEMO_CARDS['Puzzle'] = { id: 'd10', kind: 'notice', icon: '🔤', title: 'Word puzzle · 2 of 5', big: 'N E D R A G', subtitle: 'Clue: where flowers grow', until: FOREVER, actions: [] };
+  DEMO_CARDS['Birthday'] = { id: 'd11', kind: 'notice', icon: '🎂', title: 'A birthday today', big: "It's Sarah's birthday", subtitle: 'Sarah Thompson (daughter), 60 today', until: FOREVER, actions: [{ id: 'ok', label: 'Lovely' }] };
   SCENES.push(['idle', 'neutral', 'Muted']);
   SCENES.push(['idle', 'neutral', 'Logo']);
   const slug = (t) => t.toLowerCase().replace(/[^a-z]+/g, '-');

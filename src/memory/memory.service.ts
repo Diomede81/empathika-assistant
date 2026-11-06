@@ -137,6 +137,10 @@ export class MemoryService implements OnModuleInit {
   private activityLog?: ActivityLog;
   /** Extra parts of the standing memory (e.g. new family updates), given the open vaults. */
   readonly sections: ((open: VaultName[]) => string)[] = [];
+  /** Told about each new or changed fact (e.g. the people records notice a birthday or a new relative). */
+  readonly onSaved: ((item: MemoryItem, isNew: boolean) => void)[] = [];
+  /** Extra guidance for the filing clerk after each conversation (e.g. the names of the resident's people). */
+  readonly filerNotes: (() => string)[] = [];
   /** Goes up with every change (the backup job checks it). */
   revision = 0;
 
@@ -321,6 +325,7 @@ export class MemoryService implements OnModuleInit {
         ...(vec ? { vec: toB64(vec) } : {}),
       });
       this.save(v);
+      if (changed) this.tellSaved(same, false);
       if (changed) {
         this.log.log(`Updated [${v.name}]: ${said(text)}`);
         this.activity('updated', `Updated (${n.source})`, [v.name], [text]);
@@ -349,6 +354,7 @@ export class MemoryService implements OnModuleInit {
     };
     v.data.items.push(item);
     this.save(v);
+    this.tellSaved(item, true);
     this.log.log(`Remembered [${v.name}/${item.kind}${item.unverified ? ', unverified' : ''}] (${n.source}): ${said(text)}`);
     this.activity('saved', `Saved (${n.source}${item.unverified ? ', unverified' : ''})`, [v.name], [text]);
     return {
@@ -539,6 +545,29 @@ export class MemoryService implements OnModuleInit {
   // ---------- Family updates (FamilyUpdatesService saves them) ----------
 
   /** Messages from relatives, newest first. */
+  /**
+   * Facts about someone, from the open vaults: the ones filed under their name, plus the ones that
+   * mention it. Newest first. `names`: their name, nickname... (whole words, case-insensitive).
+   */
+  itemsAbout(names: string[], limit = 15): MemoryItem[] {
+    const words = names.map((n) => n.trim()).filter((n) => n.length >= 2);
+    if (!words.length || !this.enabled) return [];
+    const re = new RegExp(`\\b(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
+    const hits = this.items(this.modes.readable()).filter((i) => !i.unverified && (re.test(i.subject ?? '') || re.test(i.text)));
+    const bySubject = (i: MemoryItem) => (re.test(i.subject ?? '') ? 1 : 0);
+    return hits.sort((a, b) => bySubject(b) - bySubject(a) || b.updatedAt.localeCompare(a.updatedAt)).slice(0, limit);
+  }
+
+  private tellSaved(item: MemoryItem, isNew: boolean): void {
+    for (const f of this.onSaved) {
+      try {
+        f(item, isNew);
+      } catch (err) {
+        this.log.warn(`After saving a fact: ${(err as Error).message}`);
+      }
+    }
+  }
+
   familyNews(): MemoryItem[] {
     return (this.vault('resident')?.data.items ?? []).filter((i) => i.kind === 'family_news').sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }

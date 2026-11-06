@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { EventEmitter } from 'node:events';
 
 /**
  * Lets the AI model end the current conversation (the end_conversation action): when the user
@@ -6,9 +7,20 @@ import { Injectable } from '@nestjs/common';
  * after each reply and go quiet.
  */
 @Injectable()
-export class ConversationControl {
+export class ConversationControl extends EventEmitter {
   private requested = false;
   private afterReply = false;
+
+  /**
+   * Starts a conversation without the wake word (a button on the screen, e.g. "Yes please" to a
+   * puzzle): Empathika says `opening`, then listens. Only while she is idle and waiting for the wake
+   * word; returns false otherwise (a voice loop answers through 'start').
+   */
+  requestStart(opening: string): boolean {
+    let taken = false;
+    this.emit('start', opening, () => (taken = true));
+    return taken;
+  }
 
   requestEnd(): void {
     this.requested = true;

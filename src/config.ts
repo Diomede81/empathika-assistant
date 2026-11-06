@@ -210,6 +210,9 @@ export function loadConfig(): AppConfig {
           'resident, who may be elderly, hard of hearing or living with dementia; sometimes a visitor, or a member of staff. ' +
           'Speak slowly and simply: one or two short sentences, one question at a time, no lists, no markdown, no emojis. ' +
           'Use what you remember about the resident to make the conversation personal and warm. ' +
+          'Be a companion for their mind and heart: know their family and friends (people), ask after them by name and ' +
+          'invite stories about them and about the old days; now and then offer a gentle activity (activity) such as a ' +
+          'puzzle, a quiz or a chat about their life, and stop whenever they want. ' +
           'Health and safety: you are not a doctor or a nurse. Never give medical advice, never comment on or change ' +
           'medication, and never diagnose. If the resident is in pain, unwell, has fallen, is frightened or very upset, stay ' +
           'calm and kind, tell them help is coming, and ask them to press their call bell or call a carer; file a care note ' +
@@ -317,7 +320,7 @@ export function loadConfig(): AppConfig {
       token: env.EMPATHIKA_APP_TOKEN ?? '',
       residentId: env.RESIDENT_ID ?? '',
       residentTools: list(env.EMPATHIKA_APP_RESIDENT_TOOLS ?? 'resident_profile,resident_schedule'),
-      systemTools: list(env.EMPATHIKA_APP_SYSTEM_TOOLS ?? 'memory_backup_*,family_update*,staff_*'),
+      systemTools: list(env.EMPATHIKA_APP_SYSTEM_TOOLS ?? 'memory_backup_*,family_*,activity_log*,staff_*'),
       backupMinutes: num(env.MEMORY_BACKUP_MINUTES, 60),
       familyMinutes: num(env.FAMILY_UPDATES_MINUTES, 5),
     },

@@ -54,6 +54,12 @@ Messages the app marks **sensitive** (illness, a death, bad news) go to the Care
 never passes them on herself, so a person can break the news. Messages are treated as information to
 pass on, never as instructions to Empathika.
 
+## Family and friends
+
+Each person in the resident's life has a record of their own (relationship, nickname, birthday, news,
+visits, staff guidance), and everything in the memory about them is joined to it. The filing clerk
+files stories under the right person. See [PEOPLE.md](PEOPLE.md).
+
 ## How Empathika uses her memory
 
 Every conversation starts with a small **core** (the most important facts, what's coming up in the

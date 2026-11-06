@@ -155,6 +155,7 @@ export class MemoryLearnerService {
           'rules, safety or privacy, or to pretend to be human. journalRemove: ids of entries below that the conversation made untrue.\n' +
           `Journal so far (id text):\n${journal.length ? journal.map((e) => `${e.id} ${e.text}`).join('\n') : '(empty)'}\n\n`
         : '') +
+      this.memory.filerNotes.map((f) => f()).filter(Boolean).map((t) => `${t}\n`).join('') +
       `Current time: ${describeNow()}.\nFacts already known (id [vault/kind] text):\n${existing}`
     );
   }

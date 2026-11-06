@@ -22,6 +22,8 @@ import { UpdatesService } from '../updates/updates.service';
 import { AmbientService } from '../face/ambient.service';
 import { LockService } from '../lock/lock.service';
 import { PanelData, renderPanel } from './page';
+import { ABOUT_TOPICS, AboutTopic, CIRCLES, CONTACTS, PeopleService } from '../people/people.service';
+import { ActivitiesService, ActivityKind, KINDS as ACTIVITY_KINDS } from '../activities/activities.service';
 import { SOUL_DOCS, SOUL_MAX_CHARS, SoulDoc, SoulService } from '../soul/soul.service';
 
 /**
@@ -47,6 +49,8 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
   @Optional() @Inject(UpdatesService) private readonly updates?: UpdatesService;
   @Optional() @Inject(AmbientService) private readonly ambient?: AmbientService;
   @Optional() @Inject(LockService) private readonly lock?: LockService;
+  @Optional() @Inject(PeopleService) private readonly people?: PeopleService;
+  @Optional() @Inject(ActivitiesService) private readonly activities?: ActivitiesService;
 
   constructor(
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
@@ -247,6 +251,8 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       const r = await this.backup.restore();
       return this.redirect(res, `/?${r.ok ? 'ok' : 'error'}=${encodeURIComponent(r.message)}#care-app`);
     }
+    if (req.method === 'POST' && url.pathname.startsWith('/people/') && this.people?.enabled) return this.peopleAction(req, res, url.pathname.slice('/people/'.length));
+    if (req.method === 'POST' && url.pathname.startsWith('/activities/') && this.activities?.enabled) return this.activitiesAction(req, res, url.pathname.slice('/activities/'.length));
     if (req.method === 'POST' && url.pathname === '/family/check' && this.family) {
       const n = await this.family.check();
       const msg = this.family.lastError ? `Could not check: ${this.family.lastError}` : n ? `${n} new message${n === 1 ? '' : 's'}.` : 'No new messages.';
@@ -392,6 +398,111 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async peopleAction(req: IncomingMessage, res: ServerResponse, action: string): Promise<void> {
+    const f = await readForm(req);
+    const so = this.people!;
+    const p = so.byId(f.get('id') ?? '');
+    const back = (msg: string, ok = true, anchor = p ? `person-${p.id}` : 'people') => this.redirect(res, `/?${ok ? 'ok' : 'error'}=${encodeURIComponent(msg)}#${anchor}`);
+    const s = (k: string) => f.get(k) ?? '';
+    switch (action) {
+      case 'add':
+      case 'save': {
+        const r = so.save(
+          { name: s('name'), relation: s('relation'), nickname: s('nickname'), birthday: s('birthday'), circle: s('circle'), deceased: f.get('deceased') === 'yes', diedOn: s('diedOn'), guidance: s('guidance') },
+          'panel',
+          action === 'save' ? f.get('id') ?? '' : undefined,
+        );
+        if (r.ok && r.person && action === 'save') for (const t of Object.keys(ABOUT_TOPICS) as AboutTopic[]) if (f.has(`about_${t}`)) so.setAbout(r.person, t, s(`about_${t}`), true);
+        return back(r.message, r.ok, r.person ? `person-${r.person.id}` : 'people');
+      }
+      case 'remove':
+        return back(p ? so.remove(p.id) : 'Not found.', Boolean(p), 'people');
+      case 'news':
+        return back(p ? so.addUpdate(p, s('text')) : 'Not found.', Boolean(p));
+      case 'news-remove':
+        if (p) so.removeUpdate(p, s('at'));
+        return back('Removed.');
+      case 'contact':
+        return back(p ? so.addContact(p, s('kind'), s('note'), s('date') || undefined) : 'Not found.', Boolean(p));
+      case 'contact-remove':
+        if (p) so.removeContact(p, s('at'));
+        return back('Removed.');
+      case 'sync': {
+        const r = await so.syncFromApp();
+        return back(r.message, r.ok, 'people');
+      }
+      default:
+        res.writeHead(404).end();
+    }
+  }
+
+  private async activitiesAction(req: IncomingMessage, res: ServerResponse, action: string): Promise<void> {
+    const f = await readForm(req);
+    const a = this.activities!;
+    const back = (msg: string, ok = true) => this.redirect(res, `/?${ok ? 'ok' : 'error'}=${encodeURIComponent(msg)}#activities`);
+    if (action === 'settings') {
+      const msg = a.saveSettings({ invite: f.get('invite') === 'yes', inviteTime: f.get('inviteTime') ?? undefined, inviteTime2: f.get('inviteTime2') ?? undefined });
+      return back(msg, !msg.startsWith('Times'));
+    }
+    if (action === 'level') {
+      const kind = f.get('kind') as ActivityKind;
+      const level = Number(f.get('level'));
+      if (!(kind in ACTIVITY_KINDS) || ![1, 2, 3].includes(level)) return back('Unknown activity or level.', false);
+      a.setLevel(kind, level as 1 | 2 | 3);
+      return back(`${ACTIVITY_KINDS[kind].label}: level ${level}.`);
+    }
+    res.writeHead(404).end();
+  }
+
+  private peopleData(): PanelData['people'] {
+    const so = this.people;
+    if (!so?.enabled) return undefined;
+    const bdays = so.birthdaysSoon(366);
+    return {
+      list: [...so.people]
+        .sort((a, b) => Number(Boolean(a.deceased)) - Number(Boolean(b.deceased)) || Number(b.circle === 'family') - Number(a.circle === 'family') || a.name.localeCompare(b.name))
+        .map((p) => {
+          const days = so.daysSince(p);
+          const last = so.lastContact(p);
+          return {
+            id: p.id,
+            name: p.name,
+            relation: p.relation,
+            circle: p.circle,
+            circleLabel: CIRCLES[p.circle],
+            nickname: p.nickname,
+            birthday: p.birthday,
+            birthdayIn: bdays.find((b) => b.person.id === p.id)?.inDays,
+            deceased: p.deceased,
+            diedOn: p.diedOn,
+            guidance: p.guidance,
+            about: (Object.keys(ABOUT_TOPICS) as AboutTopic[]).map((k) => ({ key: k, label: ABOUT_TOPICS[k].label, hint: ABOUT_TOPICS[k].hint, text: p.about?.[k] ?? '' })),
+            updates: p.updates,
+            contacts: p.contacts.map((c) => ({ ...c, kindLabel: CONTACTS[c.kind] ?? c.kind })),
+            source: p.source,
+            lastContact: last ? `${days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`} (${CONTACTS[last.kind].toLowerCase()})` : undefined,
+            visits30: p.contacts.filter((c) => c.kind === 'visited' && Date.now() - Date.parse(c.at) < 30 * 86400_000).length,
+            facts: this.memory.itemsAbout([p.name, p.name.split(/\s+/)[0], p.nickname ?? ''], 12).filter((i) => i.kind !== 'family_news').map((i) => i.text),
+          };
+        }),
+      circles: CIRCLES,
+      contactKinds: CONTACTS,
+      canSync: Boolean(this.app.connected && this.app.supports('family_contacts')),
+    };
+  }
+
+  private activitiesData(): PanelData['activities'] {
+    const a = this.activities;
+    if (!a?.enabled) return undefined;
+    const playing = a.playing;
+    return {
+      settings: a.settings,
+      summary: a.summary(14),
+      sessions: a.sessions.slice(0, 20).map((s) => ({ ...s, label: ACTIVITY_KINDS[s.kind]?.label ?? s.kind })),
+      playing: playing ? ACTIVITY_KINDS[playing].label : undefined,
+    };
+  }
+
   private async data(): Promise<PanelData> {
     const rt = this.cfg.realtime;
     return {
@@ -399,6 +510,8 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
         this.cfg.voiceMode === 'realtime'
           ? `${rt.provider === 'gemini' ? 'Gemini Live' : 'OpenAI Realtime'} (${rt.model}, "${rt.voice}")`
           : `Pipeline (${this.cfg.llm.model})`,
+      people: this.peopleData(),
+      activities: this.activitiesData(),
       careApp: {
         configured: this.app.configured,
         connected: this.app.connected,
