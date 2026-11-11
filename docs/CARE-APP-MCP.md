@@ -171,6 +171,8 @@ at start-up and every 6 hours, and the app is the reference for these fields (se
 - `id`: stable, so a renamed contact stays the same person. `birthday`: `YYYY-MM-DD` or `MM-DD`.
 - `related_to` + `related_as` (optional): a family link to another contact by name, e.g. Jack has
   `"related_to": "Tom Thompson", "related_as": "son"`.
+- `dates` (optional): special dates besides the birthday, e.g. `[{ "label": "wedding anniversary", "date": "1962-06-14" }]`.
+  The box reminds the resident of birthdays and these dates (not for a contact marked `deceased`).
 - `nickname`: what the resident calls them. `guidance`: how Empathika should talk about them (staff-written).
 - Use the same `from` name in `family_updates_list` (first name is enough), so messages land on the right person.
 

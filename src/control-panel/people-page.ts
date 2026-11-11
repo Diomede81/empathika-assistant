@@ -25,6 +25,8 @@ export interface PanelPerson {
   link?: { id: string; as: string };
   /** What Empathika doesn't know about them yet. */
   gaps: string[];
+  /** Special dates besides the birthday. */
+  dates: { label: string; date: string }[];
 }
 
 export interface PanelPeople {
@@ -32,6 +34,9 @@ export interface PanelPeople {
   circles: Record<string, string>;
   contactKinds: Record<string, string>;
   canSync: boolean;
+  reminders: { speak: boolean; time: string; daysBefore: number };
+  /** Birthdays and special dates in the next 60 days. */
+  upcoming: { name: string; label: string; inDays: number; years?: number; sensitive: boolean }[];
 }
 
 export interface PanelActivities {
@@ -91,6 +96,8 @@ function personRow(p: PanelPerson, d: PanelPeople): string {
 ${p.source === 'app' ? '<p class="meta">This person comes from the care app: the relationship, birthday, "has died" and guidance are updated from there every few hours, so change them in the app.</p>' : ''}
 <h3>News</h3>${updates}
 <form class="addfact" method="post" action="/people/news">${hidden('id', p.id)}<input name="text" maxlength="400" required placeholder="e.g. Passed his driving test"><button class="btn" type="submit">Add news</button></form>
+<h3>Special dates</h3>${p.dates.length ? `<ul>${p.dates.map((x) => `<li class="row"><div>${esc(x.label)} · ${esc(x.date)}</div><form method="post" action="/people/date-remove">${hidden('id', p.id)}${hidden('label', x.label)}<button class="btn secondary">Remove</button></form></li>`).join('')}</ul>` : '<p class="meta">Besides the birthday: a wedding anniversary, a graduation…</p>'}
+<form class="addfact wrap" method="post" action="/people/date">${hidden('id', p.id)}<input name="label" maxlength="40" required placeholder="e.g. wedding anniversary"><input name="date" maxlength="20" required placeholder="06-14 or 1962-06-14" style="flex:0 1 12em"><button class="btn" type="submit">Add date</button></form>
 <h3>Visits and calls</h3>${contacts}
 <form class="addfact wrap" method="post" action="/people/contact">${hidden('id', p.id)}<select name="kind">${kinds}</select><input name="date" type="date"><input name="note" maxlength="200" placeholder="Note (optional)"><button class="btn" type="submit">Record</button></form>
 ${p.gaps.length ? `<p class="meta"><b>Still to learn:</b> ${esc(p.gaps.join(', '))}. Fill it in above, or Empathika asks gently in a "family stories" chat.</p>` : ''}
@@ -103,6 +110,10 @@ export function peopleSection(d: PanelPeople): string {
   const rows = d.list.length ? d.list.map((p) => personRow(p, d)).join('') : '<p class="empty">Nobody yet. Add the resident\'s family and friends below, or share the list from the care app.</p>';
   return `<section id="people"><h2>Family and friends</h2>
 <p class="meta">The people in the resident's life. Empathika talks about them by name, remembers their news and the stories the resident tells about them, and mentions birthdays. People are also added when family send messages through the care app, or when the resident mentions a relative with their relationship. What the resident says never changes the relationship, birthday or "has died" entered here or by the care app. For someone who has died, add guidance on how Empathika should respond if the resident asks for them.</p>
+<h3>Birthdays and special dates</h3>
+${d.upcoming.length ? `<ul class="items">${d.upcoming.map((u) => `<li>${esc(u.name)}'s ${esc(u.label)}: ${u.inDays === 0 ? '<b>today</b>' : u.inDays === 1 ? 'tomorrow' : `in ${u.inDays} days`}${u.years ? ` (${u.label === 'birthday' ? `turns ${u.years}` : `${u.years} years`})` : ''}${u.sensitive ? ' · <i>has died: not announced, for staff to be aware</i>' : ''}</li>`).join('')}</ul>` : '<p class="meta">Nothing in the next 60 days. Add birthdays and special dates on each person below.</p>'}
+<form class="addfact wrap" method="post" action="/people/reminders"><label style="flex:none;align-self:center"><input type="checkbox" name="speak" value="yes" ${d.reminders.speak ? 'checked' : ''}> Say reminders out loud, from</label><input type="time" name="time" value="${esc(d.reminders.time)}"><span class="meta" style="align-self:center">on the day, and</span><input type="number" name="daysBefore" min="0" max="14" value="${d.reminders.daysBefore}" style="flex:0 1 5em"><span class="meta" style="align-self:center">days before (0 = only on the day)</span><button class="btn" type="submit">Save</button></form>
+<p class="meta">Empathika shows a card on her screen and tells the resident: "A little reminder: your daughter Sarah's birthday is on Friday" a few days before, and again on the day. Dates of someone who has died are never announced; she handles them gently if the resident brings them up.</p>
 ${d.canSync ? `<div class="acts" style="margin:0 0 12px"><form method="post" action="/people/sync"><button class="btn secondary" type="submit">Update from the care app</button></form></div>` : ''}
 ${rows}
 <h3>Add someone</h3><div class="person"><div class="body">${personForm(undefined, d)}</div></div></section>`;

@@ -428,6 +428,18 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       case 'contact-remove':
         if (p) so.removeContact(p, s('at'));
         return back('Removed.');
+      case 'date':
+      {
+        const msg = p ? so.addDate(p, s('label'), s('date')) : 'Not found.';
+        return back(msg, msg.startsWith('Noted'));
+      }
+      case 'date-remove':
+        if (p) so.removeDate(p, s('label'));
+        return back('Removed.');
+      case 'reminders': {
+        const msg = so.saveReminders({ speak: f.get('speak') === 'yes', time: s('time') || undefined, daysBefore: s('daysBefore') });
+        return back(msg, msg.startsWith('Birthdays'), 'people');
+      }
       case 'sync': {
         const r = await so.syncFromApp();
         return back(r.message, r.ok, 'people');
@@ -486,12 +498,15 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
             links: so.linksOf(p),
             link: p.link,
             gaps: so.gaps(p).map((g) => g.label),
+            dates: p.dates ?? [],
             facts: this.memory.itemsAbout([p.name, p.name.split(/\s+/)[0], p.nickname ?? ''], 12).filter((i) => i.kind !== 'family_news').map((i) => i.text),
           };
         }),
       circles: CIRCLES,
       contactKinds: CONTACTS,
       canSync: Boolean(this.app.connected && this.app.supports('family_contacts')),
+      reminders: so.reminders,
+      upcoming: so.occasionsSoon(60).map((o) => ({ name: o.person.name, label: o.label, inDays: o.inDays, years: o.years, sensitive: o.sensitive })),
     };
   }
 

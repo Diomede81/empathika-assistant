@@ -159,8 +159,8 @@ After the restart, Empathika's face appears on the screen and she's listening fo
   staff activity log.
 - **Activities and birthdays:** at the times set on the control panel (**Activities** tab; 10:30 and 15:00 by
   default) a card asks "Fancy a word puzzle?": **Yes please** starts it straight away, no wake word needed.
-  The puzzle shows big on the screen with a **Clue** button. On a family birthday, a 🎂 card shows in the
-  morning. See [ACTIVITIES.md](ACTIVITIES.md) and [PEOPLE.md](PEOPLE.md).
+  The puzzle shows big on the screen with a **Clue** button. Birthdays and special family dates get a card and a spoken
+  reminder, on the day and a few days before. See [ACTIVITIES.md](ACTIVITIES.md) and [PEOPLE.md](PEOPLE.md).
 - **Talking to Empathika:** say "Hey Empathika" and she answers **"Hello, how can I help?"**, then listens. To end the
   conversation, say "stop", "that's all" or **"thank you"**, on its own or in a sentence ("that was
   really helpful, thank you"); a request after it still goes through ("thanks, and what time is lunch?").

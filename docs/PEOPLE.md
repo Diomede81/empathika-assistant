@@ -10,7 +10,8 @@ by name, knowing what they're up to, asking after them, and inviting the residen
 |---|---|
 | **Name and relationship** | "Sarah Thompson, daughter". The relationship also puts them in a circle: family, friend, carer or other |
 | **What the resident calls them** | "Tommy", "Mum": Empathika uses it too, and recognises it |
-| **Birthday** | With or without the year. Empathika mentions birthdays in the next two weeks, and a 🎂 card shows on the day |
+| **Birthday** | With or without the year. See [reminders](#birthdays-and-special-dates) below |
+| **Special dates** | A wedding anniversary, a graduation… any date worth remembering, as many as needed |
 | **Has died** | With the year. Set by staff or the care app, never from what the resident says |
 | **Guidance (staff)** | How Empathika should talk about them, e.g. *"If she asks for George, don't say he has died: ask about their dancing days, then gently move on."* |
 | **About them** | Their family, where they live, work, shared memories, other |
@@ -37,7 +38,28 @@ about someone at length, or someone asks "who is Jack?", she pulls up the whole 
    files anything mentioned in passing. A relative
    mentioned with their relationship ("my sister Edith in Scarborough") gets a record of their own;
    a birthday mentioned fills in theirs.
-5. **Staff and visitors, out loud**: "Empathika, note that Tom visited today and brought tomatoes."
+5. **Staff, visitors or the resident, out loud**: "My nephew Robert lives in Bristol, he's a plumber, and
+   his birthday is the 14th of March": everything said is saved in one step (relationship, where they
+   live, work, their family, birthday, special dates, news). Details a resident may not change (checked
+   by staff) are left alone; the rest is still kept. "Note that Tom visited today" records a visit.
+
+## Birthdays and special dates
+
+Empathika reminds the resident by herself: a card on her screen and, if wanted, out loud.
+
+- **A few days before** (3 by default): *"A little reminder: your daughter Sarah's birthday is in 3 days,
+  on Friday. If you'd like to send a card or make a call, the staff can help."*
+- **On the day**: *"A lovely day today: it's your daughter Sarah's birthday. Sarah is 60 today."*
+- The same for special dates ("it's Robert's wedding anniversary today").
+- She also knows what's coming in the next two weeks in conversation, and "any birthdays coming up?" works.
+
+Set the time (09:30 by default), the days before, and whether she says it out loud, in the control panel's
+**Family & friends** tab, which also lists everything in the next 60 days. Reminders wait for a good
+moment (never in night mode or mid-conversation) and each is given once.
+
+**Dates of someone who has died are never announced.** A late husband's birthday or a wedding
+anniversary is shown to staff on the panel, and Empathika is told to leave it unless the resident
+brings it up, then to be gentle and follow the staff guidance.
 
 ## Filling the gaps: "family stories"
 

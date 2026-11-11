@@ -55,8 +55,7 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
     @Optional() private readonly control?: ConversationControl,
   ) {}
 
-  /** The day the birthday card last went out. */
-  private birthdayShownOn?: string;
+
 
   onModuleInit(): void {
     // Family photos go to the evening photo frame.
@@ -68,8 +67,8 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
     this.activities?.on('hint', (hint: string) => this.puzzleHint(hint));
     this.activities?.on('clear', () => this.face.dismissCard('activity'));
     this.activities?.on('invite', (kind: ActivityKind) => this.inviteCard(kind));
-    this.ticks.push(setInterval(() => this.birthdayCard(), 10 * 60_000));
-    setTimeout(() => this.birthdayCard(), 60_000).unref?.();
+    this.ticks.push(setInterval(() => this.dateReminders(), 5 * 60_000));
+    setTimeout(() => this.dateReminders(), 90_000).unref?.();
     this.family?.on('shared', () => {
       if (!this.family?.unshared().length) {
         this.pending = this.pending.filter((p) => p.card.id !== 'notify-family');
@@ -154,20 +153,20 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
 
   // ---------- Birthdays ----------
 
-  /** On the morning of a birthday in the family: a card, so the resident (and staff) know. */
-  private birthdayCard(): void {
-    const today = localToday();
-    if (!this.people || this.birthdayShownOn === today) return;
-    const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: timeZone() }).format(new Date()));
-    if (hour < 9 || hour >= 20) return;
-    const b = this.people.birthdaysSoon(0);
-    if (!b.length) return;
-    this.birthdayShownOn = today;
-    const names = b.map((x) => `${x.person.name}${x.person.relation ? ` (${x.person.relation})` : ''}${x.age ? `, ${x.age} today` : ''}`);
-    this.notify(
-      { id: 'notify-birthday', kind: 'notice', icon: '🎂', title: 'A birthday today', big: b.length === 1 ? `It's ${b[0].person.name}'s birthday` : `Birthdays: ${b.map((x) => x.person.name).join(' and ')}`, subtitle: names.join(' · '), actions: [{ id: 'ok', label: 'Lovely' }], ttlMs: 2 * 60 * 60_000 },
-      { ok: () => this.face.dismissCard('notify-birthday') },
-    );
+  /**
+   * Birthdays and special family dates: on the day, and a few days before (set on the control panel), a
+   * card on the screen and, if wanted, said out loud. Each once; kept for the morning if it's night.
+   */
+  private dateReminders(): void {
+    const due = this.people?.dueReminders() ?? [];
+    due.forEach((d, i) => {
+      const id = `notify-date-${Date.now()}-${i}`;
+      this.notify(
+        { id, kind: 'notice', icon: d.today ? '🎂' : '🗓️', title: d.title, big: d.big, subtitle: d.subtitle, actions: [{ id: 'ok', label: d.today ? 'Lovely' : 'Thank you' }], ttlMs: 2 * 60 * 60_000 },
+        { ok: () => this.face.dismissCard(id) },
+      );
+      if (this.people?.reminders.speak) this.timers?.announce(d.say);
+    });
   }
 
   onModuleDestroy(): void {

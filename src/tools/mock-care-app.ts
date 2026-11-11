@@ -59,6 +59,7 @@ interface Contact {
   notes?: string;
   related_to?: string;
   related_as?: string;
+  dates?: { label: string; date: string }[];
 }
 
 interface Resident {
@@ -129,6 +130,7 @@ function seed(): Store {
           relationship: 'husband',
           deceased: true,
           died_on: '2019',
+          dates: [{ label: 'wedding anniversary', date: '1960-' + new Date(Date.now() + 86400_000).toISOString().slice(5, 10) }],
           guidance: 'Peggy sometimes asks for George, especially in the late afternoon. Do not tell her he has died. Ask her about him: their dancing days at the Locarno, his roses. Then gently move on.',
         },
       ],
