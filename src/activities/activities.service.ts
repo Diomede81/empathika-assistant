@@ -8,6 +8,7 @@ import { memorySecret, SealedStore } from '../memory/sealed-store';
 import { localToday, timeZone } from '../actions/clock';
 import { CareAppService } from '../care-app/care-app.service';
 import { PeopleService } from '../people/people.service';
+import { chosenOption, TRIVIA, TRIVIA_TOPICS, triviaTopicOf } from './trivia';
 import { ANAGRAMS, CATEGORIES, money, norm, numberPuzzle, QUIZ_TOPICS, RECALL_WORDS, REMINISCENCE, saidWord, SAYINGS, scramble, spokenNumbers } from './content';
 
 /** The activities: the first four are run and checked by Empathika herself, the others by the AI. */
@@ -16,10 +17,14 @@ export const KINDS = {
   sayings: { label: 'Finish the saying', icon: '💬', checked: true, about: 'old sayings to complete' },
   numbers: { label: 'Number puzzle', icon: '🔢', checked: true, about: 'sums, times tables and counting change' },
   memory: { label: 'Memory game', icon: '🧠', checked: true, about: 'remember a few words, chat a moment, then recall them' },
-  quiz: { label: 'Quiz', icon: '❓', checked: false, about: 'a gentle quiz on a topic they like' },
+  trivia: { label: 'Trivia', icon: '❓', checked: true, about: 'multiple-choice questions on music, films, places, the old days and more (they can pick the topic)' },
+  quiz: { label: 'Quiz on a topic', icon: '🎯', checked: false, about: 'a gentle quiz on any topic they name' },
   categories: { label: 'Name five', icon: '📝', checked: false, about: 'name things in a category' },
-  reminiscence: { label: 'Memory lane', icon: '📷', checked: false, about: 'talking about the old days, their life and their people' },
+  reminiscence: { label: 'Memory lane', icon: '📷', checked: false, chat: true, about: 'talking about the old days, their life and their people' },
+  family: { label: 'Family stories', icon: '👪', checked: false, chat: true, about: 'talking about someone in their family, and learning more about them' },
 } as const;
+/** Conversations rather than games: what counts is the time spent, not a score. */
+const isChat = (k: ActivityKind): boolean => 'chat' in KINDS[k];
 export type ActivityKind = keyof typeof KINDS;
 const KIND_NAMES = Object.keys(KINDS) as ActivityKind[];
 
@@ -33,7 +38,10 @@ interface Item {
   hint?: string;
   /** The answer said back when they give up or get it wrong. */
   answer: string;
-  check: { word?: string; keys?: string[]; number?: number; money?: boolean; recall?: string[] };
+  check: { word?: string; keys?: string[]; number?: number; money?: boolean; recall?: string[]; choice?: { options: string[]; correct: number } };
+  /** Trivia: the question and its choices, for the screen. */
+  body?: string;
+  lines?: string[];
 }
 
 interface Game {
@@ -78,6 +86,8 @@ interface State {
   levels: Partial<Record<ActivityKind, Level>>;
   sessions: Session[];
   settings?: Partial<ActivitySettings>;
+  /** Trivia questions asked lately (their place in the bank), so they don't come round again too soon. */
+  seen?: number[];
   /** Days ("YYYY-MM-DD HH:MM") an invitation already went out. */
   invited?: string[];
 }
@@ -128,7 +138,7 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
     this.store = new SealedStore(this.cfg.memory.dir, 'activities', memorySecret(this.cfg));
     try {
       const s = this.store.load();
-      if (s) this.state = { levels: s.levels ?? {}, sessions: Array.isArray(s.sessions) ? s.sessions : [], settings: s.settings, invited: s.invited };
+      if (s) this.state = { levels: s.levels ?? {}, sessions: Array.isArray(s.sessions) ? s.sessions : [], settings: s.settings, invited: s.invited, seen: s.seen };
     } catch (err) {
       this.log.error(`Could not read the activity log (${(err as Error).message}); starting afresh`);
     }
@@ -201,6 +211,31 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
           return { ask: p.ask, show: p.show, answer: p.money ? money(p.answer) : String(p.answer), hint: p.money ? 'Count up from the price to what you paid.' : 'Take your time; count it on your fingers if you like.', check: { number: p.answer, money: p.money } };
         });
         break;
+      case 'trivia': {
+        const want = triviaTopicOf(topic);
+        g.topic = want ? TRIVIA_TOPICS[want] : undefined;
+        // Level 1: the easy ones; level 2: easy and medium; level 3: medium and hard. Not the ones asked lately.
+        const levels = lv === 1 ? [1] : lv === 2 ? [1, 2, 2] : [2, 3, 3];
+        const seen = new Set(this.state.seen ?? []);
+        let pool = TRIVIA.map((q, i) => ({ q, i })).filter((x) => (!want || x.q.topic === want) && levels.includes(x.q.level));
+        if (pool.filter((x) => !seen.has(x.i)).length >= ITEMS_PER_GAME) pool = pool.filter((x) => !seen.has(x.i));
+        const chosen = pick(pool, ITEMS_PER_GAME);
+        this.state.seen = [...chosen.map((x) => x.i), ...(this.state.seen ?? [])].slice(0, 60);
+        g.items = chosen.map(({ q }) => {
+          const options = pick(q.options, 3);
+          const letters = options.map((o, i) => `${'ABC'[i]}: ${o}`);
+          return {
+            ask: `${q.q} Is it ${letters[0]}; ${letters[1]}; or ${letters[2]}?`,
+            show: q.q,
+            body: q.q,
+            lines: letters,
+            hint: `It isn't ${options.find((o) => o !== q.options[0])}.`,
+            answer: q.options[0],
+            check: { choice: { options, correct: options.indexOf(q.options[0]) } },
+          };
+        });
+        break;
+      }
       case 'memory': {
         const words = pick(RECALL_WORDS, lv + 2);
         g.items = [{ ask: `Here are ${words.length} words to remember: ${words.join(', ')}. I'll ask for them in a little while.`, show: words.map(cap).join(' · '), answer: words.join(', '), check: { recall: words } }];
@@ -218,7 +253,8 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
       return kind === 'memory'
         ? `${first.ask} (Say the words slowly, shown on the screen too. Then chat about something else for a minute, e.g. ask what ` +
             'they had for breakfast, before asking them to say the words back; pass their answer to activity answer.)'
-        : `${KINDS[kind].label}, level ${lv}, ${g.items.length} to do. First: ${first.ask} (It's on the screen too. Pass what they say to activity answer; the box checks it.)`;
+        : `${KINDS[kind].label}${g.topic ? ` (${g.topic})` : ''}, level ${lv}, ${g.items.length} to do. First: ${first.ask} (It's on the screen too. Pass what they say to activity answer; the box checks it.` +
+            `${kind === 'trivia' ? ' Read the question and the three choices out clearly. Never say which is right before the box has checked.' : ''})`;
     }
     return this.openInstructions(g);
   }
@@ -255,6 +291,12 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
           'If a memory makes them sad, comfort them and change the subject softly. When the chat winds down, call activity end. (What they tell you is filed in their memory automatically.)'
         );
       }
+      case 'family': {
+        const about = this.people?.storyPrompt(g.topic);
+        if (!about) return 'No family or friends are recorded yet. Ask them warmly who is in their family, and add each person with people add (name and relationship).';
+        g.topic = about.name;
+        return about.text;
+      }
       default:
         return tone;
     }
@@ -277,8 +319,11 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
       const summary = this.finish('finished');
       return `They remembered ${got.length} of ${words.length}${got.length ? ` (${got.join(', ')})` : ''}.${missed.length ? ` The others were: ${missed.join(', ')}.` : ' All of them!'} ${summary}`;
     }
+    if (item.check.choice && chosenOption(text, item.check.choice.options) === undefined) {
+      return `It isn't clear which answer they chose. Repeat the choices kindly and ask which one: ${item.lines?.join('; ')}. (This doesn't count as a try.)`;
+    }
     const ok = this.isRight(item, text);
-    if (!ok && g.tries === 0 && text.trim().length > 0) {
+    if (!ok && g.tries === 0 && text.trim().length > 0 && !item.check.choice) {
       g.tries = 1;
       return `Not quite. Encourage them to have another go${item.hint ? `, with a clue: ${item.hint}` : ''}. (Don't say the answer yet; pass the next try to activity answer.)`;
     }
@@ -339,14 +384,14 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
     this.emit('clear');
     const minutes = Math.max(1, Math.round((Date.now() - Date.parse(g.startedAt)) / 60_000));
     const s: Session = { at: g.startedAt, kind: g.kind, level: g.level, asked: g.asked, correct: g.correct, minutes, ended: how, topic: g.topic };
-    if (g.kind === 'reminiscence' || g.asked > 0) {
+    if (isChat(g.kind) || g.asked > 0) {
       this.state.sessions = [s, ...this.state.sessions].slice(0, SESSIONS_KEPT);
       this.adjustLevel(g);
       this.persist();
       this.sendToApp(s);
-      this.log.log(`${KINDS[g.kind].label}: ${g.kind === 'reminiscence' ? `${minutes} min` : `${g.correct}/${g.asked}`} (${how})`);
+      this.log.log(`${KINDS[g.kind].label}: ${isChat(g.kind) ? `${minutes} min` : `${g.correct}/${g.asked}`} (${how})`);
     }
-    if (g.kind === 'reminiscence') return 'Lovely chat. Thank them for sharing their memories.';
+    if (isChat(g.kind)) return 'Lovely chat. Thank them for sharing their memories.';
     if (!g.asked) return 'Stopped. Offer something else another time.';
     const ratio = g.correct / g.asked;
     const praise = ratio >= 0.8 ? 'Wonderful' : ratio >= 0.5 ? 'Well done' : 'Thank you for playing; it was a tricky one';
@@ -364,6 +409,7 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
 
   private isRight(item: Item, text: string): boolean {
     const c = item.check;
+    if (c.choice) return chosenOption(text, c.choice.options) === c.choice.correct;
     if (c.word) return saidWord(text, c.word);
     if (c.keys) {
       const n = norm(text);
@@ -387,8 +433,10 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
       kind: g.kind,
       title: `${KINDS[g.kind].label}${g.items.length > 1 ? ` · ${g.index + 1} of ${g.items.length}` : ''}`,
       icon: KINDS[g.kind].icon,
-      big: item.show,
-      hint: item.hint,
+      big: item.lines ? undefined : item.show,
+      body: item.body,
+      lines: item.lines,
+      hint: item.lines ? undefined : item.hint,
     });
   }
 
@@ -422,6 +470,7 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
     if (!g) return 'Lovely!';
     if (KINDS[kind].checked) return `Lovely! ${g.items[0].ask}`;
     if (kind === 'reminiscence') return `Lovely. ${pick(REMINISCENCE, 1)[0]}`;
+    if (kind === 'family') return g.topic ? `Lovely. I'd love to hear about ${g.topic.split(' ')[0]}. What comes to mind when you think of them?` : 'Lovely. Tell me about your family. Who shall we start with?';
     if (kind === 'categories') return `Lovely! Can you name ${g.level === 1 ? 'three' : 'five'} ${g.topic}?`;
     void said;
     return `Lovely! A little quiz about ${g.topic}. Are you ready for the first question?`;
@@ -448,7 +497,7 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
   // ---------- Reports ----------
 
   /** Per activity over the last `days` days: how often, how well, minutes. */
-  summary(days = 14): { kind: ActivityKind; label: string; times: number; asked: number; correct: number; minutes: number; level: Level }[] {
+  summary(days = 14): { kind: ActivityKind; label: string; chat: boolean; times: number; asked: number; correct: number; minutes: number; level: Level }[] {
     const since = Date.now() - days * 86400_000;
     const recent = this.state.sessions.filter((s) => Date.parse(s.at) >= since);
     return KIND_NAMES.map((k) => {
@@ -456,6 +505,7 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
       return {
         kind: k,
         label: KINDS[k].label,
+        chat: isChat(k),
         times: mine.length,
         asked: mine.reduce((n, s) => n + s.asked, 0),
         correct: mine.reduce((n, s) => n + s.correct, 0),
@@ -470,7 +520,7 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
     const rows = this.summary(days).filter((r) => r.times);
     if (!rows.length) return `No activities in the last ${days} days.`;
     return `Last ${days} days: ${rows
-      .map((r) => `${r.label} ${r.times} time${r.times === 1 ? '' : 's'}${r.asked && r.kind !== 'reminiscence' ? ` (${r.correct}/${r.asked} right)` : r.kind === 'reminiscence' ? ` (${r.minutes} min)` : ''}`)
+      .map((r) => `${r.label} ${r.times} time${r.times === 1 ? '' : 's'}${r.chat ? ` (${r.minutes} min)` : r.asked ? ` (${r.correct}/${r.asked} right)` : ''}`)
       .join('; ')}.`;
   }
 
@@ -516,10 +566,13 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
         function: {
           name: 'activity',
           description:
-            'Brain games and activities to keep the resident\'s mind active. start: begin one (kind: words = unscramble a word, ' +
-            'sayings = finish the saying, numbers = sums and change, memory = remember a few words, quiz = a gentle quiz (topic ' +
-            'optional), categories = name five things, reminiscence = memory lane, a chat about their life). For words, sayings, ' +
-            'numbers and memory the box sets and checks the questions: pass whatever the resident says to answer. hint: a clue. ' +
+            'Brain games and activities to keep the resident\'s mind active. start: begin one (kind: trivia = multiple-choice ' +
+            'questions from the box\'s own bank, topic optional: music, films and TV, royal family, places, food, nature, history, ' +
+            'sport, general; words = unscramble a word, sayings = finish the saying, numbers = sums and change, memory = remember ' +
+            'a few words, quiz = a quiz you make up on any other topic they name, categories = name five things, reminiscence = ' +
+            'memory lane, a chat about their life, family = a chat about someone in their family (topic = who, optional) to hear ' +
+            'and save their stories). For trivia, words, sayings, numbers and memory the box sets and checks the questions: pass ' +
+            'whatever the resident says to answer, and never judge the answer yourself. hint: a clue. ' +
             'skip: give the answer and move on. For quiz and categories you ask and judge: call result (correct) after each. ' +
             'end: stop now (always fine). suggest: what to offer. report: how they have been getting on (last 7 days).',
           parameters: {
@@ -528,7 +581,7 @@ export class ActivitiesService extends EventEmitter implements OnModuleInit, OnM
               action: { type: 'string', enum: ['start', 'answer', 'hint', 'skip', 'result', 'end', 'suggest', 'report'] },
               kind: { type: 'string', enum: KIND_NAMES, description: 'For start' },
               level: { type: 'integer', enum: [1, 2, 3], description: 'For start: only if they ask for easier or harder (else it follows how they do)' },
-              topic: { type: 'string', description: 'For start (quiz or categories): a topic they like' },
+              topic: { type: 'string', description: 'For start: the trivia or quiz topic, the category, or for family the person' },
               text: { type: 'string', description: 'For answer: exactly what the resident said' },
               correct: { type: 'boolean', description: 'For result' },
             },

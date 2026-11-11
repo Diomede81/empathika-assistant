@@ -409,7 +409,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       case 'add':
       case 'save': {
         const r = so.save(
-          { name: s('name'), relation: s('relation'), nickname: s('nickname'), birthday: s('birthday'), circle: s('circle'), deceased: f.get('deceased') === 'yes', diedOn: s('diedOn'), guidance: s('guidance') },
+          { name: s('name'), relation: s('relation'), nickname: s('nickname'), birthday: s('birthday'), circle: s('circle'), deceased: f.get('deceased') === 'yes', diedOn: s('diedOn'), guidance: s('guidance'), ...(f.has('linkTo') ? { linkTo: s('linkTo'), linkAs: s('linkAs') } : {}) },
           'panel',
           action === 'save' ? f.get('id') ?? '' : undefined,
         );
@@ -483,6 +483,9 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
             source: p.source,
             lastContact: last ? `${days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`} (${CONTACTS[last.kind].toLowerCase()})` : undefined,
             visits30: p.contacts.filter((c) => c.kind === 'visited' && Date.now() - Date.parse(c.at) < 30 * 86400_000).length,
+            links: so.linksOf(p),
+            link: p.link,
+            gaps: so.gaps(p).map((g) => g.label),
             facts: this.memory.itemsAbout([p.name, p.name.split(/\s+/)[0], p.nickname ?? ''], 12).filter((i) => i.kind !== 'family_news').map((i) => i.text),
           };
         }),
@@ -499,7 +502,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
     return {
       settings: a.settings,
       summary: a.summary(14),
-      sessions: a.sessions.slice(0, 20).map((s) => ({ ...s, label: ACTIVITY_KINDS[s.kind]?.label ?? s.kind })),
+      sessions: a.sessions.slice(0, 20).map((s) => ({ ...s, label: ACTIVITY_KINDS[s.kind]?.label ?? s.kind, chat: Boolean(ACTIVITY_KINDS[s.kind] && 'chat' in ACTIVITY_KINDS[s.kind]) })),
       playing: playing ? ACTIVITY_KINDS[playing].label : undefined,
     };
   }

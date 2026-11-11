@@ -14,6 +14,7 @@ by name, knowing what they're up to, asking after them, and inviting the residen
 | **Has died** | With the year. Set by staff or the care app, never from what the resident says |
 | **Guidance (staff)** | How Empathika should talk about them, e.g. *"If she asks for George, don't say he has died: ask about their dancing days, then gently move on."* |
 | **About them** | Their family, where they live, work, shared memories, other |
+| **Family link** | How they fit in: Jack is the *son* of Tom. Empathika then knows "Tom's boy Jack", both ways round |
 | **News** | What's going on in their life, newest first |
 | **Visits and calls** | Visited, called, video call, message, card. Family messages through the app are counted automatically |
 
@@ -30,11 +31,22 @@ about someone at length, or someone asks "who is Jack?", she pulls up the whole 
    news, see what Empathika remembers about them, or **Update from the care app** now.
 3. **Family messages**: a relative who writes through the app is added if they aren't on the list
    yet, and each message counts as contact.
-4. **Conversations**: after each conversation the filing clerk files what the resident said about
-   someone under that person ("Peggy and George danced every Saturday at the Locarno"). A relative
+4. **Conversations**: when the resident tells a memory or a story about someone, Empathika saves it
+   **at once** under that person ("Peggy and George danced every Saturday at the Locarno"), so it is
+   there for the next sentence, not only the next day. After each conversation the filing clerk also
+   files anything mentioned in passing. A relative
    mentioned with their relationship ("my sister Edith in Scarborough") gets a record of their own;
    a birthday mentioned fills in theirs.
 5. **Staff and visitors, out loud**: "Empathika, note that Tom visited today and brought tomatoes."
+
+## Filling the gaps: "family stories"
+
+Each record shows **Still to learn** on the control panel (shared memories, where they live, their
+work, birthday…). Staff or family can fill these in there. Empathika can also do it herself, kindly:
+in a **family stories** chat (offered like the other activities, or "let's talk about my family") she
+picks someone she knows little about, starts from what she does know, and asks one gentle question at
+a time. It is a conversation, never a test: if the resident is unsure, she moves on. She chooses the
+living first, and only talks about someone who has died when staff have written guidance.
 
 ## Living with dementia
 
@@ -45,6 +57,8 @@ about someone at length, or someone asks "who is Jack?", she pulls up the whole 
   news herself and never pretends they're alive: she responds to the feeling and talks warmly about
   them and the memories.
 - She never corrects the resident harshly about family; if they mix people up, she goes gently.
+- Stories are memories of the past. Plans and present-tense claims that contradict the record are not
+  saved as stories.
 - Only staff (in a staff session, or on the panel) can remove someone.
 
 ## Privacy

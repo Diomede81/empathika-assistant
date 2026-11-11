@@ -26,7 +26,7 @@ Mic → Wake word → End-of-speech → Speech-to-text → AI model ⇄ memory, 
   resident uses, birthday, news, visits and calls, and the stories the resident tells about them. Filled
   from the care app's contact list, the control panel and conversations. For someone who has died, staff
   add guidance on how she should respond. See **[docs/PEOPLE.md](docs/PEOPLE.md)**.
-- **Keeping the mind active.** Word and number puzzles, finishing old sayings, a memory game, quizzes,
+- **Keeping the mind active.** Trivia from a built-in question bank, word and number puzzles, finishing old sayings, a memory game, quizzes,
   "name five" and memory-lane chats about their life. She checks puzzle answers herself, the level adjusts
   itself, a screen invitation starts one with a tap, and staff see how the resident is getting on. See
   **[docs/ACTIVITIES.md](docs/ACTIVITIES.md)**.

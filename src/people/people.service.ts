@@ -61,6 +61,8 @@ export interface Person {
   /** From staff: how to talk about this person ("If she asks for George, talk about their dancing days"). */
   guidance?: string;
   about?: Partial<Record<AboutTopic, string>>;
+  /** How they fit in the family: "son" of Tom (another record), so Empathika knows Jack is Tom's boy. */
+  link?: { id: string; as: string };
   /** News about them, newest first (from family, staff, or the resident). */
   updates: { at: string; text: string }[];
   contacts: Contact[];
@@ -86,6 +88,9 @@ export interface AppContact {
   died_on?: string;
   guidance?: string;
   notes?: string;
+  /** Family links: the name of another contact, and what this person is to them ("son", "wife"). */
+  related_to?: string;
+  related_as?: string;
 }
 
 const CONTACTS_KEPT = 60;
@@ -220,6 +225,7 @@ export class PeopleService implements OnModuleInit, OnModuleDestroy {
       `${p.name}${p.nickname ? ` (the resident calls them "${p.nickname}")` : ''}: ${p.relation ?? CIRCLES[p.circle].toLowerCase()}.` +
         (p.deceased ? ` Has died${p.diedOn ? ` (${p.diedOn})` : ''}.` : ''),
       p.guidance ? `Staff guidance on talking about them (follow it, don't read it out): ${p.guidance}` : '',
+      this.linksOf(p).length ? `Family: ${this.linksOf(p).join('; ')}.` : '',
       p.birthday ? `Birthday: ${birthdayText(p.birthday)}.` : '',
       ...aboutLines(p).map((l) => `${l}.`),
       p.updates.length ? `News (newest first):\n${p.updates.slice(0, 5).map((u) => `- ${shortDate(u.at)}: ${u.text}`).join('\n')}` : '',
@@ -254,6 +260,72 @@ export class PeopleService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  /** How someone fits in: "son of Tom Thompson", and who is linked to them ("Jack Thompson is their son"). */
+  linksOf(p: Person): string[] {
+    const out: string[] = [];
+    const to = p.link ? this.byId(p.link.id) : undefined;
+    if (to && p.link) out.push(`${p.link.as} of ${to.name}`);
+    for (const x of this.state.people) if (x.link?.id === p.id) out.push(`${x.name} is their ${x.link.as}`);
+    return out;
+  }
+
+  /** What isn't known about someone yet, as gentle questions to ask the resident (or the family). */
+  gaps(p: Person): { key: string; label: string; ask: string }[] {
+    const first = p.nickname ?? p.name.split(/\s+/)[0];
+    const stories = this.memory.itemsAbout(this.namesOf(p), 30).filter((i) => i.kind === 'life_story').length;
+    const out: { key: string; label: string; ask: string }[] = [];
+    if (!p.about?.together && stories < 2) out.push({ key: 'together', label: 'shared memories', ask: `What do you remember doing together with ${first}?` });
+    if (stories < 3) out.push({ key: 'story', label: 'stories', ask: p.deceased ? `What was ${first} like?` : `What was ${first} like when they were little, or when you first knew them?` });
+    if (!p.deceased && !p.about?.home) out.push({ key: 'home', label: 'where they live', ask: `Where does ${first} live these days?` });
+    if (!p.deceased && !p.about?.family && p.circle === 'family') out.push({ key: 'family', label: 'their own family', ask: `Does ${first} have a family of their own?` });
+    if (!p.about?.work) out.push({ key: 'work', label: 'their work', ask: p.deceased ? `What did ${first} do for a living?` : `What does ${first} do, or what did they do for work?` });
+    if (!p.birthday && !p.deceased) out.push({ key: 'birthday', label: 'birthday', ask: `Do you know when ${first}'s birthday is?` });
+    return out;
+  }
+
+  /**
+   * For the "family stories" chat: who to talk about (the one named, or whoever Empathika knows least
+   * about, not someone who has died unless staff wrote guidance), what is known, and what to ask.
+   */
+  storyPrompt(who?: string): { name: string; text: string } | undefined {
+    const named = who ? this.find(who)[0] : undefined;
+    const pool = this.state.people.filter((p) => p.circle !== 'carer' && (!p.deceased || p.guidance));
+    const p = named ?? [...pool].sort((a, b) => Number(Boolean(a.deceased)) - Number(Boolean(b.deceased)) || this.gaps(b).length - this.gaps(a).length || a.updatedAt.localeCompare(b.updatedAt))[0];
+    if (!p) return undefined;
+    const gaps = this.gaps(p).slice(0, 3);
+    const subject = `${p.name} (${p.relation ?? CIRCLES[p.circle].toLowerCase()})`;
+    return {
+      name: p.name,
+      text:
+        `Family stories: an unhurried chat about ${subject}. What you know:\n${this.describe(p)}\n` +
+        (gaps.length ? `Gently find out (one at a time, only if the chat goes that way): ${gaps.map((g) => g.ask).join(' / ')}\n` : '') +
+        'Start warmly from something you know, or simply ask what comes to mind when they think of them. Listen, reflect back, enjoy it ' +
+        'with them. Each time they tell you something worth keeping, save it at once: people story (a memory or anecdote, as one ' +
+        `self-contained sentence with names, e.g. "${p.name.split(/\s+/)[0]} learned to ride a bike on the promenade at Whitby"), ` +
+        'people about (a lasting fact: where they live, their work, their family), or people update (birthday, the name they call ' +
+        'them). Never test their memory or correct them: if they are unsure or it differs from what you know, just move on warmly' +
+        (p.deceased ? ', and follow the staff guidance above' : '') +
+        '. If it makes them sad, comfort them and change the subject. When the chat winds down, call activity end.',
+    };
+  }
+
+  /** A memory the resident (or a visitor, or staff) tells about someone: saved in the memory at once, under their name. */
+  async addStory(p: Person, text: string, by: PersonSource): Promise<string> {
+    const t = clean(text, 300);
+    if (t.length < 8) return `What is the story about ${p.name}?`;
+    const r = await this.memory.remember({
+      text: t,
+      vault: 'resident',
+      kind: 'life_story',
+      subject: `${p.name} (${p.relation ?? CIRCLES[p.circle].toLowerCase()})`,
+      source: by === 'conversation' ? 'conversation' : 'you',
+    });
+    if (!r.ok) return r.message;
+    p.updatedAt = new Date().toISOString();
+    this.persist();
+    return r.message.startsWith('Already') ? `Already remembered about ${p.name}.` : `Noted, a story about ${p.name}: ${t}`;
+  }
+
   // ---------- Changing ----------
 
   /**
@@ -261,7 +333,7 @@ export class PeopleService implements OnModuleInit, OnModuleDestroy {
    * but never changes what staff, the panel or the care app entered (relationship, birthday, deceased).
    */
   save(
-    input: { name?: string; circle?: string; relation?: string; nickname?: string; birthday?: string; deceased?: boolean; diedOn?: string; guidance?: string; appId?: string },
+    input: { name?: string; circle?: string; relation?: string; nickname?: string; birthday?: string; deceased?: boolean; diedOn?: string; guidance?: string; appId?: string; linkTo?: string; linkAs?: string },
     by: PersonSource,
     id?: string,
   ): { ok: boolean; message: string; person?: Person } {
@@ -298,6 +370,12 @@ export class PeopleService implements OnModuleInit, OnModuleDestroy {
     if (input.deceased !== undefined && by !== 'conversation') p.deceased = input.deceased || undefined;
     if (input.diedOn !== undefined && by !== 'conversation') p.diedOn = clean(input.diedOn, 10) || undefined;
     if (input.guidance !== undefined && by !== 'conversation') p.guidance = clean(input.guidance, 400) || undefined;
+    if (input.linkTo !== undefined && !checked) {
+      const other = input.linkTo ? this.byId(input.linkTo) ?? this.find(input.linkTo)[0] : undefined;
+      const as = clean(input.linkAs ?? '', 40);
+      if (other && other.id !== p.id && as) p.link = { id: other.id, as };
+      else if (!input.linkTo) delete p.link;
+    }
     if (input.appId) p.appId = input.appId;
     // A checked source upgrades a record the resident started.
     if (by !== 'conversation' && p.source === 'conversation') p.source = by;
@@ -432,6 +510,16 @@ export class PeopleService implements OnModuleInit, OnModuleDestroy {
         if (!known && r.ok) added++;
         else if (known && sig(known) !== before) updated++;
       }
+      // Family links, once everyone is on the list.
+      for (const c of list) {
+        const p = this.state.people.find((x) => x.appId === c.id);
+        const other = c.related_to ? this.sameAs(c.related_to) : undefined;
+        if (!p || !other || other.id === p.id || !c.related_as) continue;
+        if (p.link?.id !== other.id || p.link.as !== c.related_as) {
+          p.link = { id: other.id, as: clean(c.related_as, 40) };
+          this.persist();
+        }
+      }
       const message = `Contact list from the care app: ${list.length} people${added ? `, ${added} new` : ''}${updated ? `, ${updated} updated` : ''}.`;
       if (added || updated) this.log.log(message);
       return { ok: true, message };
@@ -478,6 +566,7 @@ export class PeopleService implements OnModuleInit, OnModuleDestroy {
       const about = aboutLines(p).map((l) => l.slice(0, 110)).join('; ');
       return (
         `- ${p.name}${p.nickname ? ` ("${p.nickname}")` : ''} [${p.relation ?? CIRCLES[p.circle].toLowerCase()}]` +
+        (p.link && this.byId(p.link.id) ? `, ${p.link.as} of ${this.byId(p.link.id)!.name.split(/\s+/)[0]}` : '') +
         (p.deceased ? ` HAS DIED${p.diedOn ? ` (${p.diedOn})` : ''}` : '') +
         (p.guidance ? `; staff guidance: ${p.guidance}` : '') +
         (about ? `; ${about}` : '') +
@@ -502,9 +591,11 @@ export class PeopleService implements OnModuleInit, OnModuleDestroy {
         'is mentioned, use their name and what you know. Before a longer chat about someone, call people (who) for their full ' +
         'record, stories and recent messages. Never correct the resident harshly about family: if they mix people up, go ' +
         'gently with the conversation. For someone who has died: follow the staff guidance; with none, never break the news ' +
-        'yourself and never pretend they are alive; respond to the feeling, talk warmly about them and the memories. Stories ' +
-        'and details the resident shares are filed automatically after the conversation: use people (about, news, contact) ' +
-        'only when a member of staff or a visitor tells you something to note, or the resident asks you to.',
+        'yourself and never pretend they are alive; respond to the feeling, talk warmly about them and the memories. When ' +
+        'the resident tells you a memory or a story about one of them, save it at once with people story (one self-contained ' +
+        'sentence with names), then carry on listening; passing mentions are also filed after the conversation. Use people ' +
+        '(about, news, contact) when someone tells you a lasting fact, news or a visit. Never quiz the resident about their ' +
+        'family or correct what they say about them.',
       ...lines,
       people.length > lines.length ? `(${people.length - lines.length} more: people list)` : '',
       bdays.length ? `Birthdays coming: ${bdays.join('; ')}. Mention one when it fits (perhaps suggest a card or a call, which staff can help with).` : '',
@@ -544,21 +635,27 @@ export class PeopleService implements OnModuleInit, OnModuleDestroy {
             "The people in the resident's life (family, friends, carers they are fond of). who: everything about one person " +
             '(their record, the stories the resident has told, news and recent messages): call it before talking at length ' +
             'about someone, or when asked "who is…". list: everyone, with relationships. birthdays: coming up. ' +
-            'Only when a member of staff or a visitor tells you something to note, or the resident asks you to (stories ' +
-            'mentioned in passing are filed automatically): contact (they visited, called, had a video call, sent a card), ' +
+            'story: a memory or anecdote from the past that the resident (or a visitor) tells about someone, saved at once ' +
+            'under their name: one self-contained sentence with names and, if said, when and where. Not for plans or the ' +
+            'present ("George is coming later"), and never when it contradicts the record (someone who has died spoken of ' +
+            'as alive): then save nothing and just be kind. ' +
+            'contact (they visited, called, had a video call, sent a card), ' +
             'news (what is going on in their life), about (a lasting fact: topic family, home, work, together = shared ' +
             'memories, other), add (someone new: name, relation such as "granddaughter", optional nickname = what the ' +
-            'resident calls them), update (relation, nickname, birthday). remove: staff only. Nothing is recorded unless ' +
-            'this answers "Noted", "Added" or "Updated".',
+            'resident calls them; related_to + related_as for a family link, e.g. Jack is the "son" of Tom), update ' +
+            '(relation, nickname, birthday, family link). remove: staff only. Nothing is recorded unless this answers ' +
+            '"Noted", "Added" or "Updated".',
           parameters: {
             type: 'object',
             properties: {
-              action: { type: 'string', enum: ['who', 'list', 'birthdays', 'contact', 'news', 'about', 'add', 'update', 'remove'] },
+              action: { type: 'string', enum: ['who', 'list', 'birthdays', 'story', 'contact', 'news', 'about', 'add', 'update', 'remove'] },
               name: { type: 'string', description: 'Who: their name, the name the resident uses, or the relationship ("my son")' },
               kind: { type: 'string', enum: ['visited', 'called', 'video', 'message', 'letter'], description: 'For contact' },
               date: { type: 'string', description: 'For contact: YYYY-MM-DD if not today' },
               topic: { type: 'string', enum: ['family', 'home', 'work', 'together', 'other'], description: 'For about' },
-              text: { type: 'string', description: 'For contact (a short note), news and about' },
+              text: { type: 'string', description: 'For story (the memory, one sentence), contact (a short note), news and about' },
+              related_to: { type: 'string', description: 'For add/update: another person on the list they belong with (e.g. their parent or spouse)' },
+              related_as: { type: 'string', description: 'For add/update: what they are to that person: "son", "wife", "daughter"' },
               relation: { type: 'string', description: 'For add/update: "daughter", "old friend from the mill"' },
               nickname: { type: 'string', description: 'For add/update: what the resident calls them' },
               birthday: { type: 'string', description: 'For add/update: YYYY-MM-DD or MM-DD' },
@@ -575,13 +672,13 @@ export class PeopleService implements OnModuleInit, OnModuleDestroy {
   }
 
   async call(_name: string, a: Record<string, unknown>): Promise<string> {
-    const out = this.run(a);
+    const out = await this.run(a);
     const s = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : '');
     this.log.log(`people ${s(a.action) || 'list'}${s(a.name) ? ` ${s(a.name)}` : ''}: ${out.split('\n')[0].slice(0, 140)}`);
     return out;
   }
 
-  private run(a: Record<string, unknown>): string {
+  private async run(a: Record<string, unknown>): Promise<string> {
     const s = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
     const action = s(a.action) ?? 'list';
     const staff = this.modes.mode === 'staff';
@@ -597,7 +694,7 @@ export class PeopleService implements OnModuleInit, OnModuleDestroy {
       return b.length ? b.map((x) => `${x.person.name}: ${x.inDays === 0 ? 'today' : x.inDays === 1 ? 'tomorrow' : `in ${x.inDays} days`}${x.age ? ` (turns ${x.age})` : ''}`).join('\n') : 'No birthdays recorded in the next two months.';
     }
     if (action === 'add') {
-      return this.save({ name: s(a.name), relation: s(a.relation), nickname: s(a.nickname), birthday: s(a.birthday) }, by).message;
+      return this.save({ name: s(a.name), relation: s(a.relation), nickname: s(a.nickname), birthday: s(a.birthday), ...(s(a.related_to) ? { linkTo: s(a.related_to), linkAs: s(a.related_as) } : {}) }, by).message;
     }
     const who = s(a.name);
     if (!who) return 'Who?';
@@ -608,6 +705,8 @@ export class PeopleService implements OnModuleInit, OnModuleDestroy {
     switch (action) {
       case 'who':
         return this.describe(p, staff);
+      case 'story':
+        return this.addStory(p, s(a.text) ?? '', by);
       case 'contact':
         return this.addContact(p, s(a.kind) ?? 'visited', s(a.text), s(a.date));
       case 'news':
@@ -615,7 +714,7 @@ export class PeopleService implements OnModuleInit, OnModuleDestroy {
       case 'about':
         return this.setAbout(p, s(a.topic) ?? 'other', s(a.text) ?? '');
       case 'update':
-        return this.save({ relation: s(a.relation), nickname: s(a.nickname), birthday: s(a.birthday) }, by, p.id).message;
+        return this.save({ relation: s(a.relation), nickname: s(a.nickname), birthday: s(a.birthday), ...(s(a.related_to) ? { linkTo: s(a.related_to), linkAs: s(a.related_as) } : {}) }, by, p.id).message;
       case 'remove':
         return staff ? this.remove(p.id) : 'Not done: only a member of staff can remove someone (staff session, or the control panel).';
       default:

@@ -20,7 +20,10 @@ interface PuzzleCard {
   kind: ActivityKind;
   title: string;
   icon: string;
-  big: string;
+  big?: string;
+  /** Trivia: the question, with its choices as lines. */
+  body?: string;
+  lines?: string[];
   hint?: string;
 }
 
@@ -116,7 +119,9 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
   private puzzleCard(c: PuzzleCard, hint?: string): void {
     this.puzzle = c;
     this.face.showCard(
-      { id: 'activity', kind: 'notice', icon: c.icon, title: c.title, big: c.big, subtitle: hint, actions: c.hint && !hint ? [{ id: 'hint', label: 'Clue' }] : [], ttlMs: 15 * 60_000 },
+      c.lines
+        ? { id: 'activity', kind: 'list', icon: c.icon, title: c.title, subtitle: hint, body: c.body, lines: c.lines.map((text) => ({ text })), actions: [], ttlMs: 15 * 60_000 }
+        : { id: 'activity', kind: 'notice', icon: c.icon, title: c.title, big: c.big, subtitle: hint, actions: c.hint && !hint ? [{ id: 'hint', label: 'Clue' }] : [], ttlMs: 15 * 60_000 },
       { hint: () => void this.activities?.hint() },
     );
   }
@@ -129,7 +134,11 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
   private inviteCard(kind: ActivityKind): void {
     if (this.face.info().muted) return; // the microphone is off: she couldn't hear the answer
     const k = KINDS[kind];
-    const question = kind === 'reminiscence' ? 'Fancy a chat about the old days?' : kind === 'quiz' ? 'Fancy a little quiz?' : `Fancy a ${k.label.toLowerCase()}?`;
+    const question =
+      kind === 'reminiscence' ? 'Fancy a chat about the old days?'
+        : kind === 'family' ? 'Shall we talk about your family?'
+          : kind === 'quiz' || kind === 'trivia' ? 'Fancy a little quiz?'
+            : `Fancy a ${k.label.toLowerCase()}?`;
     this.notify(
       { id: 'notify-activity', kind: 'notice', icon: k.icon, title: 'Something to do', big: question, actions: [{ id: 'yes', label: 'Yes please', style: 'primary' }, { id: 'later', label: 'Not now' }], ttlMs: 30 * 60_000 },
       {

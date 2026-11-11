@@ -169,6 +169,8 @@ at start-up and every 6 hours, and the app is the reference for these fields (se
 ] }
 ```
 - `id`: stable, so a renamed contact stays the same person. `birthday`: `YYYY-MM-DD` or `MM-DD`.
+- `related_to` + `related_as` (optional): a family link to another contact by name, e.g. Jack has
+  `"related_to": "Tom Thompson", "related_as": "son"`.
 - `nickname`: what the resident calls them. `guidance`: how Empathika should talk about them (staff-written).
 - Use the same `from` name in `family_updates_list` (first name is enough), so messages land on the right person.
 
@@ -180,8 +182,8 @@ wellbeing records; trends over weeks are what matter, not one score.
 ```json
 { "activity": { "at": "2026-11-06T10:31:00Z", "kind": "words", "label": "Word puzzle", "level": 1, "asked": 5, "correct": 4, "minutes": 6, "ended": "finished", "topic": null } }
 ```
-`kind`: `words`, `sayings`, `numbers`, `memory`, `quiz`, `categories` or `reminiscence` (memory lane:
-`asked`/`correct` are 0, `minutes` is what counts). `ended`: `finished` or `stopped` (they had enough).
+`kind`: `trivia`, `words`, `sayings`, `numbers`, `memory`, `quiz`, `categories`, `reminiscence` (memory
+lane) or `family` (family stories); for the last two `asked`/`correct` are 0 and `minutes` is what counts. `ended`: `finished` or `stopped` (they had enough).
 
 ## Later: staff accounts from the app
 

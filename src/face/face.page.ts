@@ -223,6 +223,9 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   DEMO_CARDS['Puzzle invite'] = { id: 'd9', kind: 'notice', icon: '🔤', title: 'Something to do', big: 'Fancy a word puzzle?', until: FOREVER,
     actions: [{ id: 'yes', label: 'Yes please', style: 'primary' }, { id: 'later', label: 'Not now' }] };
   DEMO_CARDS['Puzzle'] = { id: 'd10', kind: 'notice', icon: '🔤', title: 'Word puzzle · 2 of 5', big: 'N E D R A G', subtitle: 'Clue: where flowers grow', until: FOREVER, actions: [] };
+  SCENES.push(['listening', 'neutral', 'Trivia']);
+  DEMO_CARDS['Trivia'] = { id: 'd12', kind: 'list', icon: '❓', title: 'Trivia · 2 of 5', until: FOREVER, body: "Which group sang 'She Loves You'?",
+    lines: [{ text: 'A: The Kinks' }, { text: 'B: The Beatles' }, { text: 'C: The Rolling Stones' }] };
   DEMO_CARDS['Birthday'] = { id: 'd11', kind: 'notice', icon: '🎂', title: 'A birthday today', big: "It's Sarah's birthday", subtitle: 'Sarah Thompson (daughter), 60 today', until: FOREVER, actions: [{ id: 'ok', label: 'Lovely' }] };
   SCENES.push(['idle', 'neutral', 'Muted']);
   SCENES.push(['idle', 'neutral', 'Logo']);

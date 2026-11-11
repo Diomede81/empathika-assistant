@@ -57,6 +57,8 @@ interface Contact {
   died_on?: string;
   guidance?: string;
   notes?: string;
+  related_to?: string;
+  related_as?: string;
 }
 
 interface Resident {
@@ -120,7 +122,7 @@ function seed(): Store {
       'res-001': [
         { id: 'c-1', name: 'Sarah Thompson', relationship: 'daughter', birthday: '1966-' + new Date(Date.now() + 2 * 86400_000).toISOString().slice(5, 10), notes: 'Lives in Leeds with her husband Mark; visits on Wednesdays.' },
         { id: 'c-2', name: 'Tom Thompson', relationship: 'son', nickname: 'Tommy', birthday: '1969-07-22', notes: 'Lives nearby; looks after the old allotment.' },
-        { id: 'c-3', name: 'Jack Thompson', relationship: 'grandson', birthday: '2003-11-30', notes: "Tom's son; at university in Durham studying history." },
+        { id: 'c-3', name: 'Jack Thompson', relationship: 'grandson', related_to: 'Tom Thompson', related_as: 'son', birthday: '2003-11-30', notes: "Tom's son; at university in Durham studying history." },
         {
           id: 'c-4',
           name: 'George Thompson',

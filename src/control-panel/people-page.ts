@@ -20,6 +20,11 @@ export interface PanelPerson {
   visits30: number;
   /** What the memory holds about them (stories, facts). */
   facts: string[];
+  /** How they fit in the family ("son of Tom Thompson"), and the link as set (another person's id + what they are to them). */
+  links: string[];
+  link?: { id: string; as: string };
+  /** What Empathika doesn't know about them yet. */
+  gaps: string[];
 }
 
 export interface PanelPeople {
@@ -31,8 +36,8 @@ export interface PanelPeople {
 
 export interface PanelActivities {
   settings: { invite: boolean; inviteTime: string; inviteTime2: string };
-  summary: { kind: string; label: string; times: number; asked: number; correct: number; minutes: number; level: number }[];
-  sessions: { at: string; label: string; level: number; asked: number; correct: number; minutes: number; ended: string; topic?: string }[];
+  summary: { kind: string; label: string; chat: boolean; times: number; asked: number; correct: number; minutes: number; level: number }[];
+  sessions: { at: string; label: string; chat: boolean; level: number; asked: number; correct: number; minutes: number; ended: string; topic?: string }[];
   playing?: string;
 }
 
@@ -56,6 +61,8 @@ function personForm(p: PanelPerson | undefined, d: PanelPeople): string {
 <div><label>What the resident calls them</label><input name="nickname" maxlength="40" value="${v(p?.nickname)}" placeholder="e.g. Tommy, Mum"></div>
 <div><label>Birthday (year optional)</label><input name="birthday" maxlength="10" value="${v(p?.birthday)}" placeholder="1966-11-08 or 11-08"></div>
 <div><label>Circle</label><select name="circle">${opts}</select></div>
+${p ? `<div><label>Family link: they are the…</label><input name="linkAs" maxlength="40" value="${v(p.link?.as)}" placeholder="son, wife, daughter…"></div>
+<div><label>…of</label><select name="linkTo"><option value="">(no link)</option>${d.list.filter((x) => x.id !== p.id).map((x) => `<option value="${esc(x.id)}" ${p.link?.id === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>` : ''}
 <div><label><input type="checkbox" name="deceased" value="yes" ${p?.deceased ? 'checked' : ''} style="width:auto"> Has died</label><input name="diedOn" maxlength="10" value="${v(p?.diedOn)}" placeholder="Year, e.g. 2019"></div></div>
 <label>Guidance for Empathika on how to talk about them (staff)</label><textarea name="guidance" rows="2" maxlength="400" placeholder="e.g. If she asks for George, don't say he has died: ask about their dancing days, then gently move on.">${v(p?.guidance)}</textarea>
 ${p ? p.about.map((a) => `<label>${esc(a.label)}</label><textarea name="about_${a.key}" rows="2" maxlength="400" placeholder="${esc(a.hint)}">${v(a.text)}</textarea>`).join('') : ''}
@@ -67,6 +74,7 @@ function personRow(p: PanelPerson, d: PanelPeople): string {
   const sub = [
     p.relation ?? p.circleLabel,
     p.nickname ? `"${p.nickname}"` : '',
+    ...p.links,
     p.deceased ? `died ${p.diedOn ?? ''}`.trim() : '',
     p.birthdayIn !== undefined && p.birthdayIn <= 14 ? `birthday ${p.birthdayIn === 0 ? 'today' : `in ${p.birthdayIn} days`}` : '',
     !p.deceased && p.lastContact ? `last in touch ${p.lastContact}` : '',
@@ -85,6 +93,7 @@ ${p.source === 'app' ? '<p class="meta">This person comes from the care app: the
 <form class="addfact" method="post" action="/people/news">${hidden('id', p.id)}<input name="text" maxlength="400" required placeholder="e.g. Passed his driving test"><button class="btn" type="submit">Add news</button></form>
 <h3>Visits and calls</h3>${contacts}
 <form class="addfact wrap" method="post" action="/people/contact">${hidden('id', p.id)}<select name="kind">${kinds}</select><input name="date" type="date"><input name="note" maxlength="200" placeholder="Note (optional)"><button class="btn" type="submit">Record</button></form>
+${p.gaps.length ? `<p class="meta"><b>Still to learn:</b> ${esc(p.gaps.join(', '))}. Fill it in above, or Empathika asks gently in a "family stories" chat.</p>` : ''}
 <h3>What Empathika remembers about them</h3>${p.facts.length ? `<ul class="items">${p.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : '<p class="meta">Nothing yet: stories the resident tells about them are filed here after each conversation.</p>'}
 <form method="post" action="/people/remove" onsubmit="return confirm('Remove ${esc(p.name)} from the list? What the memory holds about them stays.')" style="margin-top:12px">${hidden('id', p.id)}<button class="btn secondary" type="submit">Remove from the list</button></form>
 </div></details>`;
@@ -102,18 +111,18 @@ ${rows}
 export function activitiesSection(a: PanelActivities): string {
   const rows = a.summary
     .map(
-      (r) => `<tr><td>${esc(r.label)}</td><td>${r.times}</td><td>${r.kind === 'reminiscence' ? `${r.minutes} min` : r.asked ? `${r.correct}/${r.asked} (${Math.round((r.correct / r.asked) * 100)}%)` : '–'}</td>
+      (r) => `<tr><td>${esc(r.label)}</td><td>${r.times}</td><td>${r.chat ? `${r.minutes} min` : r.asked ? `${r.correct}/${r.asked} (${Math.round((r.correct / r.asked) * 100)}%)` : '–'}</td>
 <td><form method="post" action="/activities/level" style="display:flex;gap:6px">${hidden('kind', r.kind)}<select name="level" onchange="this.form.submit()">${[1, 2, 3].map((l) => `<option value="${l}" ${l === r.level ? 'selected' : ''}>${['Easy', 'Medium', 'Harder'][l - 1]}</option>`).join('')}</select></form></td></tr>`,
     )
     .join('');
   const sessions = a.sessions.length
     ? a.sessions
-        .map((s) => `<li class="row"><div><b>${esc(s.label)}</b>${s.topic ? ` · ${esc(s.topic)}` : ''} · ${s.label === 'Memory lane' ? `${s.minutes} min` : `${s.correct} of ${s.asked}`}<div class="meta">${esc(new Date(s.at).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))} · level ${s.level} · ${s.ended === 'finished' ? 'played to the end' : 'stopped early'}</div></div></li>`)
+        .map((s) => `<li class="row"><div><b>${esc(s.label)}</b>${s.topic ? ` · ${esc(s.topic)}` : ''} · ${s.chat ? `${s.minutes} min` : `${s.correct} of ${s.asked}`}<div class="meta">${esc(new Date(s.at).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))} · level ${s.level} · ${s.ended === 'finished' ? 'played to the end' : 'stopped early'}</div></div></li>`)
         .join('')
     : '<li class="empty">No activities yet.</li>';
   const s = a.settings;
   return `<section id="activities"><h2>Activities</h2>
-<p class="meta">Word and number puzzles, finishing old sayings, a memory game, quizzes, naming things and memory-lane chats, to keep the resident's mind active. Empathika offers them when the moment is right and checks the puzzle answers herself; the level follows how the resident does (or set it here). Every activity is also sent to the care app when it accepts them. It is never a test: low scores on a given day mean little on their own, but a steady change over weeks is worth mentioning to the team.${a.playing ? ` <b>Playing now: ${esc(a.playing)}.</b>` : ''}</p>
+<p class="meta">Trivia (multiple choice, from Empathika's own question bank), word and number puzzles, finishing old sayings, a memory game, quizzes on any topic, naming things, and chats about the old days and the family, to keep the resident's mind active. Empathika offers them when the moment is right and checks the puzzle answers herself; the level follows how the resident does (or set it here). Every activity is also sent to the care app when it accepts them. It is never a test: low scores on a given day mean little on their own, but a steady change over weeks is worth mentioning to the team.${a.playing ? ` <b>Playing now: ${esc(a.playing)}.</b>` : ''}</p>
 <table class="table"><tr><th>Last 14 days</th><th>Times</th><th>Score</th><th>Level</th></tr>${rows}</table>
 <h3>Invitation on the screen</h3>
 <form class="addfact wrap" method="post" action="/activities/settings"><label style="flex:none;align-self:center"><input type="checkbox" name="invite" value="yes" ${s.invite ? 'checked' : ''}> Offer an activity at</label><input type="time" name="inviteTime" value="${esc(s.inviteTime)}"><span class="meta" style="align-self:center">and</span><input type="time" name="inviteTime2" value="${esc(s.inviteTime2)}"><button class="btn" type="submit">Save</button></form>
