@@ -19,7 +19,7 @@ import { LIVE_VOICES, LiveVoiceService } from '../realtime/live-voice.service';
 import { MicrophoneService } from '../audio/microphone.service';
 import { WakeWordService } from '../wake-word/wake-word.service';
 import { UpdatesService } from '../updates/updates.service';
-import { AmbientService } from '../face/ambient.service';
+import { AmbientService, FaceStyle } from '../face/ambient.service';
 import { LockService } from '../lock/lock.service';
 import { PanelData, renderPanel } from './page';
 import { ABOUT_TOPICS, AboutTopic, CIRCLES, CONTACTS, PeopleService } from '../people/people.service';
@@ -372,6 +372,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
         glance: f.get('glance') === 'on',
         frame: f.get('frame') === 'on',
         captions: f.get('captions') === 'on',
+        ...(f.get('face') ? { face: f.get('face') as FaceStyle } : {}),
         frameFrom: f.get('frameFrom') ?? '',
         frameTo: f.get('frameTo') ?? '',
         frameEverySec: Number(f.get('frameEverySec') ?? 20),

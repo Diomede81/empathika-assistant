@@ -126,6 +126,12 @@ After the restart, Empathika's face appears on the screen and she's listening fo
 - **Dimming:** after 10 seconds of quiet the screen fades down (on the box, the backlight dims to 20%). It lights
   up again at once for "Hey Empathika", a card, a timer, a notification or a touch (a touch on a dimmed screen only
   wakes it). Change the delay (0 = never) and how dark it gets in **Settings → Screen**.
+- **Empathika's face:** a friendly 3D nurse (warm skin, chestnut hair in a bun, a white cap with a teal band
+  and a little heart, a teal uniform) with Empathika's own eyes, lashes, lips and blush, so every expression
+  and her lip movement are the same as on the flat face. Her head turns, tilts and dozes; the heart on her
+  cap, her earrings and her collar pin glow in her mood colour. **Settings → Screen → Face** switches to the
+  classic flat face. If the box can't draw the 3D face smoothly, it lowers the detail and then falls back to
+  the flat face on its own. Preview on a computer: `/?demo` (add `&face=classic` for the flat face).
 - **Cards on the screen:** when there's something worth seeing, Empathika shrinks to a small face at the top and
   a card fills the screen; tap **Back to Empathika** (or wait) to return.
   - **Timer done / reminder:** with **OK** / **Again**, or **Done** / **Snooze 10 min**.

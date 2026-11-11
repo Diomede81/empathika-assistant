@@ -10,10 +10,13 @@
  * that spring towards targets, so any expression blends smoothly into any other. A designed
  * character (e.g. a Rive animation) could replace this later and use the same signals.
  */
+import { NURSE3D_JS } from './nurse3d';
+
 export function renderFace(bootId = ''): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.min.js" } }</script>
 <title>Empathika</title>
 <style>
 :root { --bg: #06090d; --ink: #8ff0d6; --dim: #5d7d76; --paper: #ffffff; --warn: #ffb36b; color-scheme: dark; }
@@ -21,6 +24,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; c
   font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-user-select: none; user-select: none; touch-action: none; }
 canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+#c3 { background: radial-gradient(circle at 50% 38%, #2a2140 0%, #15111f 55%, #08060c 100%); }
 #setup { position: fixed; inset: 0; display: grid; place-items: center; color: var(--ink); text-align: center; }
 #setup[hidden] { display: none; }
 .card { width: min(76vmin, 560px); display: grid; gap: 2.2vmin; justify-items: center; }
@@ -151,7 +155,9 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
 <script>
 (() => {
   const cv = document.getElementById('c');
-  const g = cv.getContext('2d');
+  let g = cv.getContext('2d');
+  /** True while the features are painted onto the 3D nurse's skin: natural colours instead of the glowing ones. */
+  let SKIN = false;
   const setupEl = document.getElementById('setup');
   const card = document.getElementById('card');
   const params = new URLSearchParams(location.search);
@@ -177,7 +183,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     // Empathika restarted with a new version: load the new face (the old page would keep running).
     const BOOT = ${JSON.stringify(bootId)};
     es.addEventListener('hello', (e) => { const b = JSON.parse(e.data).boot; if (BOOT && b && b !== BOOT) location.reload(); });
-    es.addEventListener('info', (e) => { info = JSON.parse(e.data); checkPowerAsk(); connectedOnce = true; connected = true; lastMsg = Date.now(); setTimeout(checkDim, 0); renderSetup(); renderCard(); renderCaption(); renderFrame(); renderLock(); });
+    es.addEventListener('info', (e) => { info = JSON.parse(e.data); checkPowerAsk(); connectedOnce = true; connected = true; lastMsg = Date.now(); setTimeout(checkDim, 0); if (info.faceStyle) { faceKnown = true; applyFace(); } renderSetup(); renderCard(); renderCaption(); renderFrame(); renderLock(); });
     es.addEventListener('level', (e) => {
       const d = JSON.parse(e.data);
       mouth = typeof d === 'number' ? { o: d, w: 0, r: 0, s: 0 } : d;
@@ -821,16 +827,29 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
 
     // Head: gentle breathing, a nod with emphasis, tilt, and a slight turn towards where she looks.
     const breathe = Math.sin(now / 1300);
-    g.save();
-    g.translate(cx + P.lx * 7 * s * fk, fy + (breathe * 3 - P.mo * 4 + P.ly * 5) * s * fk);
-    g.rotate((P.tilt * Math.PI) / 180);
-    g.scale(s * fk * (1 + breathe * 0.005), s * fk * (1 + breathe * 0.005));
-    g.globalAlpha = P.bright;
-    drawCheeks(P);
-    for (const side of [-1, 1]) drawEye(side, P, rgb);
-    for (const side of [-1, 1]) drawBrow(side, P, rgb);
-    drawMouth(P, rgb);
-    g.restore();
+    if (R3.on) {
+      // 3D nurse: the same eyes and mouth painted on her face (repainted 30 times a second, which
+      // halves the work for the Pi); the head itself turns, tilts and nods every frame.
+      R3.paint = !R3.paint;
+      if (R3.paint) paintVisor(() => {
+        drawCheeks(P);
+        for (const side of [-1, 1]) drawEye(side, P, rgb);
+        for (const side of [-1, 1]) drawBrow(side, P, rgb);
+        drawMouth(P, rgb);
+      });
+      renderRobot(P, now, cmp, state, col);
+    } else {
+      g.save();
+      g.translate(cx + P.lx * 7 * s * fk, fy + (breathe * 3 - P.mo * 4 + P.ly * 5) * s * fk);
+      g.rotate((P.tilt * Math.PI) / 180);
+      g.scale(s * fk * (1 + breathe * 0.005), s * fk * (1 + breathe * 0.005));
+      g.globalAlpha = P.bright;
+      drawCheeks(P);
+      for (const side of [-1, 1]) drawEye(side, P, rgb);
+      for (const side of [-1, 1]) drawBrow(side, P, rgb);
+      drawMouth(P, rgb);
+      g.restore();
+    }
 
     if (state === 'thinking') {
       for (let i = 0; i < 3; i++) {
@@ -852,9 +871,19 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     requestAnimationFrame(frame);
   }
 
+${NURSE3D_JS}
   // ---------- drawing ----------
   function drawBackground(P, rgb, s) {
     g.clearRect(0, 0, W, H);
+    g.shadowBlur = 0; g.shadowColor = 'transparent'; // the 3D face's text shadow stays with the text
+    if (R3.on) {
+      // 3D face: the scene is drawn underneath; here only the coloured glow at the edge.
+      const ringA = Math.max(0, Math.min(1, P.ring));
+      const grad = g.createRadialGradient(cx, cy, R * 0.8, cx, cy, R);
+      grad.addColorStop(0, rgb(0)); grad.addColorStop(1, rgb(ringA * 0.5));
+      g.fillStyle = grad; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+      return;
+    }
     g.fillStyle = '#04070b'; g.fillRect(0, 0, W, H);
     // the face plate: a softly lit dark glass dome
     const bg = g.createRadialGradient(cx, cy - R * 0.25, R * 0.05, cx, cy, R);
@@ -877,7 +906,8 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     for (const side of [-1, 1]) {
       const x = side * 150, y = 62;
       const gr = g.createRadialGradient(x, y, 0, x, y, 52);
-      gr.addColorStop(0, 'rgba(255,130,170,' + (0.32 * P.cheek) + ')'); gr.addColorStop(1, 'rgba(255,130,170,0)');
+      const blush = SKIN ? '236,110,130,' : '255,130,170,';
+      gr.addColorStop(0, 'rgba(' + blush + ((SKIN ? 0.42 : 0.32) * P.cheek) + ')'); gr.addColorStop(1, 'rgba(' + blush + '0)');
       g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, 56, 40, 0, 0, Math.PI * 2); g.fill();
     }
   }
@@ -914,9 +944,11 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     const openFrac = Math.max(0, Math.min(1, gapMid / (hh * 2)));
 
     // soft glow behind the eye
-    const glow = g.createRadialGradient(ex, ey, hh * 0.2, ex, ey, hh * 1.5);
-    glow.addColorStop(0, rgb(0.22 * openFrac)); glow.addColorStop(1, rgb(0));
-    g.fillStyle = glow; g.beginPath(); g.arc(ex, ey, hh * 1.5, 0, Math.PI * 2); g.fill();
+    if (!SKIN) {
+      const glow = g.createRadialGradient(ex, ey, hh * 0.2, ex, ey, hh * 1.5);
+      glow.addColorStop(0, rgb(0.22 * openFrac)); glow.addColorStop(1, rgb(0));
+      g.fillStyle = glow; g.beginPath(); g.arc(ex, ey, hh * 1.5, 0, Math.PI * 2); g.fill();
+    }
 
     if (openFrac > 0.02) {
       g.save();
@@ -925,18 +957,20 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       pathLid(lidBot, -hh * 3); g.clip();
       // the lens: bright centre, deeper colour at the rim
       const base = g.createRadialGradient(ex - hw * 0.15, ey - hh * 0.2, hh * 0.1, ex, ey, hh * 1.15);
-      base.addColorStop(0, rgb(1, 0.35)); base.addColorStop(0.55, rgb(1)); base.addColorStop(1, rgb(0.55));
+      if (SKIN) { base.addColorStop(0, '#ffffff'); base.addColorStop(0.7, '#f6f1ee'); base.addColorStop(1, '#ddd0cb'); } // the whites of her eyes
+      else { base.addColorStop(0, rgb(1, 0.35)); base.addColorStop(0.55, rgb(1)); base.addColorStop(1, rgb(0.55)); }
       g.fillStyle = base; g.fillRect(ex - hw - 5, ey - hh - 5, hw * 2 + 10, hh * 2 + 10);
       // iris and pupil, following the gaze
       const ir = Math.min(hw, hh) * 0.66;
       const px = ex + P.lx * (hw - ir * 0.7) * 0.8, py = ey + P.ly * (hh - ir * 0.7) * 0.8;
       const iris = g.createRadialGradient(px, py, ir * 0.3, px, py, ir);
-      iris.addColorStop(0, rgb(1, 0.15)); iris.addColorStop(0.8, rgb(1, 0.5)); iris.addColorStop(1, rgb(0.9, 0.7));
+      if (SKIN) { iris.addColorStop(0, '#b0844f'); iris.addColorStop(0.75, '#7a5230'); iris.addColorStop(1, '#4a2e1a'); } // warm hazel
+      else { iris.addColorStop(0, rgb(1, 0.15)); iris.addColorStop(0.8, rgb(1, 0.5)); iris.addColorStop(1, rgb(0.9, 0.7)); }
       g.fillStyle = iris; g.beginPath(); g.arc(px, py, ir, 0, Math.PI * 2); g.fill();
       g.lineWidth = 3; g.strokeStyle = 'rgba(255,255,255,0.45)'; g.stroke();
       const pr = ir * (0.3 + 0.42 * P.pupil);
       const pupil = g.createRadialGradient(px, py, pr * 0.2, px, py, pr);
-      pupil.addColorStop(0, '#02060a'); pupil.addColorStop(0.85, '#06121c'); pupil.addColorStop(1, rgb(0.6));
+      pupil.addColorStop(0, '#02060a'); pupil.addColorStop(0.85, '#06121c'); pupil.addColorStop(1, SKIN ? 'rgba(40,24,14,0.8)' : rgb(0.6));
       g.fillStyle = pupil; g.beginPath(); g.arc(px, py, pr, 0, Math.PI * 2); g.fill();
       // reflections
       g.fillStyle = 'rgba(255,255,255,0.92)';
@@ -946,7 +980,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       // shade under the upper lid for depth
       const lt = lidTop(0, P, hh);
       const shade = g.createLinearGradient(0, ey + lt, 0, ey + lt + 26);
-      shade.addColorStop(0, 'rgba(0,10,20,0.45)'); shade.addColorStop(1, 'rgba(0,10,20,0)');
+      shade.addColorStop(0, SKIN ? 'rgba(90,50,40,0.35)' : 'rgba(0,10,20,0.45)'); shade.addColorStop(1, SKIN ? 'rgba(90,50,40,0)' : 'rgba(0,10,20,0)');
       g.fillStyle = shade; g.fillRect(ex - hw - 5, ey + lt - 2, hw * 2 + 10, 30);
       g.restore();
     }
@@ -955,7 +989,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     const top = (f) => Math.max(lidTop(-f, P, hh), -hh * Math.sqrt(Math.max(0, 1 - f * f))) - 2;
     if (openFrac > 0.12) {
       g.save();
-      g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = rgb(0.95, 0.15);
+      g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = SKIN ? '#2b1810' : rgb(0.95, 0.15);
       g.lineWidth = 5; g.beginPath();
       for (let i = 0; i <= 12; i++) {
         const f = -0.96 + (1.84 * i) / 12; // across the eye: f > 0 is the outer side
@@ -976,7 +1010,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     if (openFrac < 0.12) {
       const a = 1 - openFrac / 0.12;
       const y = ey + (lidTop(0, P, hh) + lidBot(0, P, hh)) / 2;
-      g.lineWidth = 9; g.lineCap = 'round'; g.strokeStyle = rgb(a);
+      g.lineWidth = 9; g.lineCap = 'round'; g.strokeStyle = SKIN ? 'rgba(43,24,16,' + a + ')' : rgb(a);
       g.beginPath(); g.moveTo(ex - hw * 0.75, y - 6); g.quadraticCurveTo(ex, y + 16, ex + hw * 0.75, y - 6); g.stroke();
       g.lineWidth = 4;
       for (const f of [0.55, 0.78]) {
@@ -995,10 +1029,10 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     g.rotate(-side * P.browA);
     // A fine arch, highest towards the outer end, tapering at both ends.
     const o = side; // +x is the outer side of this eye
-    g.lineCap = 'round'; g.strokeStyle = rgb(0.85);
+    g.lineCap = 'round'; g.strokeStyle = SKIN ? 'rgba(96,56,34,0.95)' : rgb(0.85);
     const arch = () => { g.beginPath(); g.moveTo(-o * 40, 8); g.bezierCurveTo(-o * 18, -6, o * 14, -14, o * 44, 2); };
     g.lineWidth = 9; arch(); g.stroke();
-    g.lineWidth = 4; g.strokeStyle = rgb(0.35); arch(); g.stroke();
+    g.lineWidth = 4; g.strokeStyle = SKIN ? 'rgba(62,34,20,0.7)' : rgb(0.35); arch(); g.stroke();
     g.restore();
   }
 
@@ -1024,7 +1058,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       g.save();
       path();
       const inside = g.createLinearGradient(0, topMid, 0, botMid);
-      inside.addColorStop(0, '#03060a'); inside.addColorStop(1, '#0b1a26');
+      inside.addColorStop(0, SKIN ? '#3a1216' : '#03060a'); inside.addColorStop(1, SKIN ? '#5a2026' : '#0b1a26');
       g.fillStyle = inside; g.fill();
       g.clip();
       // tongue
@@ -1042,16 +1076,18 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
       g.restore();
     }
     // lips: a soft rose outline with a gentle glow
-    const lip = (a) => 'rgba(' + LIP.join(',') + ',' + a + ')';
+    const lip = (a) => 'rgba(' + (SKIN ? '206,92,112' : LIP.join(',')) + ',' + a + ')';
     path();
-    g.lineWidth = 10; g.lineJoin = 'round'; g.strokeStyle = lip(1);
-    g.shadowColor = lip(0.6); g.shadowBlur = 16;
+    g.lineWidth = SKIN ? 12 : 10; g.lineJoin = 'round'; g.strokeStyle = lip(1);
+    g.shadowColor = lip(0.6); g.shadowBlur = SKIN ? 0 : 16;
     g.stroke();
     g.shadowBlur = 0;
   }
 
   function drawChrome(now, s, rgb, state, cmp = 0) {
     g.textAlign = 'center'; g.textBaseline = 'middle';
+    // With the 3D nurse, the text gets a soft dark shadow so it reads over her cap and uniform.
+    if (R3.on) { g.shadowColor = 'rgba(0,0,0,0.85)'; g.shadowBlur = 8 * s; }
     // staff session badge (resident mode is the normal state: no badge)
     if (info.mode === 'staff' && state !== 'setup' && cmp < 0.3) {
       const label = 'STAFF';
@@ -1066,7 +1102,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     if (gl.weather && state === 'idle' && cmp < 0.3) {
       const w = gl.weather;
       g.font = '600 ' + Math.round(30 * s) + 'px system-ui, sans-serif'; g.fillStyle = rgb(0.8);
-      const top = info.mode === 'staff' ? cy - 218 * s : cy - 262 * s;
+      const top = R3.on ? cy - (info.mode === 'staff' ? 272 : 292) * s : info.mode === 'staff' ? cy - 218 * s : cy - 262 * s;
       g.fillText(fit(w.icon + '  ' + w.temp + '°  ·  ' + w.text, 330 * s), cx, top);
       if (w.hi !== undefined) {
         g.font = '500 ' + Math.round(20 * s) + 'px system-ui, sans-serif'; g.fillStyle = rgb(0.45);
@@ -1113,6 +1149,14 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
           if (lines[0] && lines[0][1] && !lines[1]) { sub = ''; sub2 = lines[0][0]; sub2Warn = true; }
         }
       }
+    }
+    if (text && R3.on) {
+      // Over the 3D nurse's uniform: a soft dark backing so the clock and its lines read clearly.
+      const lines = 1 + (sub ? 1 : 0) + (sub2 ? 1 : 0);
+      const sh = g.shadowBlur; g.shadowBlur = 0;
+      roundRect(cx - 200 * s, cy + 212 * s, 400 * s, (lines === 1 ? 54 : lines === 2 ? 86 : 114) * s, 28 * s);
+      g.fillStyle = 'rgba(10,8,18,0.62)'; g.fill();
+      g.shadowBlur = sh;
     }
     if (text) {
       const small = Boolean(info.activity || noteColor);
@@ -1167,6 +1211,9 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     return t + '…';
   }
 
+  // The 3D face starts once Empathika says which one is chosen (or after 2 s without her, e.g. the demo).
+  let faceKnown = false;
+  setTimeout(() => { if (!faceKnown) { faceKnown = true; applyFace(); } }, 2000);
   requestAnimationFrame(frame);
 })();
 </script>

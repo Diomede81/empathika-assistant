@@ -7,6 +7,7 @@ export interface PanelScreen {
   frameTo: string;
   frameEverySec: number;
   captions: boolean;
+  face: FaceStyle;
   /** Dim the screen after this many quiet seconds (0 = never), down to this brightness (%). */
   dimAfterSec: number;
   dimLevel: number;
@@ -36,6 +37,7 @@ export function screenSection(s: PanelScreen, esc: Esc): string {
   return `<section id="screen"><h2>Screen</h2>
 <p class="meta">What Empathika's round screen shows in the resident's room.</p>
 <form class="stack" method="post" action="/screen/save">
+<div class="addfact"><label class="meta" for="faceSel"><b>Face</b></label><select id="faceSel" name="face">${(Object.keys(FACE_STYLES) as FaceStyle[]).map((k) => `<option value="${k}" ${s.face === k ? 'selected' : ''}>${esc(FACE_STYLES[k])}</option>`).join('')}</select></div>
 <label class="meta tick"><input type="checkbox" name="captions" value="on" ${s.captions ? 'checked' : ''}> <b>Captions</b>: show the words on screen, what Empathika heard and what she's answering (helpful for residents who are hard of hearing)</label>
 <label class="meta tick"><input type="checkbox" name="glance" value="on" ${s.glance ? 'checked' : ''}> <b>Glance</b>: the weather${s.place ? ` in ${esc(s.place)}` : ' (set the care home location above)'} and the next reminder, around her face</label>
 <label class="meta tick"><input type="checkbox" name="frame" value="on" ${s.frame ? 'checked' : ''}> <b>Evening photo frame</b>: the resident's pictures (family, places, memories), one fading into the next, with the clock (after 2 minutes of quiet; "Hey Empathika" or a touch brings her back)</label>

@@ -55,6 +55,8 @@ export interface FaceInfo {
   caption?: { who: 'you' | 'empathika'; text: string };
   /** Around the face when idle: the weather; and the evening photo frame. */
   glance?: Glance;
+  /** Which face to draw (set on the control panel). */
+  faceStyle?: string;
   /** The start-up code hasn't been entered: the keypad shows, and nothing personal. */
   locked?: { pausedUntil?: number; triesLeft: number };
   /** A start-up code is set (the menu offers Lock). */
@@ -317,6 +319,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
       card: this.card && Date.now() < this.card.until ? this.card : undefined,
       caption: this.ambient?.settings.captions && this.caption && Date.now() < this.caption.until ? { who: this.caption.who, text: this.caption.text } : undefined,
       glance: this.ambient?.glance(),
+      faceStyle: this.ambient?.settings.face ?? 'nurse',
       canLock: this.lock?.enabled || undefined,
       staff: this.modes?.staff ? { name: this.modes.staff.name, until: this.modes.staff.until } : undefined,
       staffPad: Date.now() < this.staffPadUntil && !this.modes?.staff ? (this.staffService?.status() ?? { triesLeft: 5 }) : undefined,
