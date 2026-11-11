@@ -114,8 +114,9 @@ After the restart, Empathika's face appears on the screen and she's listening fo
   on Empathika's screen; each device then stays signed in for 30 days.
 - **Boot screen:** while the box starts (and shuts down) it shows Empathika's face on a dark screen instead of
   raspberries and scrolling text. To use **your own logo**:
-  1. Make a **PNG** picture, ideally square, about **400 × 400 pixels**, with the important part inside a
-     circle (the screen is round) and a transparent or dark background.
+  1. Use a **PNG** picture. Any size works: the setup crops the empty space around the logo, resizes it
+     for the round screen, and puts a dark logo on a light plate so it shows on the dark boot screen. (A
+     square logo with a transparent background looks best.)
   2. Name it **`boot-logo.png`** and put it in the `empathika-assistant` folder on your Mac (next to `README.md`).
   3. Send Empathika to the box as usual (the `rsync` command) and run `sudo ./scripts/pi/setup.sh` on the box,
      then `sudo reboot`.

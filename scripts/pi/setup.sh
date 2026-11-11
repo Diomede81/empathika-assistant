@@ -150,7 +150,22 @@ if [ "$SCREEN" != none ] && [ "${EMPATHIKA_BOOT_LOGO:-on}" != off ]; then
   THEME_DIR=/usr/share/plymouth/themes/empathika
   install -d "$THEME_DIR"
   install -m 644 "$REPO/scripts/pi/boot/empathika.plymouth" "$REPO/scripts/pi/boot/empathika.script" "$THEME_DIR/"
-  install -m 644 "$LOGO" "$THEME_DIR/logo.png"
+  if [ "$LOGO" = "$REPO/boot-logo.png" ]; then
+    # Your own picture: cropped to the logo itself, resized for the round screen, and given a light plate
+    # if it is too dark to show on the dark boot screen (a full-page export is mostly empty space).
+    python3 -c 'import PIL' 2>/dev/null || apt-get install -y -q python3-pil >/dev/null 2>&1 || true
+    PREPARED="$(mktemp --suffix=.png)"
+    if NOTE="$(python3 "$REPO/scripts/pi/boot/prepare-logo.py" "$LOGO" "$PREPARED" 2>&1)"; then
+      echo "  Your logo: $NOTE"
+      install -m 644 "$PREPARED" "$THEME_DIR/logo.png"
+    else
+      warn "Your logo could not be prepared ($NOTE); using it as it is. A square PNG of about 400 x 400 works best."
+      install -m 644 "$LOGO" "$THEME_DIR/logo.png"
+    fi
+    rm -f "$PREPARED"
+  else
+    install -m 644 "$LOGO" "$THEME_DIR/logo.png"
+  fi
   # No rainbow square from the firmware, no raspberries or blinking cursor from Linux.
   grep -q '^disable_splash=1' "$CONFIG_TXT" || echo 'disable_splash=1' >> "$CONFIG_TXT"
   CMDLINE=/boot/firmware/cmdline.txt; [ -f "$CMDLINE" ] || CMDLINE=/boot/cmdline.txt
