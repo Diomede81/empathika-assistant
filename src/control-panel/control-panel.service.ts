@@ -24,6 +24,7 @@ import { LockService } from '../lock/lock.service';
 import { PanelData, renderPanel } from './page';
 import { ABOUT_TOPICS, AboutTopic, CIRCLES, CONTACTS, PeopleService } from '../people/people.service';
 import { ActivitiesService, ActivityKind, KINDS as ACTIVITY_KINDS } from '../activities/activities.service';
+import { ClinicalService, NOTE_TYPES } from '../clinical/clinical.service';
 import { SOUL_DOCS, SOUL_MAX_CHARS, SoulDoc, SoulService } from '../soul/soul.service';
 
 /**
@@ -51,6 +52,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
   @Optional() @Inject(LockService) private readonly lock?: LockService;
   @Optional() @Inject(PeopleService) private readonly people?: PeopleService;
   @Optional() @Inject(ActivitiesService) private readonly activities?: ActivitiesService;
+  @Optional() @Inject(ClinicalService) private readonly clinical?: ClinicalService;
 
   constructor(
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
@@ -253,6 +255,12 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
     }
     if (req.method === 'POST' && url.pathname.startsWith('/people/') && this.people?.enabled) return this.peopleAction(req, res, url.pathname.slice('/people/'.length));
     if (req.method === 'POST' && url.pathname.startsWith('/activities/') && this.activities?.enabled) return this.activitiesAction(req, res, url.pathname.slice('/activities/'.length));
+    if (req.method === 'POST' && url.pathname === '/clinical/ack' && this.clinical?.enabled) {
+      const f = await readForm(req);
+      const by = (f.get('by') ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+      const msg = by ? this.clinical.acknowledge(f.get('id') ?? '', `${by} (control panel)`) : 'Enter your name to acknowledge.';
+      return this.redirect(res, `/?${msg.startsWith('Acknowledged') ? 'ok' : 'error'}=${encodeURIComponent(msg)}#doctor`);
+    }
     if (req.method === 'POST' && url.pathname === '/family/check' && this.family) {
       const n = await this.family.check();
       const msg = this.family.lastError ? `Could not check: ${this.family.lastError}` : n ? `${n} new message${n === 1 ? '' : 's'}.` : 'No new messages.';
@@ -387,7 +395,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
     const back = (msg: string, ok = true) => this.redirect(res, `/?${ok ? 'ok' : 'error'}=${encodeURIComponent(msg)}#staff`);
     switch (action) {
       case 'add': {
-        const r = this.staff!.add(f.get('name') ?? '', (f.get('pin') ?? '').trim(), f.get('role') ?? undefined, f.get('badge') ?? undefined);
+        const r = this.staff!.add(f.get('name') ?? '', (f.get('pin') ?? '').trim(), f.get('role') ?? undefined, f.get('badge') ?? undefined, f.get('clinician') === 'yes');
         return back(r.message, r.ok);
       }
       case 'remove':
@@ -529,6 +537,13 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
         this.cfg.voiceMode === 'realtime'
           ? `${rt.provider === 'gemini' ? 'Gemini Live' : 'OpenAI Realtime'} (${rt.model}, "${rt.voice}")`
           : `Pipeline (${this.cfg.llm.model})`,
+      clinical: this.clinical?.enabled
+        ? {
+            notes: [...this.clinical.notes].reverse().map((n) => ({ id: n.id, at: n.at, by: n.by, typeLabel: NOTE_TYPES[n.type].label, action: NOTE_TYPES[n.type].action, text: n.text, due: n.due, ack: n.ack, sent: n.sent })),
+            open: this.clinical.open().length,
+            doctorMinutes: this.cfg.staff.doctorSessionMinutes,
+          }
+        : undefined,
       people: this.peopleData(),
       activities: this.activitiesData(),
       careApp: {

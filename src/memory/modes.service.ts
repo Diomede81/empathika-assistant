@@ -18,6 +18,8 @@ export interface StaffSession {
   staffId: string;
   name: string;
   role?: string;
+  /** A doctor or other clinician: may dictate clinical notes and instructions for the staff. */
+  clinician?: boolean;
   since: number;
   until: number;
 }
@@ -56,7 +58,7 @@ export class ModesService extends EventEmitter implements OnModuleDestroy {
   /** How the current mode was decided, for the panel and the AI. */
   describe(): string {
     const s = this.staff;
-    return s ? `Staff mode: ${s.name}${s.role ? ` (${s.role})` : ''} until ${this.fmt(s.until)}` : 'Resident mode';
+    return s ? `${s.clinician ? 'Doctor' : 'Staff'} mode: ${s.name}${s.role ? ` (${s.role})` : ''} until ${this.fmt(s.until)}` : 'Resident mode';
   }
 
   readable(mode = this.mode): VaultName[] {
@@ -72,9 +74,9 @@ export class ModesService extends EventEmitter implements OnModuleDestroy {
   }
 
   /** A member of staff identified themselves: staff mode for the configured number of minutes. */
-  startStaff(who: { id: string; name: string; role?: string }, minutes = this.cfg.staff.sessionMinutes): StaffSession {
+  startStaff(who: { id: string; name: string; role?: string; clinician?: boolean }, minutes = who.clinician ? this.cfg.staff.doctorSessionMinutes : this.cfg.staff.sessionMinutes): StaffSession {
     const now = Date.now();
-    this.session = { staffId: who.id, name: who.name, role: who.role, since: now, until: now + minutes * 60_000 };
+    this.session = { staffId: who.id, name: who.name, role: who.role, clinician: who.clinician || undefined, since: now, until: now + minutes * 60_000 };
     this.arm();
     this.log.log(this.describe());
     this.onChange?.(`Staff session started: ${who.name}`);

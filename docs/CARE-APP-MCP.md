@@ -10,7 +10,8 @@ Context Protocol, Streamable HTTP). Through it, the box:
 3. keeps a **backup of the resident's memories**, so nothing is lost if a box breaks or is replaced;
 4. receives the resident's **family and friends** as staff recorded them (relationships, birthdays,
    who has died, and guidance on how to talk about them);
-5. reports the resident's **activities** (puzzles, quizzes, memory-lane chats) with their scores.
+5. reports the resident's **activities** (puzzles, quizzes, memory-lane chats) with their scores;
+6. passes on **doctors' notes** dictated at the bedside, and their acknowledgement by staff.
 
 A practice version of the app ships with Empathika so the box can be tested before the real
 app exists: `npm run mock-app` (code: `src/tools/mock-care-app.ts`). It implements everything
@@ -38,7 +39,7 @@ The box decides what the AI may use **by action name**:
 | Kind | Who can use it | How the box recognises it |
 |---|---|---|
 | **Resident actions** | Anyone in the room (resident, visitors) | Names in `EMPATHIKA_APP_RESIDENT_TOOLS` (default `resident_profile,resident_schedule`) |
-| **System actions** | Only the box itself (backup, family news); never offered to the AI | Names matching `EMPATHIKA_APP_SYSTEM_TOOLS` (default `memory_backup_*,family_*,activity_log*,staff_*`) |
+| **System actions** | Only the box itself (backup, family news); never offered to the AI | Names matching `EMPATHIKA_APP_SYSTEM_TOOLS` (default `memory_backup_*,family_*,activity_log*,clinical_note*,staff_*`) |
 | **Care record** | Only during a **staff session** (a member of staff entered their PIN on the box) | Every other action |
 
 So **any new action the app adds is staff-only by default**, which is the safe default. To offer
@@ -186,6 +187,23 @@ wellbeing records; trends over weeks are what matter, not one score.
 ```
 `kind`: `trivia`, `words`, `sayings`, `numbers`, `memory`, `quiz`, `categories`, `reminiscence` (memory
 lane) or `family` (family stories); for the last two `asked`/`correct` are 0 and `minutes` is what counts. `ended`: `finished` or `stopped` (they had enough).
+
+## Doctor's notes (system)
+
+### `clinical_note_add`
+Arguments: `resident_id`, `note`. Sent when a doctor dictates an item in a doctor session on the box,
+again if they correct it, and again when a member of staff acknowledges it. **The same `id` is the same
+note: replace it.** See [DOCTOR.md](DOCTOR.md).
+```json
+{ "note": { "id": "9b1c…", "at": "2026-11-11T10:42:00Z", "by": "Dr Anita Patel", "role": "GP",
+  "type": "medication", "label": "Medication change",
+  "text": "Increase paracetamol to 1 g four times a day regularly for two weeks", "due": null,
+  "acknowledged": { "by": "Jane Smith", "at": "2026-11-11T11:05:00Z", "note": "chart updated" } } }
+```
+`type`: `finding`, `note`, `medication`, `instruction` or `follow_up` (the last three need a staff
+acknowledgement; `acknowledged` is absent until then). `due`: a date for a follow-up, when given.
+A dictated medication change is a note for the record: it is **not** a prescription and must not update
+the medication chart by itself.
 
 ## Later: staff accounts from the app
 

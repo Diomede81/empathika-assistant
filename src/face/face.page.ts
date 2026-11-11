@@ -541,7 +541,7 @@ canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
     staffBar.hidden = !show;
     if (!show) return;
     const min = Math.max(0, Math.ceil((s.until - Date.now()) / 60000));
-    staffText.textContent = 'Staff: ' + s.name + ' · ' + min + ' min';
+    staffText.textContent = (s.clinician ? 'Doctor: ' : 'Staff: ') + s.name + ' · ' + min + ' min';
   }
 
   // ---------- hold for 2 s: the options menu (turn off, restart, WiFi setup) ----------
@@ -1093,7 +1093,7 @@ ${NURSE3D_JS}
     if (R3.on) { g.shadowColor = 'rgba(0,0,0,0.85)'; g.shadowBlur = 8 * s; }
     // staff session badge (resident mode is the normal state: no badge)
     if (info.mode === 'staff' && state !== 'setup' && cmp < 0.3) {
-      const label = 'STAFF';
+      const label = info.staff && info.staff.clinician ? 'DOCTOR' : 'STAFF';
       g.font = '700 ' + Math.round(22 * s) + 'px system-ui, sans-serif';
       const w = g.measureText(label).width + 36 * s;
       roundRect(cx - w / 2, cy - 290 * s, w, 40 * s, 20 * s);

@@ -10,6 +10,7 @@ import { AmbientService } from './ambient.service';
 import { DeviceService } from '../device/device.service';
 import { ActivitiesService, ActivityKind, KINDS } from '../activities/activities.service';
 import { PeopleService } from '../people/people.service';
+import { ClinicalService } from '../clinical/clinical.service';
 import { ConversationControl } from '../actions/conversation-control';
 import { localToday, timeZone } from '../actions/clock';
 
@@ -53,6 +54,7 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
     @Optional() private readonly activities?: ActivitiesService,
     @Optional() private readonly people?: PeopleService,
     @Optional() private readonly control?: ConversationControl,
+    @Optional() private readonly clinical?: ClinicalService,
   ) {}
 
 
@@ -67,6 +69,12 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
     this.activities?.on('hint', (hint: string) => this.puzzleHint(hint));
     this.activities?.on('clear', () => this.face.dismissCard('activity'));
     this.activities?.on('invite', (kind: ActivityKind) => this.inviteCard(kind));
+    this.clinical?.on('waiting', () => this.staffNote());
+    this.clinical?.on('cleared', () => {
+      this.pending = this.pending.filter((p) => p.card.id !== 'notify-staff-note');
+      this.face.dismissCard('notify-staff-note');
+    });
+    this.ticks.push(setInterval(() => { if (this.clinical?.cueDue(localToday())) this.staffNote(); }, 10 * 60_000));
     this.ticks.push(setInterval(() => this.dateReminders(), 5 * 60_000));
     setTimeout(() => this.dateReminders(), 90_000).unref?.();
     this.family?.on('shared', () => {
@@ -108,6 +116,25 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
     this.face.dismissCard('notify-family');
     for (const i of news) this.timers?.announce(this.family!.spoken(i));
     this.family?.markShared(news);
+  }
+
+  // ---------- The doctor left something for the staff ----------
+
+  /**
+   * A discreet card: it says only that a note is waiting (the resident and visitors can see the
+   * screen). The content is read out in the next staff session. "Staff" opens the PIN keypad.
+   */
+  private staffNote(): void {
+    this.notify(
+      { id: 'notify-staff-note', kind: 'notice', icon: '📋', title: 'For the care staff', big: 'A note is waiting', subtitle: 'Sign in to hear it', actions: [{ id: 'staff', label: 'Staff', style: 'primary' }, { id: 'later', label: 'Later' }], ttlMs: 4 * 60 * 60_000 },
+      {
+        staff: () => {
+          this.face.dismissCard('notify-staff-note');
+          this.face.openStaffPad(true);
+        },
+        later: () => this.face.dismissCard('notify-staff-note'),
+      },
+    );
   }
 
   // ---------- Activities ----------

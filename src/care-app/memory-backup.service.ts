@@ -6,6 +6,7 @@ import { StaffService } from '../staff/staff.service';
 import { CareAppService } from './care-app.service';
 import { Person, PeopleService } from '../people/people.service';
 import { ActivitiesService } from '../activities/activities.service';
+import { ClinicalService, DoctorNote } from '../clinical/clinical.service';
 
 const PUT = 'memory_backup_put';
 const GET = 'memory_backup_get';
@@ -20,6 +21,8 @@ export interface FullBackup extends MemoryBackup {
   people?: Person[];
   /** The activity log and levels. */
   activities?: ReturnType<ActivitiesService['exportBackup']>;
+  /** Doctors' notes and instructions, with who acknowledged them. */
+  clinical?: DoctorNote[];
 }
 
 export interface BackupStatus {
@@ -53,11 +56,12 @@ export class MemoryBackupService implements OnModuleInit, OnModuleDestroy {
     @Optional() private readonly staff?: StaffService,
     @Optional() private readonly people?: PeopleService,
     @Optional() private readonly activities?: ActivitiesService,
+    @Optional() private readonly clinical?: ClinicalService,
   ) {}
 
   /** Changes anywhere in what is backed up. */
   private get revision(): string {
-    return `${this.memory.revision}/${this.people?.revision ?? 0}/${this.activities?.revision ?? 0}`;
+    return `${this.memory.revision}/${this.people?.revision ?? 0}/${this.activities?.revision ?? 0}/${this.clinical?.revision ?? 0}`;
   }
 
   onModuleInit(): void {
@@ -100,6 +104,7 @@ export class MemoryBackupService implements OnModuleInit, OnModuleDestroy {
         ...this.personality(),
         ...(this.people?.enabled ? { people: this.people.exportBackup() } : {}),
         ...(this.activities?.enabled ? { activities: this.activities.exportBackup() } : {}),
+        ...(this.clinical?.enabled ? { clinical: this.clinical.exportBackup() } : {}),
       };
       await this.app.system(PUT, { backup });
       this.backedUpRevision = revision;
@@ -128,7 +133,8 @@ export class MemoryBackupService implements OnModuleInit, OnModuleDestroy {
       const r = await this.memory.restoreBackup(backup);
       const people = this.people?.restoreBackup(backup.people) ?? 0;
       const sessions = this.activities?.restoreBackup(backup.activities) ?? 0;
-      const extra = [this.restorePersonality(backup), people ? `${people} people` : '', sessions ? `${sessions} activities` : ''].filter(Boolean).join(', ');
+      const doctor = this.clinical?.restoreBackup(backup.clinical) ?? 0;
+      const extra = [this.restorePersonality(backup), people ? `${people} people` : '', sessions ? `${sessions} activities` : '', doctor ? `${doctor} doctor's notes` : ''].filter(Boolean).join(', ');
       const message = `Restored ${r.items} facts and ${r.notes} conversation notes from the backup of ${backup.takenAt.slice(0, 10)}${extra ? `, ${extra}` : ''}.`;
       this.status.lastRestore = `${new Date().toISOString()}: ${message}`;
       this.staff?.audit('memory_restore', undefined, `${why}. ${message}`);

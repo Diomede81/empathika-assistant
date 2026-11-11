@@ -62,7 +62,7 @@ export interface FaceInfo {
   /** A start-up code is set (the menu offers Lock). */
   canLock?: boolean;
   /** A staff session is open: who, and until when. */
-  staff?: { name: string; until: number };
+  staff?: { name: string; until: number; clinician?: boolean };
   /** The staff PIN keypad is showing (asked for by voice or from the menu). */
   staffPad?: { pausedUntil?: number; triesLeft: number };
   /** Staff are set up: turning off, restarting, WiFi and updates need a staff session. */
@@ -321,7 +321,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
       glance: this.ambient?.glance(),
       faceStyle: this.ambient?.settings.face ?? 'nurse',
       canLock: this.lock?.enabled || undefined,
-      staff: this.modes?.staff ? { name: this.modes.staff.name, until: this.modes.staff.until } : undefined,
+      staff: this.modes?.staff ? { name: this.modes.staff.name, until: this.modes.staff.until, clinician: this.modes.staff.clinician } : undefined,
       staffPad: Date.now() < this.staffPadUntil && !this.modes?.staff ? (this.staffService?.status() ?? { triesLeft: 5 }) : undefined,
       staffRequired: Boolean(this.staffService?.count) || undefined,
       dimAfterSec: this.ambient?.settings.dimAfterSec ?? 10,

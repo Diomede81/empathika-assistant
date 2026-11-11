@@ -56,6 +56,8 @@ export interface PanelData {
   /** Phones and computers signed in to this panel (each allowed on Empathika's screen), and whether the password is in .env. */
   devices?: { id: string; label: string; created: number; lastUsed: number; expires: number; current: boolean }[];
   passwordFromEnv?: boolean;
+  /** Doctors' notes: what they dictated, and whether the staff have acknowledged the instructions. */
+  clinical?: { notes: { id: string; at: string; by: string; typeLabel: string; action: boolean; text: string; due?: string; ack?: { by: string; at: string; note?: string }; sent?: boolean }[]; open: number; doctorMinutes: number };
   people?: PanelPeople;
   activities?: PanelActivities;
   careApp: {
@@ -68,7 +70,7 @@ export interface PanelData {
     family: { minutes: number; lastCheckAt?: string; lastError?: string };
   };
   staff?: {
-    list: { id: string; name: string; role?: string; badge: boolean; createdAt: string }[];
+    list: { id: string; name: string; role?: string; badge: boolean; clinician?: boolean; createdAt: string }[];
     audit: { at: string; staff?: string; event: string; detail?: string }[];
     session?: string;
     sessionMinutes: number;
@@ -290,13 +292,13 @@ function familySection(m: NonNullable<PanelData['memory']>, app: PanelData['care
 
 const AUDIT_LABEL: Record<string, string> = {
   session_start: 'Signed in', session_end: 'Signed out', session_expired: 'Session timed out', wrong_pin: 'Wrong PIN', paused: 'Keypad paused',
-  care_record: 'Care record', care_memory: 'Care notes', staff_added: 'Staff added', staff_removed: 'Staff removed', memory_restore: 'Memory restored',
+  care_record: 'Care record', care_memory: 'Care notes', staff_added: 'Staff added', staff_removed: 'Staff removed', memory_restore: 'Memory restored', doctor_note: "Doctor's note", instruction_ack: 'Instruction acknowledged',
 };
 
 function staffSection(s: NonNullable<PanelData['staff']>): string {
   const rows = s.list.length
     ? s.list
-        .map((x) => `<li class="row"><div><div class="name">${esc(x.name)}${x.role ? ` <span class="meta">· ${esc(x.role)}</span>` : ''}${x.badge ? ' <span class="badge ok">badge</span>' : ''}</div><div class="meta">Added ${esc(day(x.createdAt))}</div></div>
+        .map((x) => `<li class="row"><div><div class="name">${esc(x.name)}${x.role ? ` <span class="meta">· ${esc(x.role)}</span>` : ''}${x.clinician ? ' <span class="badge imp">doctor</span>' : ''}${x.badge ? ' <span class="badge ok">badge</span>' : ''}</div><div class="meta">Added ${esc(day(x.createdAt))}</div></div>
 <form method="post" action="/staff/remove" onsubmit="return confirm('Remove ${esc(x.name)}? Their PIN stops working.')">${hidden('id', x.id)}<button class="btn secondary" type="submit">Remove</button></form></li>`)
         .join('')
     : '<li class="empty">No staff yet. Until someone is added, anyone can turn the box off or change its WiFi from the screen, and nobody can open the care record.</li>';
@@ -306,11 +308,23 @@ function staffSection(s: NonNullable<PanelData['staff']>): string {
         .join('')
     : '<li class="empty">Nothing yet.</li>';
   return `<section id="staff"><h2>Staff</h2>
-<p class="meta">Each member of staff has their own 4-digit PIN. On Empathika's screen (hold a finger on it for 2 seconds → Staff, or say "Empathika, staff mode") the PIN opens a staff session for ${s.sessionMinutes} minutes: Empathika can then read the care notes and look things up in the care record. Turning the box off, restarting and WiFi also need a staff session. After 5 wrong PINs the keypad pauses. ${s.session ? `<b>Now: ${esc(s.session)}.</b>` : ''}</p>
+<p class="meta">Each member of staff, and each visiting doctor, has their own 4-digit PIN. On Empathika's screen (hold a finger on it for 2 seconds → Staff, or say "Empathika, staff mode") the PIN opens a staff session for ${s.sessionMinutes} minutes: Empathika can then read the care notes and look things up in the care record. Turning the box off, restarting and WiFi also need a staff session. After 5 wrong PINs the keypad pauses. ${s.session ? `<b>Now: ${esc(s.session)}.</b>` : ''}</p>
 <ul>${rows}</ul>
-<form class="addfact wrap" method="post" action="/staff/add"><input name="name" maxlength="60" required placeholder="Name, e.g. Jane Smith"><input name="role" maxlength="40" placeholder="Role, e.g. Nurse"><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="off" placeholder="4-digit PIN" style="flex:0 1 8em"><input name="badge" maxlength="40" placeholder="NFC badge id (optional)" style="flex:0 1 12em"><button class="btn" type="submit">Add</button></form>
+<form class="addfact wrap" method="post" action="/staff/add"><input name="name" maxlength="60" required placeholder="Name, e.g. Jane Smith"><input name="role" maxlength="40" placeholder="Role, e.g. Nurse"><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="off" placeholder="4-digit PIN" style="flex:0 1 8em"><input name="badge" maxlength="40" placeholder="NFC badge id (optional)" style="flex:0 1 12em"><label class="meta" style="flex:none;align-self:center"><input type="checkbox" name="clinician" value="yes"> Doctor or clinician</label><button class="btn" type="submit">Add</button></form>
 <p class="meta">PINs are never shown again and are stored encrypted. NFC badges: an id entered here will work once a badge reader is fitted to the box.</p></section>
 <section id="audit"><h2>Staff activity</h2><p class="meta">Every sign-in, wrong PIN and care-record lookup, newest first. Encrypted on the box.</p><ul>${audit}</ul></section>`;
+}
+
+function clinicalSection(c: NonNullable<PanelData['clinical']>): string {
+  const open = c.notes.filter((n) => n.action && !n.ack);
+  const row = (n: NonNullable<PanelData['clinical']>['notes'][number]) =>
+    `<li class="row"><div><div><b>${esc(n.typeLabel)}</b>${n.due ? ` <span class="meta">by ${esc(n.due)}</span>` : ''} · ${esc(n.text)}</div>
+<div class="meta">${esc(n.by)} · ${esc(when(n.at))}${n.action ? (n.ack ? ` · acknowledged by ${esc(n.ack.by)}, ${esc(when(n.ack.at))}${n.ack.note ? `: ${esc(n.ack.note)}` : ''}` : ' · <span class="warntext">not acknowledged yet</span>') : ''}${n.sent ? ' · in the care app' : ''}</div></div>
+${n.action && !n.ack ? `<form class="addfact" method="post" action="/clinical/ack" style="margin:0">${hidden('id', n.id)}<input name="by" maxlength="60" required placeholder="Your name" style="flex:0 1 9em"><button class="btn" type="submit">Acknowledge</button></form>` : ''}</li>`;
+  return `<section id="doctor"><h2>Doctor's notes</h2>
+<p class="meta">A doctor (ticked as "Doctor or clinician" below) signs in with their PIN on Empathika's screen for a doctor session of ${c.doctorMinutes} minutes. She briefs them, answers their questions from the care record and her care notes, and takes down their update, reading each item back. <b>Medication changes, instructions and follow-ups stay open until a member of staff acknowledges them</b>: here, or out loud in a staff session, where Empathika reads them out first. A medication change recorded here is a note: it must still be prescribed and charted the usual way.</p>
+${open.length ? `<h3>Waiting for staff (${open.length})</h3><ul>${open.map(row).join('')}</ul>` : '<p class="meta">Nothing is waiting for the staff.</p>'}
+<h3>All notes</h3><ul>${c.notes.length ? c.notes.slice(0, 40).map(row).join('') : '<li class="empty">No doctor has left notes yet.</li>'}</ul></section>`;
 }
 
 function careAppSection(a: PanelData['careApp']): string {
@@ -395,6 +409,7 @@ function overview(d: PanelData): string {
     d.people ? tile('#tab-family', 'Family & friends', `${d.people.list.length} ${d.people.list.length === 1 ? 'person' : 'people'}`, d.people.list.filter((p) => p.birthdayIn !== undefined && p.birthdayIn <= 7).map((p) => `🎂 ${esc(p.name)} ${p.birthdayIn === 0 ? 'today' : `in ${p.birthdayIn} days`}`).join(', ') || 'Relationships, news, visits, stories') : '',
     d.activities ? tile('#tab-activities', 'Activities', `${d.activities.summary.reduce((n, r) => n + r.times, 0)} in the last 14 days`, 'Puzzles, quizzes, memory lane') : '',
     m ? tile('#tab-family', 'Family news', `${m.family.length} message${m.family.length === 1 ? '' : 's'}`, unshared ? `<span class="warntext">${unshared} not passed on yet</span>` : 'All passed on') : '',
+    d.clinical && (d.clinical.notes.length || d.clinical.open) ? tile('#doctor', "Doctor's notes", d.clinical.open ? `<span class="warntext">${d.clinical.open} waiting for staff</span>` : 'All acknowledged', `${d.clinical.notes.length} note${d.clinical.notes.length === 1 ? '' : 's'}`) : '',
     d.staff ? tile('#tab-staff', 'Staff', `${d.staff.list.length} with a PIN`, d.staff.session ? esc(d.staff.session) : 'No staff session now') : '',
     tile('#care-app', 'Care app', d.careApp.configured ? badge(d.careApp.connected) : badge(false, '', 'Not set up'), d.careApp.backup.lastBackupAt ? `Backed up ${esc(when(d.careApp.backup.lastBackupAt))}` : 'Care record, family news and backup'),
     d.soul ? tile('#tab-empathika', 'Personality', "Empathika's soul", 'Who she is with the resident and with staff') : '',
@@ -421,7 +436,7 @@ export function renderPanel(d: PanelData): string {
     settings: Boolean(d.location && !d.location.place),
     memory: Boolean(d.memory?.vaults.some((v) => v.status !== 'open' || v.facts.some((f) => f.unverified))),
     family: Boolean(d.memory?.family.some((f) => !f.sharedAt)),
-    staff: Boolean(d.staff && !d.staff.list.length),
+    staff: Boolean((d.staff && !d.staff.list.length) || d.clinical?.open),
   };
 
   return `<!doctype html>
@@ -477,7 +492,7 @@ ${d.notice ? `<div class="notice ${d.notice.kind}">${esc(d.notice.text)}</div>` 
 
 <div class="pane" id="tab-activities">${d.activities ? activitiesSection(d.activities) : ''}</div>
 
-<div class="pane" id="tab-staff">${d.staff ? staffSection(d.staff) : ''}</div>
+<div class="pane" id="tab-staff">${d.clinical ? clinicalSection(d.clinical) : ''}${d.staff ? staffSection(d.staff) : ''}</div>
 
 <div class="pane" id="tab-empathika">${d.soul ? soulSection(d.soul) : ''}</div>
 

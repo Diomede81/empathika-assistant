@@ -43,6 +43,8 @@ interface Store {
   notes: { resident_id: string; at: string; by: string; text: string }[];
   /** The resident's family and friends, as staff recorded them (shared with the box). */
   contacts?: Record<string, Contact[]>;
+  /** Doctors' notes the box reported (and their acknowledgement by staff). */
+  clinical?: { resident_id: string; note: Record<string, unknown> }[];
   /** Activities the box reported (puzzles, quizzes, memory-lane chats). */
   activities?: { resident_id: string; received_at: string; activity: Record<string, unknown> }[];
 }
@@ -246,6 +248,15 @@ function mcpServer(): McpServer {
       return json({ ok: true });
     },
   );
+  server.registerTool(
+    'clinical_note_add',
+    { description: "A doctor's note dictated to Empathika (a finding, medication change, instruction or follow-up), or its update when staff acknowledge it. Same id = same note.", inputSchema: { ...rid, note: z.record(z.string(), z.unknown()) } },
+    async ({ resident_id, note }) => {
+      store.clinical = [...(store.clinical ?? []).filter((n) => n.note.id !== note.id), { resident_id, note }];
+      save(store);
+      return json({ ok: true });
+    },
+  );
   server.registerTool('memory_backup_get', { description: "The latest backup of Empathika's memory for this resident.", inputSchema: rid }, async ({ resident_id }) => {
     return json({ backup: store.backups[resident_id]?.backup ?? null });
   });
@@ -282,6 +293,7 @@ li{margin:6px 0}.meta{color:#5d6670;font-size:13px}</style>
 <section><h2>Memory backups</h2><ul>${backups}</ul></section>
 <section><h2>Notes Empathika added to the care record</h2><ul>${notes}</ul></section>
 <section><h2>Family and friends (shared with the box)</h2><ul>${contacts}</ul></section>
+<section><h2>Doctors' notes Empathika reported</h2><ul>${(store.clinical ?? []).slice(-10).reverse().map((c) => { const n = c.note as { label?: string; by?: string; text?: string; acknowledged?: { by?: string } }; return `<li><b>${esc(n.label)}</b> · ${esc(n.text)}<div class="meta">${esc(n.by)}${n.acknowledged ? ` · acknowledged by ${esc(n.acknowledged.by)}` : ''}</div></li>`; }).join('') || '<li>None yet</li>'}</ul></section>
 <section><h2>Activities Empathika reported</h2><ul>${activities}</ul></section></main>`;
 }
 

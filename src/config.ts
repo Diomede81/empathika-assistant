@@ -66,6 +66,8 @@ export interface AppConfig {
   staff: {
     /** How long a staff session lasts after the PIN is entered. */
     sessionMinutes: number;
+    /** A doctor's visit takes longer than a staff lookup. */
+    doctorSessionMinutes: number;
   };
   face: {
     enabled: boolean;
@@ -320,12 +322,13 @@ export function loadConfig(): AppConfig {
       token: env.EMPATHIKA_APP_TOKEN ?? '',
       residentId: env.RESIDENT_ID ?? '',
       residentTools: list(env.EMPATHIKA_APP_RESIDENT_TOOLS ?? 'resident_profile,resident_schedule'),
-      systemTools: list(env.EMPATHIKA_APP_SYSTEM_TOOLS ?? 'memory_backup_*,family_*,activity_log*,staff_*'),
+      systemTools: list(env.EMPATHIKA_APP_SYSTEM_TOOLS ?? 'memory_backup_*,family_*,activity_log*,clinical_note*,staff_*'),
       backupMinutes: num(env.MEMORY_BACKUP_MINUTES, 60),
       familyMinutes: num(env.FAMILY_UPDATES_MINUTES, 5),
     },
     staff: {
       sessionMinutes: Math.max(1, Math.min(60, num(env.STAFF_SESSION_MINUTES, 5))),
+      doctorSessionMinutes: Math.max(1, Math.min(120, num(env.DOCTOR_SESSION_MINUTES, 20))),
     },
     face: {
       enabled: env.FACE !== 'off',

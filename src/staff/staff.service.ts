@@ -14,6 +14,8 @@ export interface StaffMember {
   hash: string;
   /** SHA-256 of an NFC badge's id, once badges are in use. */
   badge?: string;
+  /** A doctor or other clinician: their session is a doctor session (clinical notes, instructions for the staff). */
+  clinician?: boolean;
   createdAt: string;
 }
 
@@ -21,7 +23,7 @@ export interface AuditEntry {
   at: string;
   /** Who, when known (a staff session, or the badge/PIN that was tried). */
   staff?: string;
-  event: 'session_start' | 'session_end' | 'session_expired' | 'wrong_pin' | 'paused' | 'care_record' | 'care_memory' | 'staff_added' | 'staff_removed' | 'memory_restore';
+  event: 'session_start' | 'session_end' | 'session_expired' | 'wrong_pin' | 'paused' | 'care_record' | 'care_memory' | 'staff_added' | 'staff_removed' | 'memory_restore' | 'doctor_note' | 'instruction_ack';
   detail?: string;
 }
 
@@ -78,8 +80,8 @@ export class StaffService implements OnModuleInit {
   }
 
   /** The staff list, without the PIN hashes. */
-  list(): { id: string; name: string; role?: string; badge: boolean; createdAt: string }[] {
-    return this.saved.staff.map((s) => ({ id: s.id, name: s.name, role: s.role, badge: Boolean(s.badge), createdAt: s.createdAt })).sort((a, b) => a.name.localeCompare(b.name));
+  list(): { id: string; name: string; role?: string; badge: boolean; clinician: boolean; createdAt: string }[] {
+    return this.saved.staff.map((s) => ({ id: s.id, name: s.name, role: s.role, badge: Boolean(s.badge), clinician: Boolean(s.clinician), createdAt: s.createdAt })).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   get count(): number {
@@ -87,7 +89,7 @@ export class StaffService implements OnModuleInit {
   }
 
   /** Control panel: add a member of staff with their own PIN. */
-  add(name: string, pin: string, role?: string, badge?: string): { ok: boolean; message: string } {
+  add(name: string, pin: string, role?: string, badge?: string, clinician = false): { ok: boolean; message: string } {
     const n = name.replace(/\s+/g, ' ').trim().slice(0, 60);
     if (!n) return { ok: false, message: 'Enter a name.' };
     if (!isPin(pin)) return { ok: false, message: 'The PIN must be exactly 4 digits.' };
@@ -97,10 +99,10 @@ export class StaffService implements OnModuleInit {
     // Each PIN must be unique, so a PIN always names one person in the audit log.
     if (this.saved.staff.some((s) => matches(pin, s))) return { ok: false, message: 'Someone already uses that PIN. Choose another.' };
     const salt = randomBytes(16).toString('hex');
-    this.saved.staff.push({ id: randomUUID(), name: n, role: role?.trim().slice(0, 40) || undefined, salt, hash: hashOf(pin, salt), badge: badge?.trim() ? badgeHash(badge) : undefined, createdAt: new Date().toISOString() });
+    this.saved.staff.push({ id: randomUUID(), name: n, role: role?.trim().slice(0, 40) || undefined, salt, hash: hashOf(pin, salt), badge: badge?.trim() ? badgeHash(badge) : undefined, clinician: clinician || undefined, createdAt: new Date().toISOString() });
     this.save();
     this.audit('staff_added', n);
-    return { ok: true, message: `Added ${n}. Their PIN opens a staff session on Empathika's screen.` };
+    return { ok: true, message: `Added ${n}. Their PIN opens a ${clinician ? 'doctor' : 'staff'} session on Empathika's screen.` };
   }
 
   remove(id: string): boolean {
@@ -156,7 +158,7 @@ export class StaffService implements OnModuleInit {
       this.saved = { ...this.saved, fails: 0, pausedUntil: 0, pauses: 0 };
       this.save();
     }
-    this.modes.startStaff({ id: who.id, name: who.name, role: who.role });
+    this.modes.startStaff({ id: who.id, name: who.name, role: who.role, clinician: who.clinician });
     this.audit('session_start', who.name);
     return { ok: true, message: `Hello ${who.name}.`, name: who.name };
   }

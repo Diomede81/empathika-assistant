@@ -38,6 +38,10 @@ Mic → Wake word → End-of-speech → Speech-to-text → AI model ⇄ memory, 
   screen, opens a **staff session** for a few minutes: Empathika can then read the care notes and look
   things up in the care record ("what medication is she on?", "how has her blood sugar been?"). Every
   sign-in and lookup is in an audit log. Outside a staff session she never discusses health details.
+- **Doctor mode.** A visiting doctor signs in with their own PIN: Empathika briefs them, answers their
+  questions from the care record and her care notes, and takes down their update, reading each item
+  back. Medication changes, instructions and follow-ups stay open until a member of staff acknowledges
+  them. See **[docs/DOCTOR.md](docs/DOCTOR.md)**.
 - **Safety.** She never gives medical advice. If the resident is in pain, unwell, has fallen or is
   upset, she stays calm, asks them to press their call bell or call a carer, and files a care note.
 - **Backup.** The resident's memories are backed up to the Empathika app; a new or repaired box
