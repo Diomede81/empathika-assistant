@@ -2,6 +2,14 @@ node_modules
 dist
 data
 .env
+.env.*
 .git
 wakewords
 wake-coach
+# Not part of the image: keeps each build's upload small.
+hardware
+docs
+training
+scripts
+*.md
+boot-logo.png

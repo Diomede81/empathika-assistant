@@ -157,8 +157,15 @@ if [ "$SCREEN" != none ] && [ "${EMPATHIKA_BOOT_LOGO:-on}" != off ]; then
   for OPT in quiet splash logo.nologo vt.global_cursor_default=0; do
     grep -qw -- "$OPT" "$CMDLINE" || sed -i "s/\$/ $OPT/" "$CMDLINE"
   done
-  # Rebuilds the start-up files with the new theme (takes a minute).
-  plymouth-set-default-theme -R empathika >/dev/null || warn "Could not apply the boot screen; the box starts as before."
+  # Rebuilds the start-up files with the new theme (takes a minute): only when the picture or the theme changed.
+  BOOT_SUM="$(cat "$THEME_DIR/logo.png" "$THEME_DIR/empathika.plymouth" "$THEME_DIR/empathika.script" | sha256sum | cut -d' ' -f1)"
+  if [ "$(cat /etc/empathika/boot-screen.sum 2>/dev/null)" = "$BOOT_SUM" ] && [ "$(plymouth-set-default-theme 2>/dev/null)" = empathika ]; then
+    echo "  Boot screen unchanged: not rebuilt."
+  elif plymouth-set-default-theme -R empathika >/dev/null; then
+    install -d /etc/empathika && echo "$BOOT_SUM" > /etc/empathika/boot-screen.sum
+  else
+    warn "Could not apply the boot screen; the box starts as before."
+  fi
   echo "  Boot screen: $( [ "$LOGO" = "$REPO/boot-logo.png" ] && echo 'your boot-logo.png' || echo "Empathika's face" )"
 fi
 
