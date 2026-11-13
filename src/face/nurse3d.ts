@@ -135,28 +135,24 @@ export const NURSE3D_JS = String.raw`
 
     // ----- the nurse's cap: a folded white band with a green stripe and the logo badge -----
     const cap = new THREE.Group();
-    // A tall cap in the traditional shape, so the logo on its front is large enough to recognise.
-    const capBand = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.74, 0.5, 48, 1, true, -0.62 * Math.PI, 1.24 * Math.PI), white);
-    capBand.material.side = THREE.DoubleSide;
+    // A closed cap that sits down on her hair (its lower edge is inside the hair, so no gap shows under it).
+    const capBand = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.72, 0.42, 64, 1, false), white);
     cap.add(capBand);
-    const capTop = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.04, 48, 1, false, -0.62 * Math.PI, 1.24 * Math.PI), white);
-    capTop.position.y = 0.25; cap.add(capTop);
-    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.722, 0.742, 0.06, 48, 1, true, -0.6 * Math.PI, 1.2 * Math.PI), teal);
-    stripe.material = teal.clone(); stripe.material.side = THREE.DoubleSide;
-    stripe.position.y = -0.19; cap.add(stripe);
+    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.708, 0.726, 0.055, 64, 1, true), teal);
+    stripe.position.y = -0.125; cap.add(stripe);
     // The Empathika logo on the front, in its own colours (not tinted by the lighting), leaning back with the cap.
     const emblem = new THREE.Group();
     const logoTex = new THREE.TextureLoader().load('/brand-logo.png');
     logoTex.colorSpace = THREE.SRGBColorSpace;
     logoTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-    const logo = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4), new THREE.MeshBasicMaterial({ map: logoTex, transparent: true, toneMapped: false }));
+    const logo = new THREE.Mesh(new THREE.PlaneGeometry(0.27, 0.27), new THREE.MeshBasicMaterial({ map: logoTex, transparent: true, toneMapped: false }));
     logo.renderOrder = 3;
     emblem.add(logo);
-    emblem.position.set(0, 0.05, 0.692);
-    emblem.rotation.x = -0.235;
+    emblem.position.set(0, 0.06, 0.652);
+    emblem.rotation.x = -0.28;
     cap.add(emblem);
-    cap.position.set(0, 0.96, 0.02);
-    cap.rotation.x = -22 * deg;
+    cap.position.set(0, 0.94, -0.02);
+    cap.rotation.x = -8 * deg;
     head.add(cap);
 
     // ----- neck and the collar of her uniform (they don't turn with her head) -----
