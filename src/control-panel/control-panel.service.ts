@@ -20,6 +20,7 @@ import { MicrophoneService } from '../audio/microphone.service';
 import { WakeWordService } from '../wake-word/wake-word.service';
 import { UpdatesService } from '../updates/updates.service';
 import { AmbientService, FaceStyle } from '../face/ambient.service';
+import { SCENES } from '../face/scenes';
 import { LockService } from '../lock/lock.service';
 import { PanelData, renderPanel } from './page';
 import { ABOUT_TOPICS, AboutTopic, CIRCLES, CONTACTS, PeopleService } from '../people/people.service';
@@ -363,7 +364,25 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       else res.writeHead(200, { 'Content-Type': p.type, 'Cache-Control': 'private, max-age=86400' }).end(p.data);
       return;
     }
+    if (req.method === 'GET' && action.startsWith('scene/')) {
+      const scene = SCENES[action.slice('scene/'.length).replace(/\.svg$/, '')];
+      if (!scene) res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
+      else res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'private, max-age=86400' }).end(scene.svg);
+      return;
+    }
+    if (req.method === 'GET' && action === 'background') {
+      const b = a.customBackground();
+      if (!b) res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
+      else res.writeHead(200, { 'Content-Type': b.type, 'Cache-Control': 'private, no-cache' }).end(b.data);
+      return;
+    }
     if (req.method !== 'POST') return this.redirect(res, '/#screen');
+    if (action === 'background') {
+      const data = await readBody(req, MAX_PHOTO_BYTES);
+      const out = data ? a.setCustomBackground(data) : { error: 'That picture is too large (15 MB at most).' };
+      if (out.ok) this.log.log('Background picture set for the screen');
+      return this.json(res, out);
+    }
     if (action === 'photo') {
       const data = await readBody(req, MAX_PHOTO_BYTES);
       const out = data ? a.addPhoto(data) : { error: 'That picture is too large (15 MB at most).' };
@@ -381,6 +400,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
         frame: f.get('frame') === 'on',
         captions: f.get('captions') === 'on',
         ...(f.get('face') ? { face: f.get('face') as FaceStyle } : {}),
+        ...(f.get('background') ? { background: f.get('background') ?? 'none' } : {}),
         frameFrom: f.get('frameFrom') ?? '',
         frameTo: f.get('frameTo') ?? '',
         frameEverySec: Number(f.get('frameEverySec') ?? 20),
@@ -580,7 +600,7 @@ export class ControlPanelService implements OnModuleInit, OnModuleDestroy {
       },
       lock: this.lock && this.cfg.face.enabled ? { enabled: this.lock.enabled, locked: this.lock.locked, canReset: this.auth.enabled } : undefined,
       screen: this.ambient && this.cfg.face.enabled
-        ? { ...this.ambient.settings, photos: this.ambient.photos(), place: this.location?.home?.place || undefined }
+        ? { ...this.ambient.settings, hasCustomBackground: Boolean(this.ambient.customBackground()), photos: this.ambient.photos(), place: this.location?.home?.place || undefined }
         : undefined,
       updates: this.updates && {
         onBox: this.updates.onBox,

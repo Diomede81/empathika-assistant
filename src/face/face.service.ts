@@ -57,6 +57,8 @@ export interface FaceInfo {
   glance?: Glance;
   /** Which face to draw (set on the control panel). */
   faceStyle?: string;
+  /** The picture behind the 3D nurse, if one is chosen. */
+  background?: string;
   /** The start-up code hasn't been entered: the keypad shows, and nothing personal. */
   locked?: { pausedUntil?: number; triesLeft: number };
   /** A start-up code is set (the menu offers Lock). */
@@ -320,6 +322,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
       caption: this.ambient?.settings.captions && this.caption && Date.now() < this.caption.until ? { who: this.caption.who, text: this.caption.text } : undefined,
       glance: this.ambient?.glance(),
       faceStyle: this.ambient?.settings.face ?? 'nurse',
+      background: this.ambient?.backgroundUrl(),
       canLock: this.lock?.enabled || undefined,
       staff: this.modes?.staff ? { name: this.modes.staff.name, until: this.modes.staff.until, clinician: this.modes.staff.clinician } : undefined,
       staffPad: Date.now() < this.staffPadUntil && !this.modes?.staff ? (this.staffService?.status() ?? { triesLeft: 5 }) : undefined,

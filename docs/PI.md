@@ -133,6 +133,12 @@ After the restart, Empathika's face appears on the screen and she's listening fo
   her collar pin glow in her mood colour. **Settings → Screen → Face** switches to the
   classic flat face. If the box can't draw the 3D face smoothly, it lowers the detail and then falls back to
   the flat face on its own. Preview on a computer: `/?demo` (add `&face=classic` for the flat face).
+- **Background:** in **Settings → Screen**, choose a picture for behind the 3D nurse: **Garden**, **Seaside**,
+  **Sunset**, **Blossom**, **Cosy room** or **Night sky**, or upload **your own** (the resident's garden, a
+  favourite view). It is a still picture, so it costs the box nothing. It is dimmed a little so the clock and
+  weather stay readable, and much more behind a card and while she sleeps. "Plain dark" is the default. With
+  the classic flat face there is no background. Preview on a computer: `/?demo&bg=garden` (`seaside`,
+  `sunset`, `blossom`, `cosy`, `night`).
 - **Cards on the screen:** when there's something worth seeing, Empathika shrinks to a small face at the top and
   a card fills the screen; tap **Back to Empathika** (or wait) to return.
   - **Timer done / reminder:** with **OK** / **Again**, or **Done** / **Snooze 10 min**.

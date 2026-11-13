@@ -9,6 +9,7 @@ import { FaceInfo, FaceService } from './face.service';
 import type { Mouth } from './visemes';
 import { renderFace } from './face.page';
 import { BRAND_LOGO_PNG } from './brand-logo';
+import { SCENES } from './scenes';
 import { AmbientService } from './ambient.service';
 import { LockService } from '../lock/lock.service';
 import { StaffService } from '../staff/staff.service';
@@ -90,6 +91,20 @@ export class FaceServer implements OnModuleInit, OnModuleDestroy {
       this.clients.add(res);
       this.send(res, 'info', this.face.info());
       req.on('close', () => this.clients.delete(res));
+      return;
+    }
+    if (req.method === 'GET' && url.pathname.startsWith('/scene/')) {
+      // A built-in background for the 3D nurse.
+      const scene = SCENES[url.pathname.slice('/scene/'.length).replace(/\.svg$/, '')];
+      if (!scene) res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
+      else res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'max-age=86400' }).end(scene.svg);
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/background') {
+      // Your own background picture (uploaded on the control panel).
+      const b = this.ambient?.customBackground();
+      if (!b) res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
+      else res.writeHead(200, { 'Content-Type': b.type, 'Cache-Control': 'max-age=86400' }).end(b.data);
       return;
     }
     if (req.method === 'GET' && url.pathname === '/brand-logo.png') {

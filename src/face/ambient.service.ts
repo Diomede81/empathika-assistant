@@ -1,3 +1,4 @@
+import { SCENES } from './scenes';
 import { Inject, Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -30,6 +31,8 @@ export interface AmbientSettings {
   captions: boolean;
   /** Which face: the 3D nurse or the classic flat face. */
   face: FaceStyle;
+  /** Behind the 3D nurse: 'none' (dark), one of the built-in scenes, or 'custom' (the uploaded picture). */
+  background: string;
   /** Dim the screen after this many quiet seconds (0 = never), down to this brightness (%). */
   dimAfterSec: number;
   dimLevel: number;
@@ -47,7 +50,7 @@ const PHOTO_EXT: Record<string, string> = { ffd8ff: 'jpg', '89504e': 'png', '524
 export class AmbientService implements OnModuleInit {
   private readonly log = new Logger('Ambient');
   private readonly store: SealedStore<AmbientSettings>;
-  settings: AmbientSettings = { glance: true, frame: false, frameFrom: '19:00', frameTo: '23:00', frameEverySec: 20, captions: false, face: 'nurse', dimAfterSec: 10, dimLevel: 20 };
+  settings: AmbientSettings = { glance: true, frame: false, frameFrom: '19:00', frameTo: '23:00', frameEverySec: 20, captions: false, face: 'nurse', background: 'none', dimAfterSec: 10, dimLevel: 20 };
   private readonly photoDir: string;
   private photoList: { names: string[]; at: number } = { names: [], at: 0 };
 
@@ -74,6 +77,8 @@ export class AmbientService implements OnModuleInit {
     if (changes.dimAfterSec !== undefined) changes.dimAfterSec = Math.max(0, Math.min(3600, Math.round(changes.dimAfterSec) || 0));
     if (changes.dimLevel !== undefined) changes.dimLevel = Math.max(5, Math.min(80, Math.round(changes.dimLevel) || 20));
     if (changes.face !== undefined && !(changes.face in FACE_STYLES)) return 'Unknown face.';
+    if (changes.background !== undefined && changes.background !== 'none' && changes.background !== 'custom' && !(changes.background in SCENES)) return 'Unknown background.';
+    if (changes.background === 'custom' && !this.customBackground()) return 'Upload a picture first, then choose "Your own picture".';
     if (changes.frameEverySec !== undefined) changes.frameEverySec = Math.max(5, Math.min(600, Math.round(changes.frameEverySec) || 20));
     this.settings = { ...this.settings, ...changes };
     this.store.save(this.settings).catch((err) => this.log.warn(`Could not save the screen settings: ${(err as Error).message}`));
@@ -104,6 +109,48 @@ export class AmbientService implements OnModuleInit {
     const t = new Intl.DateTimeFormat('en-GB', { timeZone: timeZone(), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
     const { frameFrom: a, frameTo: b } = this.settings;
     return a <= b ? t >= a && t < b : t >= a || t < b;
+  }
+
+  // ---------- The background behind the 3D nurse ----------
+
+  /** Where the screen fetches the background from (changes when the picture does, so it is never stale), or undefined for none. */
+  backgroundUrl(): string | undefined {
+    const b = this.settings.background;
+    if (b === 'custom') {
+      const c = this.customBackground();
+      return c ? `/background?v=${Math.round(c.at)}` : undefined;
+    }
+    return b in SCENES ? `/scene/${b}.svg` : undefined;
+  }
+
+  /** Your own picture for the background (JPEG, PNG or WebP, up to 15 MB): it replaces the previous one. */
+  setCustomBackground(data: Buffer): { ok?: boolean; error?: string } {
+    if (data.length > PHOTO_MAX) return { error: 'That picture is too large (15 MB at most).' };
+    const ext = PHOTO_EXT[data.subarray(0, 3).toString('hex')];
+    if (!ext || (ext === 'webp' && data.subarray(8, 12).toString() !== 'WEBP')) return { error: 'Only JPEG, PNG or WebP pictures.' };
+    for (const e of Object.values(PHOTO_EXT)) {
+      try {
+        unlinkSync(join(this.cfg.memory.dir, `background.${e}`));
+      } catch {
+        // there was none
+      }
+    }
+    mkdirSync(this.cfg.memory.dir, { recursive: true });
+    writeFileSync(join(this.cfg.memory.dir, `background.${ext}`), data);
+    this.save({ background: 'custom' });
+    return { ok: true };
+  }
+
+  customBackground(): { data: Buffer; type: string; at: number } | undefined {
+    for (const e of Object.values(PHOTO_EXT)) {
+      const p = join(this.cfg.memory.dir, `background.${e}`);
+      try {
+        return { data: readFileSync(p), type: e === 'jpg' ? 'image/jpeg' : `image/${e}`, at: statSync(p).mtimeMs };
+      } catch {
+        // try the next kind
+      }
+    }
+    return undefined;
   }
 
   // ---------- Photos for the frame ----------

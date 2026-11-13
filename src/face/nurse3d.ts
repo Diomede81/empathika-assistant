@@ -194,8 +194,26 @@ export const NURSE3D_JS = String.raw`
     try { drawFeatures(); } finally { SKIN = false; g = keep; }
   }
 
+  /**
+   * The picture behind her (a built-in scene or your own, chosen on the control panel; ?bg=garden to
+   * preview one). It is a still picture under the 3D head, so it costs the box nothing. A dark veil
+   * keeps the clock and the weather readable; it gets much darker behind a card and while she sleeps.
+   */
+  function backdrop(state, cmp) {
+    if (!R3.c3) return;
+    const url = params.get('bg') ? '/scene/' + params.get('bg') + '.svg' : info.background;
+    const veil = !url ? 0 : cmp > 0.5 ? 0.84 : state === 'sleeping' ? 0.74 : 0.16;
+    const key = url + '|' + veil;
+    if (key === R3.bgKey) return;
+    R3.bgKey = key;
+    R3.c3.style.background = url
+      ? 'radial-gradient(circle at 50% 46%, rgba(12,9,22,' + veil + ') 34%, rgba(12,9,22,' + Math.min(0.92, veil + 0.34) + ') 100%), url("' + url + '") center / cover no-repeat'
+      : '';
+  }
+
   /** Moves the head and draws the 3D scene for this frame. */
   function renderRobot(P, now, cmp, state, rgbCol) {
+    backdrop(state, cmp);
     const T = R3.THREE, h = R3.head, b = R3.body;
     const breathe = Math.sin(now / 1300);
     h.rotation.y = P.lx * 0.3 + Math.sin(now / 3900) * 0.025;
@@ -236,7 +254,7 @@ export const NURSE3D_JS = String.raw`
     if (R3.c3) R3.c3.remove();
     if (R3.renderer) R3.renderer.dispose();
     R3.c3 = undefined; R3.renderer = undefined; R3.resize = undefined;
-    R3.frames = 0; R3.started = 0; R3.lowered = false;
+    R3.frames = 0; R3.started = 0; R3.lowered = false; R3.bgKey = undefined;
   }
 
   /** Shows the chosen face: swaps between the 3D nurse and the classic face in place, no reload. */

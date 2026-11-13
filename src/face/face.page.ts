@@ -1106,6 +1106,14 @@ ${NURSE3D_JS}
       const w = gl.weather;
       g.font = '600 ' + Math.round(30 * s) + 'px system-ui, sans-serif'; g.fillStyle = rgb(0.8);
       const top = R3.on ? cy - (info.mode === 'staff' ? 272 : 292) * s : info.mode === 'staff' ? cy - 218 * s : cy - 262 * s;
+      if (R3.on && (params.get('bg') || info.background)) {
+        // Over a background picture: a soft dark backing so the weather reads on a bright sky.
+        const sh = g.shadowBlur; g.shadowBlur = 0;
+        roundRect(cx - 185 * s, top - 24 * s, 370 * s, (w.hi !== undefined ? 70 : 46) * s, 23 * s);
+        g.fillStyle = 'rgba(10,8,18,0.58)'; g.fill();
+        g.shadowBlur = sh;
+        g.fillStyle = rgb(0.8);
+      }
       g.fillText(fit(w.icon + '  ' + w.temp + '°  ·  ' + w.text, 330 * s), cx, top);
       if (w.hi !== undefined) {
         g.font = '500 ' + Math.round(20 * s) + 'px system-ui, sans-serif'; g.fillStyle = rgb(0.45);
