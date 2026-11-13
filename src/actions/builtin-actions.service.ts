@@ -43,7 +43,9 @@ export class BuiltinActionsService {
         'end_conversation',
         'Go quiet and stop listening until the wake word. Call it, and say nothing else, when the user tells you to ' +
           'stop or that they are done ("stop", "that\'s all", "never mind"), or when what you just heard was clearly NOT ' +
-          'said to you: people talking to each other, a phone call, the TV. If unsure whether it was meant for you, answer normally.',
+          'said to you: people talking to each other, a phone call, the TV. If unsure whether it was meant for you, answer normally. ' +
+          'NEVER call it for a thank-you: "thank you" is politeness, not goodbye. Answer it in a few warm words ("You\'re ' +
+          'welcome") without starting a new topic, and stay available.',
         {},
       ),
       tool(

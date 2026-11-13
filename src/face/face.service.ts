@@ -427,7 +427,7 @@ export class FaceService extends EventEmitter implements OnModuleInit, OnModuleD
   }
 
   /**
-   * You ended the conversation ("thank you", "stop", "that's all"...): the card Empathika showed for it
+   * You ended the conversation ("stop", "that's all", "goodbye"...): the card Empathika showed for it
    * goes and her face comes back. A recipe you're following, a timer or reminder going off and
    * notifications stay until you close them.
    */

@@ -1,45 +1,87 @@
 /**
- * "Stop", "that's all", "never mind", "I'm not talking to you"... Said on its own (not "stop the
- * music"), it ends the conversation at once: Empathika goes quiet and back to waiting for the wake word,
- * without asking the AI model.
+ * When a conversation is over.
+ *
+ * Three signals, from the surest to the gentlest:
+ *
+ *  1. A clear stop or goodbye, said on its own ("stop", "that's all", "goodbye", "good night", "never
+ *     mind", "I'm not talking to you"), with or without a thank-you around it ("thank you, that's
+ *     all", "thanks, bye for now"): the conversation ends at once, without asking the AI model.
+ *     Not when it is part of a sentence ("stop the timer", "I said goodbye to her").
+ *
+ *  2. A thank-you on its own ("thank you", "lovely, thank you dear") is politeness, not a goodbye:
+ *     people in a care home say it all the time. It never ends the conversation. Empathika answers
+ *     it, and then winds down: if she didn't ask anything back, she listens for a shorter moment and
+ *     goes quiet if nothing more is said (windDown). A request after it carries on as usual.
+ *
+ *  3. Everything else is the AI model's call (the end_conversation action): it hears the whole
+ *     conversation, so it can tell "right, I'll have my tea now" from a question.
  */
 const PHRASES = [
   'stop', 'stop it', 'stop talking', 'stop now', 'just stop', 'please stop', 'stop stop',
   'quiet', 'be quiet', 'shush', 'shh', 'hush', 'shut up', 'silence', 'enough', "that's enough",
-  "that's all", "that's it", 'that is all', 'all good', "i'm done", 'done', "we're done",
+  "that's all", "that's it", 'that is all', 'that will be all', "that'll be all", 'all good', "i'm done", 'done', "we're done",
   'never mind', 'nevermind', 'forget it', 'forget about it', 'cancel', 'cancel that',
-  'go to sleep', 'go away', 'goodbye', 'bye', 'bye bye', 'see you', 'good night',
-  'thanks', 'thank you', 'cheers', 'ok thanks', 'ok thank you', 'no thanks', 'no thank you', 'nothing',
+  'go to sleep', 'go away', 'goodbye', 'bye', 'bye bye', 'see you', 'see you later', 'see you tomorrow', 'good night', 'night night',
+  'nothing', 'nothing else', 'no nothing else',
   'not you', "i'm not talking to you", "i wasn't talking to you", 'not talking to you', "wasn't talking to you",
   'talking to someone else', "i'm talking to someone else",
 ];
 const STOP = new Set(PHRASES.map((p) => p.replace(/'/g, '')));
 const WAKE_WORDS = /^(hey |hi |ok |okay )?(empathika|empathica|empatika|max|jarvis)\b ?/;
-const POLITE = /\b(please|thanks|thank you|empathika|max|now)$/;
-/** "Thank you", "great, thanks", "thank you very much", "perfect, thanks Empathika"... (short, nothing else asked). */
-const THANKS = /^((ok|okay|oh|great|perfect|lovely|brilliant|cool|nice|awesome|fantastic|wonderful|excellent|good|right|alright|fine|super|that s great|that s perfect|that s all|that s it|thats great|thats perfect|thats all|thats it|all good|got it|no) )*(thanks|thank you|thankyou|cheers|ta)( (so|very) much| a lot| a million| again| for that| for your help| max| mate)*$/;
+/** Words of thanks, in the forms speech recognition writes them. */
+const THANK = '(?:thank you|thanks|thankyou|thank u|cheers|ta|much obliged|bless you)';
+/**
+ * Words that don't change what was meant: politeness, endearments, her name, little fillers. Taken
+ * out before looking for a goodbye, so "thank you dear, that's all for now" is still "that's all".
+ */
+const FILLER = new RegExp(
+  `\\b(?:${THANK}(?: (?:so|very) much| a lot| a million| again| for that| for your help| for everything)*` +
+    '|please|ok|okay|oh|well|right|alright|so|then|now|for now|for today|for tonight|i think|yes|yeah' +
+    '|lovely|great|perfect|brilliant|wonderful|super|that s (?:great|perfect|lovely)|thats (?:great|perfect|lovely)' +
+    '|dear|love|darling|pet|duck|nurse|empathika|empathica|max|my dear|my love)\\b',
+  'g',
+);
+/** Only thanks and filler, nothing asked ("thank you", "oh that's lovely, thank you dear"). */
+const HAS_THANKS = new RegExp(`\\b${THANK}\\b`);
 
-/** A thank-you anywhere in what was said: in the household's experience it nearly always means "we're done". */
-const THANKS_ANYWHERE = /\b(thank you|thanks|thankyou|cheers)\b/;
-/** ...except when the thank-you is what's being asked about: "send a thank-you email", "how do I say thank you". */
-const THANKS_AS_TOPIC =
-  /\b(thank you|thanks|thankyou) (email|e mail|note|card|message|letter|text|gift|present|speech|video)\b|\b(say|saying|said|write|writing|send|sending|translate|spell)( a| the| my| them| her| her| it| an)? (thank you|thanks|thankyou)\b/;
-/** ...or when a new request follows it: "thanks, can you also...", "thanks, but that's wrong", "thanks, what about tomorrow?". */
-const REQUEST_AFTER_THANKS =
-  /\b(thank you|thanks|thankyou|cheers)\b.*\b(can you|could you|would you|will you|can i|could i|please|whats|hows|whos|wheres|(what|how|when|where|who|why|which) (about|is|are|was|were|will|would|do|does|did|should|can|could|time|much|many|long|far|if)|is it|are there|set|add|remind|tell|play|turn|send|call|open|show|find|check|read|book|also|another|one more|but|however|wait|actually|i want|i need|i meant|instead|now)\b/;
-
-export function isStopRequest(text: string): boolean {
-  let t = text
+function plain(text: string): string {
+  return text
     .toLowerCase()
     .replace(/[’']/g, '')
     .replace(/[^a-z ]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  if (!t) return false;
-  if (THANKS_ANYWHERE.test(t) && !THANKS_AS_TOPIC.test(t) && !REQUEST_AFTER_THANKS.test(t)) return true;
-  if (t.split(' ').length > 7) return false;
-  t = t.replace(WAKE_WORDS, '').trim();
-  if (THANKS.test(t)) return true;
-  for (let i = 0; i < 2 && !STOP.has(t); i++) t = t.replace(POLITE, '').trim(); // "stop please empathika"
-  return STOP.has(t) || STOP.has(t.replace(/^(ok|okay|no|oh|alright) /, ''));
+}
+
+/** What is left once the politeness and fillers are taken out. */
+function core(t: string): string {
+  return t.replace(WAKE_WORDS, '').replace(FILLER, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** A clear stop or goodbye: ends the conversation at once. A thank-you alone is not one. */
+export function isStopRequest(text: string): boolean {
+  const t = plain(text);
+  if (!t || t.split(' ').length > 10) return false;
+  // As said ("good night", "all good"), then with the politeness and fillers taken out ("thank you dear, that's all for now").
+  if (STOP.has(t.replace(WAKE_WORDS, '').trim())) return true;
+  const c = core(t);
+  if (!c) return false; // only thanks and fillers: politeness, not a goodbye
+  return STOP.has(c) || STOP.has(c.replace(/^(no|and) /, ''));
+}
+
+/** A thank-you and nothing else: politeness. Empathika answers it; it doesn't end the conversation. */
+export function isJustThanks(text: string): boolean {
+  const t = plain(text);
+  if (!t || t.split(' ').length > 10 || !HAS_THANKS.test(t)) return false;
+  return core(t).replace(/^no$/, '') === '';
+}
+
+/**
+ * After a thank-you on its own: whether to wind the conversation down (a shorter wait, then quiet).
+ * Not when Empathika's answer asked something ("Would you like another?"): then she waits for the
+ * answer as usual. Not when an activity is under way: "thank you" there is part of the game.
+ */
+export function windDown(userText: string, reply: string | undefined, activityRunning = false): boolean {
+  if (activityRunning || !isJustThanks(userText)) return false;
+  return !/\?\s*["'”’)]*\s*$/.test((reply ?? '').trim());
 }

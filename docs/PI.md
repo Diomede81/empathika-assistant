@@ -169,8 +169,9 @@ After the restart, Empathika's face appears on the screen and she's listening fo
   The puzzle shows big on the screen with a **Clue** button. Birthdays and special family dates get a card and a spoken
   reminder, on the day and a few days before. See [ACTIVITIES.md](ACTIVITIES.md) and [PEOPLE.md](PEOPLE.md).
 - **Talking to Empathika:** say "Hey Empathika" and she answers **"Hello, how can I help?"**, then listens. To end the
-  conversation, say "stop", "that's all" or **"thank you"**, on its own or in a sentence ("that was
-  really helpful, thank you"); a request after it still goes through ("thanks, and what time is lunch?").
+  conversation, say "stop", "that's all", "goodbye" or "good night" (also with a thank-you: "thank you, that's
+  all"). **"Thank you" on its own doesn't end it**: it's politeness, so she answers ("You're welcome") and
+  stays; if she hasn't asked anything and nothing more is said, she goes quiet after a few seconds.
   When the box starts or Empathika restarts (an update), a short **jingle** tells you she's ready. The greeting
   (empty = a short beep) and the jingle are set in **Settings → Voice & night** on the control panel.
 - **Microphone off (privacy):** press the button on top of the box, or use **Mute the microphone** on the control

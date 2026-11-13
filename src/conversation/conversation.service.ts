@@ -18,7 +18,8 @@ import { amendLast, markReady, recordWake } from '../wake-word/wake-log';
 import { LockService } from '../lock/lock.service';
 import { DeviceService } from '../device/device.service';
 import { LiveVoiceService } from '../realtime/live-voice.service';
-import { isStopRequest } from './stop';
+import { isStopRequest, windDown } from './stop';
+import { ActivitiesService } from '../activities/activities.service';
 import { ConversationControl } from '../actions/conversation-control';
 import { ActivityEvent, ToolRouterService } from '../actions/tool-router.service';
 import { said } from '../log-content';
@@ -28,6 +29,8 @@ type State = 'idle' | 'wake' | 'listen' | 'respond';
 const HISTORY_LIMIT = 16;
 const HISTORY_RESET_MS = 2 * 60 * 1000;
 const FOLLOW_UP_WINDOW_MS = 5000;
+/** After a thank-you that she answered without asking anything: a shorter wait, then quiet. */
+const WIND_DOWN_MS = 3500;
 const CHIME_GRACE_MS = 400;
 /** The start-up jingle waits a moment for the sound system to be ready. */
 const START_SOUND_DELAY_MS = 1500;
@@ -109,6 +112,8 @@ export class ConversationService implements OnApplicationBootstrap {
   /** end_conversation: the AI decided the conversation is over. */
   @Optional() @Inject(ConversationControl) private readonly control?: ConversationControl;
   @Optional() @Inject(ToolRouterService) private readonly toolRouter?: ToolRouterService;
+  /** A game under way: "thank you" there is part of the game, not the end of the conversation. */
+  @Optional() @Inject(ActivitiesService) private readonly activities?: ActivitiesService;
   /** The box's screen: idle / listening / thinking (speaking follows the audio). */
   @Optional() @Inject(FaceService) private readonly face?: FaceService;
 
@@ -388,10 +393,12 @@ export class ConversationService implements OnApplicationBootstrap {
 
   private async conversationTurns(): Promise<void> {
     let noSpeechMs = 5000;
+    let heard = '';
     for (;;) {
       try {
-        const text = await this.listen(noSpeechMs, noSpeechMs === FOLLOW_UP_WINDOW_MS);
+        const text = await this.listen(noSpeechMs, noSpeechMs === FOLLOW_UP_WINDOW_MS || noSpeechMs === WIND_DOWN_MS);
         if (!text || this.cancelled) return;
+        heard = text.value;
         // "Stop", "that's all", "not talking to you": go quiet straight away, no AI involved.
         if (isStopRequest(text.value)) {
           this.log.log(`Stopping: you said ${said(text.value)}`);
@@ -420,7 +427,9 @@ export class ConversationService implements OnApplicationBootstrap {
         this.onChunk = () => undefined;
         return;
       }
-      noSpeechMs = FOLLOW_UP_WINDOW_MS;
+      // "Thank you" is politeness, not goodbye: she has answered it; if she asked nothing back, a shorter wait, then quiet.
+      const reply = [...this.transcript].reverse().find((l) => l.who === 'empathika')?.text;
+      noSpeechMs = windDown(heard, reply, Boolean(this.activities?.playing)) ? WIND_DOWN_MS : FOLLOW_UP_WINDOW_MS;
       // Let Empathika's voice finish coming out of the speakers before listening again, so she
       // doesn't transcribe (and answer) the end of her own sentence.
       await new Promise((r) => setTimeout(r, this.cfg.audio.echoTailMs));

@@ -19,7 +19,8 @@ import { MemoryService } from '../memory/memory.service';
 import { MemoryLearnerService, TranscriptLine } from '../memory/memory-learner.service';
 import { SoulService } from '../soul/soul.service';
 import { ModesService } from '../memory/modes.service';
-import { isStopRequest } from '../conversation/stop';
+import { isStopRequest, windDown } from '../conversation/stop';
+import { ActivitiesService } from '../activities/activities.service';
 import { ConversationControl } from '../actions/conversation-control';
 import { LiveVoiceService } from './live-voice.service';
 import { said } from '../log-content';
@@ -40,6 +41,8 @@ const RUNNING_MAX_MS = 150_000;
 const INTERRUPT_REOPEN_MS = 250;
 /** How long Empathika holds her answer back after the user pauses, unless Settings > Device says otherwise. */
 const DEFAULT_GRACE_MS = 800;
+/** After a thank-you that she answered without asking anything: a shorter wait, then quiet. */
+const WIND_DOWN_MS = 4000;
 /** Told to the voice model when a held answer was dropped (it believes it said it). */
 const UNHEARD_NOTE = '(The user had not finished speaking: your last answer was not played to them. Answer what they say next on its own, without referring to it.)';
 
@@ -56,6 +59,7 @@ export class RealtimeConversationService {
 
   @Optional() @Inject(SoulService) private readonly soul?: SoulService;
   @Optional() @Inject(ModesService) private readonly modes?: ModesService;
+  @Optional() @Inject(ActivitiesService) private readonly activities?: ActivitiesService;
   @Optional() @Inject(ConversationControl) private readonly control?: ConversationControl;
   /** The voice and speaking style chosen on the control panel (else REALTIME_VOICE / REALTIME_STYLE). */
   @Optional() @Inject(LiveVoiceService) private readonly liveVoice?: LiveVoiceService;
@@ -429,6 +433,8 @@ export class RealtimeConversationService {
       lastActivity = wordsAt;
       if (first) trace(`your words arrived (${n} so far${speechStoppedAt > speechStartedAt ? `, ${((wordsAt - speechStoppedAt) / 1000).toFixed(1)}s after you stopped` : ', while you speak'})`);
     };
+    let lastHeard = '';
+    let lastReply = '';
     client.on('user-words', (t: string) => {
       this.tools.heard(t);
       heardWords(t);
@@ -439,6 +445,7 @@ export class RealtimeConversationService {
       this.log.log(`You: ${said(t)}`);
       transcript.push({ who: 'user', text: t });
       this.face?.heard(t);
+      lastHeard = t;
       if (isStopRequest(t)) hush(`you said "${t}"`);
     });
     // Her expression follows her words as they're spoken, a sentence at a time.
@@ -450,6 +457,7 @@ export class RealtimeConversationService {
       for (const s of sentences.flush()) this.face?.said(s);
       this.log.log(`Empathika: ${said(t)}`);
       transcript.push({ who: 'empathika', text: t });
+      lastReply = t;
     });
     client.on('error', (err: Error) => {
       this.log.error(`${providerName}: ${err.message}`);
@@ -472,7 +480,9 @@ export class RealtimeConversationService {
       const tick = setInterval(() => {
         const now = Date.now();
         const quietFor = now - lastActivity;
-        const limit = turns === 0 ? FIRST_TURN_WAIT_MS : followUpMs;
+        // "Thank you" is politeness, not goodbye: once she has answered it without asking anything back, a shorter wait, then quiet.
+        const winding = windDown(lastHeard, lastReply, Boolean(this.activities?.playing));
+        const limit = turns === 0 ? FIRST_TURN_WAIT_MS : winding ? Math.min(followUpMs, WIND_DOWN_MS) : followUpMs;
         // While the user is talking, nothing ends the conversation (a long question's words arrive only at its pauses);
         // only an unbroken stretch of sound with no words at all, far longer than a sentence, is taken for noise.
         if (userSpeaking && speechStartedAt && now - speechStartedAt > NOISE_SEGMENT_MAX_MS && wordsAt < speechStartedAt) {
