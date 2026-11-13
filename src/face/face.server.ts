@@ -8,6 +8,7 @@ import { APP_CONFIG, AppConfig } from '../config';
 import { FaceInfo, FaceService } from './face.service';
 import type { Mouth } from './visemes';
 import { renderFace } from './face.page';
+import { BRAND_LOGO_PNG } from './brand-logo';
 import { AmbientService } from './ambient.service';
 import { LockService } from '../lock/lock.service';
 import { StaffService } from '../staff/staff.service';
@@ -89,6 +90,11 @@ export class FaceServer implements OnModuleInit, OnModuleDestroy {
       this.clients.add(res);
       this.send(res, 'info', this.face.info());
       req.on('close', () => this.clients.delete(res));
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/brand-logo.png') {
+      // The logo on the 3D nurse's cap.
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=86400' }).end(BRAND_LOGO_PNG);
       return;
     }
     if (req.method === 'GET' && url.pathname.startsWith('/vendor/')) {

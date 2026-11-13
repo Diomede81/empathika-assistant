@@ -1,10 +1,10 @@
 /**
  * The 3D face (three.js, WebGL): a friendly nurse. A soft, warm-skinned head with chestnut hair
- * in a bun, a white nurse's cap with a teal band and a little heart, small earrings, and the collar
- * of a teal uniform. Empathika's eyes, lashes, brows, lips and blush are drawn exactly as on the
+ * in a bun, a white nurse's cap with a green band and the Empathika logo as a badge, small earrings,
+ * and the collar of a green uniform. Empathika's eyes, lashes, brows, lips and blush are drawn exactly as on the
  * classic face (same expressions, blinks, gaze and lip-sync), in natural colours, onto a sheet that
  * hugs the front of the head; and the head moves in 3D: it turns to look around, tilts, and droops
- * when she sleeps. Her mood colour shows in the heart on her cap, her earrings and her collar pin.
+ * when she sleeps. Her mood colour shows in her earrings and her collar pin.
  *
  * Built on Max's 3D face engine. This is browser code inserted into the face page's script (same
  * scope: g, W, H, cx, cy, R, info, params, demo, roundRect...). It's in the page's template string,
@@ -18,7 +18,7 @@ export const NURSE3D_JS = String.raw`
   const faceCv = document.createElement('canvas'); faceCv.width = VW; faceCv.height = VH;
   const vg = faceCv.getContext('2d');
   /** Half the screen height in 3D units: the head (radius 1) fills about half the screen, leaving room above and below for the clock and glance. */
-  const VIEW_HALF = 2.12;
+  const VIEW_HALF = 2.3;
 
   /** Which face: 'classic' (flat) or the 3D nurse. */
   const CHARACTERS = ['nurse'];
@@ -70,8 +70,8 @@ export const NURSE3D_JS = String.raw`
     const skin = mat(0xf2c4a2, 0.62, 0, 0.45);
     const hair = mat(0x6a3a24, 0.5, 0, 0.7);
     const white = mat(0xfbfaf8, 0.5, 0, 0.55);
-    const teal = mat(0x1c6a73, 0.6, 0, 0.45);
-    // Her mood colour: the heart on her cap, her earrings and her collar pin.
+    const teal = mat(0x3f7a44, 0.6, 0, 0.45); // the logo's green: her uniform, cap stripe and hair band
+    // Her mood colour: her earrings and her collar pin.
     const glow = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xc8a5ff, emissiveIntensity: 1.6 });
     const add = (parent, geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); parent.add(o); return o; };
 
@@ -128,29 +128,34 @@ export const NURSE3D_JS = String.raw`
       const lock = add(head, new THREE.SphereGeometry(0.3, 24, 18), hair, sd * 0.82, 0.32, 0.3);
       lock.scale.set(0.55, 1.15, 0.7); lock.rotation.z = sd * 0.25;
     }
-    // the bun, with a teal band
+    // the bun, with a green band
     add(head, new THREE.SphereGeometry(0.34, 32, 24), hair, 0, 0.5, -0.86);
     const band = add(head, new THREE.TorusGeometry(0.22, 0.045, 12, 40), teal, 0, 0.42, -0.7);
     band.rotation.x = 0.9;
 
-    // ----- the nurse's cap: a folded white band with a teal stripe and a heart -----
+    // ----- the nurse's cap: a folded white band with a green stripe and the logo badge -----
     const cap = new THREE.Group();
-    const capBand = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.74, 0.3, 48, 1, true, -0.62 * Math.PI, 1.24 * Math.PI), white);
+    // A tall cap in the traditional shape, so the logo on its front is large enough to recognise.
+    const capBand = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.74, 0.5, 48, 1, true, -0.62 * Math.PI, 1.24 * Math.PI), white);
     capBand.material.side = THREE.DoubleSide;
     cap.add(capBand);
-    const capTop = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.66, 0.04, 48, 1, false, -0.62 * Math.PI, 1.24 * Math.PI), white);
-    capTop.position.y = 0.15; cap.add(capTop);
-    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.715, 0.735, 0.06, 48, 1, true, -0.6 * Math.PI, 1.2 * Math.PI), teal);
+    const capTop = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.04, 48, 1, false, -0.62 * Math.PI, 1.24 * Math.PI), white);
+    capTop.position.y = 0.25; cap.add(capTop);
+    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.722, 0.742, 0.06, 48, 1, true, -0.6 * Math.PI, 1.2 * Math.PI), teal);
     stripe.material = teal.clone(); stripe.material.side = THREE.DoubleSide;
-    stripe.position.y = -0.08; cap.add(stripe);
-    // a little heart on the front (in her mood colour)
-    const heart = new THREE.Group();
-    for (const sd of [-1, 1]) { const lobe = new THREE.Mesh(new THREE.SphereGeometry(0.042, 16, 12), glow); lobe.position.set(sd * 0.032, 0.02, 0); heart.add(lobe); }
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.058, 0.08, 16), glow); tip.rotation.z = Math.PI; tip.position.y = -0.03; heart.add(tip);
-    heart.scale.z = 0.5;
-    heart.position.set(0, 0.04, 0.72);
-    cap.add(heart);
-    cap.position.set(0, 0.86, 0.02);
+    stripe.position.y = -0.19; cap.add(stripe);
+    // The Empathika logo on the front, in its own colours (not tinted by the lighting), leaning back with the cap.
+    const emblem = new THREE.Group();
+    const logoTex = new THREE.TextureLoader().load('/brand-logo.png');
+    logoTex.colorSpace = THREE.SRGBColorSpace;
+    logoTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    const logo = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4), new THREE.MeshBasicMaterial({ map: logoTex, transparent: true, toneMapped: false }));
+    logo.renderOrder = 3;
+    emblem.add(logo);
+    emblem.position.set(0, 0.05, 0.692);
+    emblem.rotation.x = -0.235;
+    cap.add(emblem);
+    cap.position.set(0, 0.96, 0.02);
     cap.rotation.x = -22 * deg;
     head.add(cap);
 
@@ -203,7 +208,7 @@ export const NURSE3D_JS = String.raw`
     // While a card shows, the head moves up and shrinks (like the classic face); her shoulders go with it.
     const sc = (1 - cmp * 0.68) * (1 + breathe * 0.006);
     h.scale.set(sc, sc, sc);
-    h.position.y = 0.18 * (1 - cmp) + breathe * 0.012 + cmp * VIEW_HALF * 0.64;
+    h.position.y = -0.06 * (1 - cmp) + breathe * 0.012 + cmp * VIEW_HALF * 0.64;
     b.scale.set(sc, sc, sc);
     b.position.y = h.position.y - breathe * 0.006;
     b.visible = cmp < 0.6;
